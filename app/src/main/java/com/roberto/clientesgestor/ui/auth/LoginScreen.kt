@@ -18,26 +18,28 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.navigation.NavHostController
 
 /**
  * LoginScreen
  * -----------
  * ✔ Tipo: función @Composable
  *
- * ¿Qué es? Una función que dibuja la pantalla de inicio de sesión.
-
- * - Recibe un nombre de la app.
- * - Lo guarda en una variable que puede cambiar.
- * - Muestra textos y un botón.
- * - Cuando pulsas el botón, cambia el mensaje mostrado.
+ * ¿Qué hace?
+ * Dibuja la pantalla de inicio de sesión.
  *
+ * Elementos clave:
+ * - Recibe un NavHostController para poder navegar.
+ * - Muestra textos y un botón.
+ * - Gestiona estados internos si la pantalla los necesita.
  */
 @Composable
 fun LoginScreen(
 
-    nombreApp: String   // ← Parámetro de entrada: texto que se mostrará al inicio
+    navController: NavHostController
 
 ) {
+
 
     /**
      * mensaje
@@ -73,7 +75,7 @@ fun LoginScreen(
      * by → ✔ OPERADOR de delegación
      */
     var mensaje by remember {
-        mutableStateOf(nombreApp)
+        mutableStateOf("ClientesGestor")
     }
 
 
