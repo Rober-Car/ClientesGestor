@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.navigation.NavHostController
+import com.roberto.clientesgestor.navigation.Routes
 
 /**
  * LoginScreen
@@ -268,30 +269,51 @@ fun LoginScreen(
 
 
         /**
-         * Button(onClick = { ... })
-         * -------------------------
+         * Button
+         * ------
          * ✔ TIPO: función @Composable
+         * ✔ CLASE REAL: androidx.compose.material3.Button
          *
-         * es Un botón interactivo de Material Design.
+         * ¿Qué es?
+         * Un componente interactivo que el usuario puede pulsar.
          *
          * ¿Qué hace?
-         * - Ejecuta la acción del parámetro onClick cuando el usuario lo pulsa.
-         * - Puede activarse o desactivarse mediante el parámetro enabled.
+         * Ejecuta el bloque de código definido en el parámetro `onClick`cuando el usuario toca el botón.
          *
-         * enabled = formularioValido
-         * --------------------------
-         * ✔ TIPO: parámetro booleano
-         * ✔ VALOR: variable formularioValido (Boolean)
-         * Activa o desactiva el botón según si el formulario es válido.
+         * Parámetro: onClick
+         * ------------------
+         * ✔ TIPO: función lambda
          *
-         * ¿Cómo funciona?
-         * - Si formularioValido es true → el botón se puede pulsar.
-         * - Si formularioValido es false → el botón aparece desactivado.
+         * ¿Qué hace?
+         * - Actualiza la variable de estado `mensaje` con el texto "Bienvenido".
+         * - Llama a navController.navigate(Routes.HOME) para cambiar de pantalla.
+         *
+         *
+         * Parámetro: enabled
+         * ------------------
+         * ✔ TIPO: Boolean
+         *
+         * ¿Qué hace?
+         * Controla si el botón está activo o desactivado.
+         * - true → el usuario puede pulsarlo.
+         * - false → aparece deshabilitado y no responde.
+         *
+         * Contenido del botón
+         * -------------------
+         * Text("Entrar")
+         * ✔ TIPO: función @Composable
+         * ✔ CLASE REAL: androidx.compose.material3.Text
+         *
+         * ¿Qué hace?
+         * Muestra el texto dentro del botón.
+         *
          */
         Button(
             onClick = {
 
                 mensaje = "Bienvenido"   // ← VARIABLE con estado que se actualiza
+
+                navController.navigate(Routes.HOME)
             },
 
             enabled = formularioValido   // ← PARÁMETRO booleano que controla si el botón está activo
@@ -299,13 +321,12 @@ fun LoginScreen(
 
             /**
              * Text("Entrar")
-             * Muestra el texto dentro del botón.
-             *
-             * ¿Para qué sirve?
-             * Para indicar al usuario la acción del botón.
+             * -------------
+             * ✔ Muestra el texto dentro del botón.
              */
             Text("Entrar")
         }
 
     }
+
 }
