@@ -265,7 +265,7 @@ fun LoginScreen(
 
         Text("Gestión de clientes y cuotas")
 
-        Spacer(modifier = Modifier.height(16.dp))
+
 
 
         /**
