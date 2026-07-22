@@ -260,7 +260,9 @@ fun LoginScreen(
          * Muestra una frase fija debajo del mensaje principal.
          */
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(
+            modifier = Modifier.height(16.dp)
+        )
 
 
         Text("Gestión de clientes y cuotas")

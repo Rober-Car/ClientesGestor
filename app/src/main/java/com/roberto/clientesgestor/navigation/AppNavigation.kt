@@ -5,7 +5,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.roberto.clientesgestor.ui.auth.LoginScreen
-import com.roberto.clientesgestor.ui.cliente.HomeScreen
+import com.roberto.clientesgestor.ui.clientes.ClientesScreen
+import com.roberto.clientesgestor.ui.home.HomeScreen
 
 
 /**
@@ -102,6 +103,10 @@ fun AppNavigation() {
 
             HomeScreen(navController)
     }
+
+        composable ( Routes.CLIENTES){
+            ClientesScreen(navController)
+        }
 
 }
 }
