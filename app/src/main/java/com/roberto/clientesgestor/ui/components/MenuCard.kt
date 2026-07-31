@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -20,18 +21,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.vector.ImageVector
 
 @Composable
 fun MenuCard(
 
     titulo: String,
     descripcion : String,
+    icono: ImageVector,
     onClick: () -> Unit
 
 ) {
@@ -77,6 +81,8 @@ fun MenuCard(
          * (Detalles completos ya explicados en la primera aparición de Row)
          */
         Row(
+            modifier = Modifier
+                .padding(start = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
 
@@ -93,23 +99,23 @@ fun MenuCard(
              * Uso:
              * Se utiliza para acompañar texto con un símbolo visual.
              */
-          Box(
-
-              modifier = Modifier
-                  .size(64.dp)
-                  .clip(CircleShape)
-                  .background(Color.Gray)
-
+          Surface(
+              modifier = Modifier.size(64.dp),
+              shape = CircleShape,
+              color = Color.White,
+              shadowElevation = 4.dp
           ) {
-
-              Icon(
-                  imageVector = Icons.Default.Person,
-                  contentDescription = "Clientes",
-                  tint = Color.Blue,
-                  modifier = Modifier
-                      .size(40.dp)
-
-              )
+              Box(
+                  modifier = Modifier.fillMaxSize(),
+                  contentAlignment = Alignment.Center
+              ) {
+                  Icon(
+                      imageVector = icono,
+                      contentDescription = "Clientes",
+                      tint = Color(0xFF64B5F6),
+                      modifier = Modifier.size(40.dp)
+                  )
+              }
           }
 
 
@@ -169,6 +175,17 @@ fun MenuCard(
                 )
 
             }
+
+
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = "Ir a Clientes",
+                    tint = Color.Gray,
+                    modifier = Modifier.size(30.dp)
+                )
+
+
+
         }
 
     }

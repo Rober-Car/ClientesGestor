@@ -5,6 +5,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.filled.CardMembership
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -75,6 +83,7 @@ fun HomeScreen (
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
         ) {
 
             /**
@@ -139,9 +148,11 @@ fun HomeScreen (
              */
             MenuCard(
                 titulo = "Clientes",
-                descripcion = "Gestiona los clientes del gimnasio",
+                descripcion = "Gestión de clientes ",
+                Icons.Default.Person,
                 onClick = {
                     navController.navigate(Routes.CLIENTES)
+
 
                 }
             )
@@ -151,8 +162,9 @@ fun HomeScreen (
              * ----------------------------
              */
             MenuCard(
-                titulo = "💶 Cuotas",
+                titulo = "Cuotas",
                 descripcion = "Gestiona las cuotas",
+                Icons.Default.CardMembership,
                 onClick = {
 
 
@@ -164,8 +176,20 @@ fun HomeScreen (
              * ----------------------------
              */
             MenuCard(
-                titulo = "💳 Pagos",
+                titulo = "Pagos",
                 descripcion="Valida los pagos",
+                Icons.Default.AttachMoney,
+                onClick = {
+
+
+                }
+            )
+
+
+            MenuCard(
+                titulo = "Clientes",
+                descripcion = "Datos economicos",
+                Icons.Default.AccountBalance,
                 onClick = {
 
 
@@ -177,8 +201,9 @@ fun HomeScreen (
              * ---------------------------
              */
             MenuCard(
-                titulo="⚙ Configuración",
+                titulo="Configuración",
                 descripcion="Ajustes de la aplicación",
+                Icons.Default.Settings,
                 onClick = {
 
 
