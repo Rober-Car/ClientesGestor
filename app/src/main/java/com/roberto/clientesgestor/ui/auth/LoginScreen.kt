@@ -22,6 +22,23 @@ import androidx.navigation.NavHostController
 import com.roberto.clientesgestor.navigation.Routes
 
 /**
+ * LoginScreen.kt
+ * --------------
+ * ✔ TIPO: archivo de código fuente Kotlin (pantalla de autenticación)
+ *
+ * ¿Qué es?
+ * El archivo que define la pantalla de inicio de sesión de la aplicación.
+ *
+ * ¿Qué hace?
+ * - Declara LoginScreen, el composable del formulario de acceso.
+ * - Gestiona los campos de email y contraseña y valida el formulario.
+ * - Navega a Home cuando el usuario pulsa "Entrar".
+ *
+ * ¿Para qué sirve?
+ * Para autenticar al usuario y dar acceso al menú principal de ClientesGestor.
+ */
+
+/**
  * LoginScreen
  * -----------
  * ✔ Tipo: función @Composable

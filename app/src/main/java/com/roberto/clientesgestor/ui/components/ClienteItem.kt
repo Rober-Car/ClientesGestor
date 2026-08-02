@@ -24,6 +24,38 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.roberto.clientesgestor.model.Estado
 
+/**
+ * ClienteItem.kt
+ * --------------
+ * ✔ TIPO: archivo de código fuente Kotlin (componente reutilizable)
+ *
+ * ¿Qué es?
+ * El archivo que define el componente ClienteItem.
+ *
+ * ¿Qué hace?
+ * - Declara ClienteItem, un composable reutilizable.
+ * - Dibuja una tarjeta con la información de un cliente (nombre y estado).
+ * - Ejecuta una acción (onClick) al pulsar la tarjeta.
+ *
+ * ¿Para qué sirve?
+ * Para representar cada cliente dentro de una lista en la aplicación.
+ */
+
+/**
+ * ClienteItem
+ * -----------
+ * ✔ TIPO: función @Composable (componente reutilizable)
+ *
+ * ¿Qué es?
+ * Un componente que encapsula una Card con los datos de un cliente.
+ *
+ * ¿Qué hace?
+ * - Recibe el nombre, el teléfono, el estado y una acción al pulsar.
+ * - Dibuja una fila con icono, nombre y estado del cliente.
+ *
+ * ¿Para qué sirve?
+ * Para mostrar cada cliente de forma uniforme en una lista.
+ */
 @Composable
 fun ClienteItem(
 

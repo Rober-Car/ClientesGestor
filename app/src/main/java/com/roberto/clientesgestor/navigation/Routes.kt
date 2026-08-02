@@ -1,6 +1,23 @@
 package com.roberto.clientesgestor.navigation
 
 /**
+ * Routes.kt
+ * ---------
+ * ✔ TIPO: archivo de código fuente Kotlin (navegación)
+ *
+ * ¿Qué es?
+ * El archivo que centraliza las rutas de navegación de la aplicación.
+ *
+ * ¿Qué hace?
+ * - Define el objeto Routes con las constantes de cada pantalla.
+ * - Centraliza los nombres de las rutas para evitar errores tipográficos.
+ *
+ * ¿Para qué sirve?
+ * Para que NavHost y todas las pantallas usen las mismas rutas
+ * y la navegación sea consistente en todo el proyecto.
+ */
+
+/**
  * Routes
  * ------
  * ✔ TIPO: object (objeto singleton de Kotlin)

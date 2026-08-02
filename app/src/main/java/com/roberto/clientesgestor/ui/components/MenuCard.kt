@@ -30,6 +30,39 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.Surface
 import androidx.compose.ui.graphics.vector.ImageVector
 
+/**
+ * MenuCard.kt
+ * -----------
+ * ✔ TIPO: archivo de código fuente Kotlin (componente reutilizable)
+ *
+ * ¿Qué es?
+ * El archivo que define el componente MenuCard usado en el menú principal.
+ *
+ * ¿Qué hace?
+ * - Declara MenuCard, un composable reutilizable.
+ * - Dibuja una tarjeta con icono, título, descripción y flecha de acceso.
+ * - Ejecuta una acción (onClick) al pulsar la tarjeta.
+ *
+ * ¿Para qué sirve?
+ * Para mostrar las opciones del menú principal (Clientes, Cuotas, Pagos,
+ * Economía, Configuración) con un diseño consistente.
+ */
+
+/**
+ * MenuCard
+ * --------
+ * ✔ TIPO: función @Composable (componente reutilizable)
+ *
+ * ¿Qué es?
+ * Un componente que encapsula una Card con icono, título y descripción.
+ *
+ * ¿Qué hace?
+ * - Recibe un título, una descripción, un icono y una acción al pulsar.
+ * - Dibuja el icono dentro de un círculo, el texto y una flecha a la derecha.
+ *
+ * ¿Para qué sirve?
+ * Para representar cada opción del menú principal sin repetir código.
+ */
 @Composable
 fun MenuCard(
 

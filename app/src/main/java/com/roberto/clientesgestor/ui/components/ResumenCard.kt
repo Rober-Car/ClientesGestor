@@ -17,7 +17,39 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
+/**
+ * ResumenCard.kt
+ * --------------
+ * ✔ TIPO: archivo de código fuente Kotlin (componente reutilizable)
+ *
+ * ¿Qué es?
+ * El archivo que define el componente ResumenCard.
+ *
+ * ¿Qué hace?
+ * - Declara ResumenCard, un composable reutilizable.
+ * - Dibuja una tarjeta con una barra de color superior, un título y una cantidad.
+ * - Ejecuta una acción (onClick) al pulsar la tarjeta.
+ *
+ * ¿Para qué sirve?
+ * Para mostrar los resúmenes de clientes (Activos, Bajas, Morosos)
+ * en la pantalla de gestión de clientes.
+ */
 
+/**
+ * ResumenCard
+ * -----------
+ * ✔ TIPO: función @Composable (componente reutilizable)
+ *
+ * ¿Qué es?
+ * Un componente que encapsula una Card con indicador de color y cantidad.
+ *
+ * ¿Qué hace?
+ * - Recibe un título, una cantidad, un color y una acción al pulsar.
+ * - Dibuja una barra de color en la parte superior, el título y la cantidad.
+ *
+ * ¿Para qué sirve?
+ * Para mostrar de un vistazo el número de clientes por estado.
+ */
 @Composable
 fun ResumenCard(
 

@@ -24,6 +24,25 @@ import com.roberto.clientesgestor.navigation.Routes
 import com.roberto.clientesgestor.ui.components.MenuCard
 
 /**
+ * HomeScreen.kt
+ * -------------
+ * ✔ TIPO: archivo de código fuente Kotlin (pantalla principal)
+ *
+ * ¿Qué es?
+ * El archivo que define la pantalla de inicio o menú principal.
+ *
+ * ¿Qué hace?
+ * - Declara HomeScreen, el composable de la pantalla principal.
+ * - Muestra el título de la app y las tarjetas de menú:
+ *   Clientes, Cuotas, Pagos, Economía y Configuración.
+ * - Navega a la pantalla de clientes desde la tarjeta correspondiente.
+ *
+ * ¿Para qué sirve?
+ * Para ser el punto central desde el que el usuario accede a
+ * todas las secciones del gestor de clientes.
+ */
+
+/**
  * HomeScreen
  * ----------
  * ✔ TIPO: función @Composable

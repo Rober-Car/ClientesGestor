@@ -28,6 +28,24 @@ import com.roberto.clientesgestor.ui.components.ResumenCard
 
 
 /**
+ * ClientesScreen.kt
+ * -----------------
+ * ✔ TIPO: archivo de código fuente Kotlin (pantalla de gestión de clientes)
+ *
+ * ¿Qué es?
+ * El archivo que define la pantalla dedicada a la gestión de clientes.
+ *
+ * ¿Qué hace?
+ * - Declara ClientesScreen, el composable de la pantalla de clientes.
+ * - Muestra una cabecera con el título y un botón para volver atrás.
+ * - Muestra las tarjetas de resumen: Activos, Bajas y Morosos.
+ *
+ * ¿Para qué sirve?
+ * Para mostrar al usuario un resumen del estado de los clientes
+ * y dar acceso a su gestión dentro de la aplicación.
+ */
+
+/**
  * ClientesScreen
  * --------------
  * ✔ TIPO: función @Composable

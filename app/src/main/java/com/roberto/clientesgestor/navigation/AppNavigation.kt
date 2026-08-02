@@ -8,6 +8,22 @@ import com.roberto.clientesgestor.ui.auth.LoginScreen
 import com.roberto.clientesgestor.ui.clientes.ClientesScreen
 import com.roberto.clientesgestor.ui.home.HomeScreen
 
+/**
+ * AppNavigation.kt
+ * ----------------
+ * ✔ TIPO: archivo de código fuente Kotlin (navegación)
+ *
+ * ¿Qué es?
+ * El archivo encargado de configurar la navegación entre pantallas.
+ *
+ * ¿Qué hace?
+ * - Declara AppNavigation, el composable que crea el NavHost.
+ * - Registra las rutas del proyecto: login, home y clientes.
+ *
+ * ¿Para qué sirve?
+ * Para tener un punto central donde se definen rutas, pantallas
+ * y el flujo de navegación de la aplicación.
+ */
 
 /**
  * AppNavigation
