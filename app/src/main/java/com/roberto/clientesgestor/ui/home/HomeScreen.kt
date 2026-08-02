@@ -187,7 +187,7 @@ fun HomeScreen (
 
 
             MenuCard(
-                titulo = "Clientes",
+                titulo = "Economia",
                 descripcion = "Datos economicos",
                 Icons.Default.AccountBalance,
                 onClick = {
