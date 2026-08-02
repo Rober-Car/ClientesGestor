@@ -19,9 +19,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
+import com.roberto.clientesgestor.navigation.Routes
+import com.roberto.clientesgestor.ui.components.ResumenCard
 
 
 /**
@@ -117,6 +120,48 @@ fun ClientesScreen(
 
         }
 
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(6.dp)
+
+            ) {
+
+                ResumenCard(
+                    "Activos",
+                    10,
+                    Color.Green,
+                    onClick = {
+                        },
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding( 6.dp)
+                )
+
+                ResumenCard(
+                    "Bajas",
+                    10,
+                    color = Color.Gray,
+                    onClick = {
+                        },
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(6.dp)
+                )
+
+
+                ResumenCard(
+                    "Morosos",
+                    10,
+                    color = Color.Red,
+                    onClick = {
+                       },
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(  6.dp)
+                )
+            }
 
        }
 
