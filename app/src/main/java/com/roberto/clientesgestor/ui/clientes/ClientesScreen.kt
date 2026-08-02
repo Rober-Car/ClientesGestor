@@ -1,7 +1,9 @@
 package com.roberto.clientesgestor.ui.clientes
 
-import android.R.attr.onClick
+
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -9,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
@@ -21,9 +25,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavController
+
 import androidx.navigation.NavHostController
-import com.roberto.clientesgestor.navigation.Routes
+import com.roberto.clientesgestor.model.Cliente
+import com.roberto.clientesgestor.model.Estado
+import com.roberto.clientesgestor.ui.components.ClienteItem
+
 import com.roberto.clientesgestor.ui.components.ResumenCard
 
 /**
@@ -46,6 +53,54 @@ fun ClientesScreen(
     navController: NavHostController
 ) {
 
+
+    val listaClientes = listOf(
+
+        Cliente(
+            nombre = "Roberto Pérez",
+            telefono = "600123123",
+            estado = Estado.ACTIVO
+        ),
+
+        Cliente(
+            nombre = "Ana García",
+            telefono = "611456789",
+            estado = Estado.MOROSO
+        ),
+
+        Cliente(
+            nombre = "Juan López",
+            telefono = "622987654",
+            estado = Estado.BAJA
+        ),
+
+        Cliente(
+            nombre = "María Fernández",
+            telefono = "633112233",
+            estado = Estado.ACTIVO
+        ),
+
+        Cliente(
+            nombre = "Luis Ramírez",
+            telefono = "644998877",
+            estado = Estado.MOROSO
+        ),
+
+        Cliente(
+            nombre = "Carmen Soto",
+            telefono = "655443322",
+            estado = Estado.BAJA
+        ),
+
+        Cliente(
+            nombre = "Pedro Martín",
+            telefono = "677221100",
+            estado = Estado.ACTIVO
+        )
+
+
+
+    )
     /**
      * Scaffold
      * --------
@@ -148,7 +203,7 @@ fun ClientesScreen(
                 ResumenCard(
                     "Activos",
                     10,
-                    Color.Green,
+                    Color(0xFF4CAF50),
                     onClick = {
                     },
                     modifier = Modifier
@@ -192,6 +247,30 @@ fun ClientesScreen(
                         .padding(6.dp)
                 )
             }
+
+            LazyColumn(
+
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(16.dp)
+
+            ){
+
+                items (listaClientes){ cliente ->
+                    ClienteItem(
+                        nombre = cliente.nombre,
+                        telefono = cliente.telefono,
+                        estado = cliente.estado,
+                        onClick = {},
+                    )
+
+
+                }
+            }
+
         }
+
+
+
+
     }
 }
