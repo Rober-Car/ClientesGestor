@@ -12,34 +12,16 @@ import com.roberto.clientesgestor.ui.home.HomeScreen
  * AppNavigation.kt
  * ----------------
  * ✔ TIPO: archivo de código fuente Kotlin (navegación)
- *
- * ¿Qué es?
- * El archivo encargado de configurar la navegación entre pantallas.
- *
- * ¿Qué hace?
- * - Declara AppNavigation, el composable que crea el NavHost.
- * - Registra las rutas del proyecto: login, home y clientes.
- *
- * ¿Para qué sirve?
- * Para tener un punto central donde se definen rutas, pantallas
- * y el flujo de navegación de la aplicación.
+ * Es el archivo encargado de configurar la navegación entre pantallas.
+ * Sirve para tener un punto central donde se definen rutas, pantallas y el flujo de navegación de la app.
  */
 
 /**
  * AppNavigation
  * -------------
  * ✔ TIPO: función @Composable
- *
- * ¿Qué es?
- * Una función que prepara la navegación de la aplicación usando Jetpack Compose.
- *
- * ¿Qué hace?
- * Crea y recuerda un controlador de navegación (NavController),
- * que será el encargado de mover al usuario entre pantallas.
- *
- * ¿Para qué sirve?
- * Para tener un punto central donde configurar rutas, pantallas
- * y el flujo de navegación de la app.
+ * Es la función que prepara la navegación de la aplicación usando Jetpack Compose.
+ * Sirve para crear el NavHost y mover al usuario entre las pantallas del proyecto.
  */
 @Composable
 fun AppNavigation() {
@@ -47,82 +29,55 @@ fun AppNavigation() {
     /**
      * navController
      * -------------
-     * ✔ TIPO: variable (val → inmutable)
-     * ✔ TIPO REAL: NavController
-     * ✔ CLASE: androidx.navigation.NavController
-     *
-     * ¿Qué es?
-     * El objeto que controla la navegación entre pantallas.
-     *
-     * ¿Qué hace?
-     * - Guarda el historial de pantallas.
-     * - Permite navegar a otras rutas.
-     * - Permite volver atrás.
-     *
-     * rememberNavController()
-     * -----------------------
-     * ✔ TIPO: función @Composable
-     * ✔ CLASE: androidx.navigation.compose.rememberNavController
-     *
-     * ¿Qué hace?
-     * Crea un NavController y lo recuerda entre recomposiciones.
-     *
-     * ¿Para qué sirve?
-     * Para que el controlador de navegación no se reinicie
-     * cada vez que Compose redibuja la UI.
+     * ✔ TIPO: variable inmutable (val) → NavController
+     * Es el objeto que controla la navegación entre pantallas.
+     * Sirve para guardar el historial, navegar a otras rutas y volver atrás.
      */
     val navController = rememberNavController()
 
     /**
      * NavHost
      * -------
-     * ✔ TIPO: función @Composable
-     * ✔ CLASE: androidx.navigation.compose.NavHost
-     *
-     * ¿Qué es?
-     * El contenedor principal donde se registran todas las rutas de navegación
-     * de la aplicación. Es el “mapa” que indica qué pantalla se muestra según la ruta.
-     *
-     * ¿Qué hace?
-     * - Recibe un NavController para gestionar la navegación.
-     * - Define la pantalla inicial mediante startDestination.
-     * - Dentro de sus llaves se añaden las rutas con composable().
-     *
-     * navController = navController
-     * -----------------------------
-     * ✔ TIPO: parámetro
-     * ✔ VALOR: instancia de NavController creada previamente
-     *
-     * ¿Qué hace?
-     * Indica qué controlador de navegación debe usar este NavHost.
-     *
-     * startDestination = Routes.LOGIN
-     * -------------------------------
-     * ✔ TIPO: parámetro
-     * ✔ VALOR: constante que representa la ruta inicial
-     *
-     * ¿Qué hace?
-     * Define la primera pantalla que se mostrará cuando la app arranca.
+     * ✔ TIPO: función @Composable (androidx.navigation.compose.NavHost)
+     * Es el contenedor principal donde se registran todas las rutas de la aplicación.
+     * Sirve como el "mapa" que indica qué pantalla se muestra según la ruta actual.
      */
     NavHost(
-
         navController = navController,
         startDestination = Routes.LOGIN
-    ){
+    ) {
 
-        composable(Routes.LOGIN){
+        /**
+         * composable(Routes.LOGIN)
+         * -----------------------
+         * ✔ TIPO: función @Composable (androidx.navigation.compose.composable)
+         * Es la ruta registrada para la pantalla de inicio de sesión.
+         * Sirve para mostrar LoginScreen cuando se navega a la ruta login.
+         */
+        composable(Routes.LOGIN) {
             LoginScreen(navController)
-
-            }
-
-        composable(Routes.HOME){
-
-            HomeScreen(navController)
-    }
-
-        composable ( Routes.CLIENTES){
-            ClientesScreen(navController)
         }
 
-}
+        /**
+         * composable(Routes.HOME)
+         * ----------------------
+         * ✔ TIPO: función @Composable
+         * Es la ruta registrada para la pantalla principal.
+         * Sirve para mostrar HomeScreen cuando se navega a la ruta home.
+         */
+        composable(Routes.HOME) {
+            HomeScreen(navController)
+        }
+
+        /**
+         * composable(Routes.CLIENTES)
+         * --------------------------
+         * ✔ TIPO: función @Composable
+         * Es la ruta registrada para la pantalla de clientes.
+         * Sirve para mostrar ClientesScreen cuando se navega a la ruta clientes.
+         */
+        composable(Routes.CLIENTES) {
+            ClientesScreen(navController)
+        }
+    }
 }

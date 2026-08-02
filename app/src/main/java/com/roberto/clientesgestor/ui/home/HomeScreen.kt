@@ -27,61 +27,28 @@ import com.roberto.clientesgestor.ui.components.MenuCard
  * HomeScreen.kt
  * -------------
  * ✔ TIPO: archivo de código fuente Kotlin (pantalla principal)
- *
- * ¿Qué es?
- * El archivo que define la pantalla de inicio o menú principal.
- *
- * ¿Qué hace?
- * - Declara HomeScreen, el composable de la pantalla principal.
- * - Muestra el título de la app y las tarjetas de menú:
- *   Clientes, Cuotas, Pagos, Economía y Configuración.
- * - Navega a la pantalla de clientes desde la tarjeta correspondiente.
- *
- * ¿Para qué sirve?
- * Para ser el punto central desde el que el usuario accede a
- * todas las secciones del gestor de clientes.
+ * Es el archivo que define la pantalla de inicio o menú principal.
+ * Sirve como punto central desde el que el usuario accede a todas las secciones del gestor.
  */
 
 /**
  * HomeScreen
  * ----------
  * ✔ TIPO: función @Composable
- * Es una función declarativa que Jetpack Compose usa para dibujar interfaz.
- * Sirve para mostrar la pantalla principal de la aplicación.
- *
- * Sintaxis:
- * @Composable fun NombrePantalla(parámetros) { ... }
- *
- * Uso:
- * Se llama desde NavHost para mostrar esta pantalla.
+ * Es la pantalla principal de la aplicación con el título y las tarjetas del menú.
+ * Sirve para navegar a las secciones de ClientesGestor (Clientes, Cuotas, Pagos, Economía, Configuración).
  */
 @Composable
-fun HomeScreen (
-
-    /**
-     * navController
-     * -------------
-     * ✔ TIPO: NavHostController
-     * Es el controlador de navegación que administra rutas y destinos.
-     * Sirve para navegar entre pantallas mediante navigate("ruta").
-     */
+fun HomeScreen(
     navController: NavHostController
-
 ) {
 
     /**
      * Scaffold
      * --------
      * ✔ TIPO: Scaffold (estructura de Material Design)
-     * Es un contenedor de alto nivel que organiza la pantalla en zonas:
-     * barra superior, inferior, FAB y contenido principal.
-     * Sirve para estructurar pantallas complejas con un layout coherente.
-     *
-     * Sintaxis:
-     * Scaffold { innerPadding -> ... }
-     *
-     * Uso:
-     * innerPadding debe aplicarse al contenido para evitar solapamientos.
+     * Es un contenedor de alto nivel que organiza la pantalla en zonas.
+     * Sirve para estructurar la pantalla principal con un layout coherente.
      */
     Scaffold { innerPadding ->
 
@@ -90,13 +57,7 @@ fun HomeScreen (
          * ------
          * ✔ TIPO: Column (layout vertical)
          * Es un contenedor que coloca elementos uno debajo del otro.
-         * Sirve para organizar contenido en estructura vertical.
-         *
-         * Sintaxis:
-         * Column(modifier = Modifier) { elementos }
-         *
-         * Uso:
-         * Se usa cuando la pantalla debe apilar elementos verticalmente.
+         * Sirve para apilar verticalmente el contenido de la pantalla principal.
          */
         Column(
             modifier = Modifier
@@ -108,15 +69,9 @@ fun HomeScreen (
             /**
              * Text("ClientesGestor")
              * ----------------------
-             * ✔ TIPO: Text (Composable)
-             * Es un componente que muestra texto en pantalla.
-             * Sirve para mostrar títulos, etiquetas o contenido textual.
-             *
-             * Sintaxis:
-             * Text(text = "...", style = ..., modifier = ...)
-             *
-             * Uso:
-             * Se usa para mostrar texto con estilos de MaterialTheme.
+             * ✔ TIPO: Text
+             * Es el título principal de la aplicación.
+             * Sirve para identificar la pantalla de inicio.
              */
             Text(
                 text = "ClientesGestor",
@@ -129,10 +84,7 @@ fun HomeScreen (
              * ------
              * ✔ TIPO: Spacer
              * Es un elemento invisible que ocupa espacio.
-             * Sirve para separar visualmente componentes.
-             *
-             * Sintaxis:
-             * Spacer(modifier = Modifier.height(XX.dp))
+             * Sirve para separar visualmente los componentes.
              */
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -140,10 +92,8 @@ fun HomeScreen (
              * Text("Bienvenido")
              * ------------------
              * ✔ TIPO: Text
-             * Es un texto secundario.
+             * Es un texto secundario de bienvenida.
              * Sirve para mostrar un mensaje complementario.
-             *
-             * (Detalles completos ya explicados en la primera aparición de Text)
              */
             Text(
                 text = "Bienvenido",
@@ -153,17 +103,11 @@ fun HomeScreen (
             Spacer(modifier = Modifier.height(24.dp))
 
             /**
-             * MenuCard
-             * --------
-             * ✔ TIPO: Composable personalizado
-             * Es un componente reutilizable que encapsula una Card con título y descripción.
-             * Sirve para evitar repetir código y mantener la interfaz consistente.
-             *
-             * Sintaxis:
-             * MenuCard(titulo = "...", descripcion = "...")
-             *
-             * Uso:
-             * Se usa para representar opciones del menú principal.
+             * MenuCard (Clientes)
+             * -------------------
+             * ✔ TIPO: Composable personalizado (MenuCard)
+             * Es una tarjeta del menú que representa la sección de clientes.
+             * Sirve para navegar a la pantalla de gestión de clientes.
              */
             MenuCard(
                 titulo = "Clientes",
@@ -171,64 +115,68 @@ fun HomeScreen (
                 Icons.Default.Person,
                 onClick = {
                     navController.navigate(Routes.CLIENTES)
-
-
                 }
             )
 
             /**
-             * MenuCard (segunda aparición)
-             * ----------------------------
+             * MenuCard (Cuotas)
+             * -----------------
+             * ✔ TIPO: Composable personalizado (MenuCard)
+             * Es una tarjeta del menú que representa la sección de cuotas.
+             * Sirve para acceder a la gestión de cuotas.
              */
             MenuCard(
                 titulo = "Cuotas",
                 descripcion = "Gestiona las cuotas",
                 Icons.Default.CardMembership,
                 onClick = {
-
-
                 }
             )
 
             /**
-             * MenuCard (tercera aparición)
-             * ----------------------------
+             * MenuCard (Pagos)
+             * ----------------
+             * ✔ TIPO: Composable personalizado (MenuCard)
+             * Es una tarjeta del menú que representa la sección de pagos.
+             * Sirve para acceder a la validación de pagos.
              */
             MenuCard(
                 titulo = "Pagos",
-                descripcion="Valida los pagos",
+                descripcion = "Valida los pagos",
                 Icons.Default.AttachMoney,
                 onClick = {
-
-
                 }
             )
 
-
+            /**
+             * MenuCard (Economía)
+             * ------------------
+             * ✔ TIPO: Composable personalizado (MenuCard)
+             * Es una tarjeta del menú que representa la sección de economía.
+             * Sirve para acceder a los datos económicos.
+             */
             MenuCard(
                 titulo = "Economia",
                 descripcion = "Datos economicos",
                 Icons.Default.AccountBalance,
                 onClick = {
-
-
                 }
             )
 
             /**
-             * MenuCard (cuarta aparición)
-             * ---------------------------
+             * MenuCard (Configuración)
+             * ------------------------
+             * ✔ TIPO: Composable personalizado (MenuCard)
+             * Es una tarjeta del menú que representa la sección de configuración.
+             * Sirve para acceder a los ajustes de la aplicación.
              */
             MenuCard(
-                titulo="Configuración",
-                descripcion="Ajustes de la aplicación",
+                titulo = "Configuración",
+                descripcion = "Ajustes de la aplicación",
                 Icons.Default.Settings,
                 onClick = {
-
-
                 }
             )
-
         }
     }
 }

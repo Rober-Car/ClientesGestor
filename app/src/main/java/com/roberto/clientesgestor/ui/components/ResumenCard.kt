@@ -21,50 +21,34 @@ import androidx.compose.ui.unit.dp
  * ResumenCard.kt
  * --------------
  * ✔ TIPO: archivo de código fuente Kotlin (componente reutilizable)
- *
- * ¿Qué es?
- * El archivo que define el componente ResumenCard.
- *
- * ¿Qué hace?
- * - Declara ResumenCard, un composable reutilizable.
- * - Dibuja una tarjeta con una barra de color superior, un título y una cantidad.
- * - Ejecuta una acción (onClick) al pulsar la tarjeta.
- *
- * ¿Para qué sirve?
- * Para mostrar los resúmenes de clientes (Activos, Bajas, Morosos)
- * en la pantalla de gestión de clientes.
+ * Es el archivo que define el componente ResumenCard.
+ * Sirve para mostrar los resúmenes de clientes (Activos, Bajas, Morosos).
  */
 
 /**
  * ResumenCard
  * -----------
  * ✔ TIPO: función @Composable (componente reutilizable)
- *
- * ¿Qué es?
- * Un componente que encapsula una Card con indicador de color y cantidad.
- *
- * ¿Qué hace?
- * - Recibe un título, una cantidad, un color y una acción al pulsar.
- * - Dibuja una barra de color en la parte superior, el título y la cantidad.
- *
- * ¿Para qué sirve?
- * Para mostrar de un vistazo el número de clientes por estado.
+ * Es un componente que encapsula una Card con barra de color y cantidad.
+ * Sirve para mostrar de un vistazo el número de clientes por estado.
  */
 @Composable
 fun ResumenCard(
-
-
     titulo: String,
-    cantidad : Int,
+    cantidad: Int,
     color: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
-
 ) {
 
+    /**
+     * Card
+     * ----
+     * ✔ TIPO: Card (contenedor Material Design)
+     * Es un contenedor visual con elevación y bordes que agrupa contenido.
+     * Sirve para mostrar la tarjeta de resumen de forma clicable.
+     */
     Card(
-
-
         onClick = onClick,
         modifier = modifier,
         shape = RoundedCornerShape(20.dp),
@@ -73,48 +57,69 @@ fun ResumenCard(
         colors = CardDefaults.cardColors(
             containerColor = androidx.compose.ui.graphics.Color.White
         )
+    ) {
 
-
-    ){
-
+        /**
+         * Column
+         * ------
+         * ✔ TIPO: Column (layout vertical)
+         * Es un contenedor que coloca elementos uno debajo del otro.
+         * Sirve para apilar la barra, el título y la cantidad.
+         */
         Column(
-
             horizontalAlignment = Alignment.CenterHorizontally
+        ) {
 
-        ){
+            /**
+             * Surface (barra de color)
+             * ------------------------
+             * ✔ TIPO: Surface
+             * Es una barra de color que indica el estado del resumen.
+             * Sirve para diferenciar visualmente cada tarjeta.
+             */
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(8.dp),
                 color = color
+            ) {}
 
-
-
-
-            ){}
-
+            /**
+             * Text(titulo)
+             * ------------
+             * ✔ TIPO: Text
+             * Es el título del resumen.
+             * Sirve para identificar el estado representado por la tarjeta.
+             */
             Text(
                 text = titulo,
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(4.dp)
             )
 
-
-
+            /**
+             * Spacer
+             * ------
+             * ✔ TIPO: Spacer
+             * Es un elemento invisible que ocupa espacio.
+             * Sirve para separar el título de la cantidad.
+             */
             Spacer(
                 modifier = Modifier.height(8.dp)
-
             )
 
-
+            /**
+             * Text(cantidad)
+             * --------------
+             * ✔ TIPO: Text
+             * Es el número de clientes del resumen.
+             * Sirve para mostrar la cantidad asociada al estado.
+             */
             Text(
                 text = cantidad.toString(),
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(8.dp)
-
             )
         }
-
     }
-
 }

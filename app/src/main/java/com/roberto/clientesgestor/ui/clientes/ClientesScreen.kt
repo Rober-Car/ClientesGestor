@@ -26,65 +26,32 @@ import androidx.navigation.NavHostController
 import com.roberto.clientesgestor.navigation.Routes
 import com.roberto.clientesgestor.ui.components.ResumenCard
 
-
 /**
  * ClientesScreen.kt
  * -----------------
  * ✔ TIPO: archivo de código fuente Kotlin (pantalla de gestión de clientes)
- *
- * ¿Qué es?
- * El archivo que define la pantalla dedicada a la gestión de clientes.
- *
- * ¿Qué hace?
- * - Declara ClientesScreen, el composable de la pantalla de clientes.
- * - Muestra una cabecera con el título y un botón para volver atrás.
- * - Muestra las tarjetas de resumen: Activos, Bajas y Morosos.
- *
- * ¿Para qué sirve?
- * Para mostrar al usuario un resumen del estado de los clientes
- * y dar acceso a su gestión dentro de la aplicación.
+ * Es el archivo que define la pantalla dedicada a la gestión de clientes.
+ * Sirve para mostrar un resumen del estado de los clientes y dar acceso a su gestión.
  */
 
 /**
  * ClientesScreen
  * --------------
  * ✔ TIPO: función @Composable
- * Es una función declarativa que Jetpack Compose usa para dibujar interfaz.
- * Sirve para mostrar la pantalla dedicada a la gestión de clientes.
- *
- * Sintaxis:
- * @Composable fun NombrePantalla(parámetros) { ... }
- *
- * Uso:
- * Se llama desde NavHost para navegar a esta pantalla.
+ * Es la pantalla de clientes con cabecera, botón de volver y tarjetas de resumen.
+ * Sirve para mostrar los resúmenes Activos, Bajas y Morosos de los clientes.
  */
 @Composable
 fun ClientesScreen(
-
-    /**
-     * navController
-     * -------------
-     * ✔ TIPO: NavHostController
-     * Es el controlador de navegación que administra rutas y destinos.
-     * Sirve para navegar entre pantallas mediante navigate("ruta").
-     */
     navController: NavHostController
-
 ) {
 
     /**
      * Scaffold
      * --------
      * ✔ TIPO: Scaffold (estructura de Material Design)
-     * Es un contenedor de alto nivel que organiza la pantalla en zonas:
-     * barra superior, inferior, FAB y contenido principal.
-     * Sirve para estructurar pantallas con un layout coherente.
-     *
-     * Sintaxis:
-     * Scaffold { innerPadding -> ... }
-     *
-     * Uso:
-     * innerPadding debe aplicarse al contenido para evitar solapamientos.
+     * Es un contenedor de alto nivel que organiza la pantalla en zonas.
+     * Sirve para estructurar la pantalla de clientes con un layout coherente.
      */
     Scaffold { innerPadding ->
 
@@ -93,13 +60,7 @@ fun ClientesScreen(
          * ------
          * ✔ TIPO: Column (layout vertical)
          * Es un contenedor que coloca elementos uno debajo del otro.
-         * Sirve para organizar contenido en estructura vertical.
-         *
-         * Sintaxis:
-         * Column(modifier = Modifier) { elementos }
-         *
-         * Uso:
-         * Se usa cuando la pantalla debe apilar elementos verticalmente.
+         * Sirve para apilar verticalmente el contenido de la pantalla.
          */
         Column(
             modifier = Modifier
@@ -107,6 +68,13 @@ fun ClientesScreen(
                 .padding(innerPadding)
         ) {
 
+            /**
+             * Row (cabecera)
+             * --------------
+             * ✔ TIPO: Row (layout horizontal)
+             * Es una fila que contiene el botón de volver y el título.
+             * Sirve para mostrar la cabecera de la pantalla.
+             */
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -114,8 +82,14 @@ fun ClientesScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
 
+                /**
+                 * IconButton (volver)
+                 * ------------------
+                 * ✔ TIPO: IconButton
+                 * Es un botón que muestra la flecha de retroceso.
+                 * Sirve para volver a la pantalla anterior con popBackStack().
+                 */
                 IconButton(
-
                     onClick = {
                         navController.popBackStack()
                     }
@@ -126,64 +100,98 @@ fun ClientesScreen(
                         modifier = Modifier.size(24.dp)
                     )
                 }
+
+                /**
+                 * Spacer
+                 * ------
+                 * ✔ TIPO: Spacer
+                 * Es un elemento invisible que ocupa espacio.
+                 * Sirve para separar el botón de volver del título.
+                 */
                 Spacer(
                     modifier = Modifier.width(16.dp)
                 )
 
+                /**
+                 * Text("Clientes")
+                 * ---------------
+                 * ✔ TIPO: Text
+                 * Es el título de la pantalla.
+                 * Sirve para identificar la sección de clientes.
+                 */
                 Text(
-
                     text = "Clientes",
                     style = MaterialTheme.typography.titleLarge
                 )
+            }
 
-        }
-
-
+            /**
+             * Row (resúmenes)
+             * ---------------
+             * ✔ TIPO: Row (layout horizontal)
+             * Es una fila que contiene las tres tarjetas de resumen.
+             * Sirve para repartir el ancho entre Activos, Bajas y Morosos.
+             */
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(6.dp)
-
             ) {
 
+                /**
+                 * ResumenCard (Activos)
+                 * --------------------
+                 * ✔ TIPO: Composable personalizado (ResumenCard)
+                 * Es una tarjeta que muestra el número de clientes activos.
+                 * Sirve para resumir de un vistazo los clientes activos.
+                 */
                 ResumenCard(
                     "Activos",
                     10,
                     Color.Green,
                     onClick = {
-                        },
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding( 6.dp)
-                )
-
-                ResumenCard(
-                    "Bajas",
-                    10,
-                    color = Color.Gray,
-                    onClick = {
-                        },
+                    },
                     modifier = Modifier
                         .weight(1f)
                         .padding(6.dp)
                 )
 
+                /**
+                 * ResumenCard (Bajas)
+                 * -------------------
+                 * ✔ TIPO: Composable personalizado (ResumenCard)
+                 * Es una tarjeta que muestra el número de clientes dados de baja.
+                 * Sirve para resumir de un vistazo los clientes de baja.
+                 */
+                ResumenCard(
+                    "Bajas",
+                    10,
+                    color = Color.Gray,
+                    onClick = {
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(6.dp)
+                )
 
+                /**
+                 * ResumenCard (Morosos)
+                 * --------------------
+                 * ✔ TIPO: Composable personalizado (ResumenCard)
+                 * Es una tarjeta que muestra el número de clientes morosos.
+                 * Sirve para resumir de un vistazo los clientes morosos.
+                 */
                 ResumenCard(
                     "Morosos",
                     10,
                     color = Color.Red,
                     onClick = {
-                       },
+                    },
                     modifier = Modifier
                         .weight(1f)
-                        .padding(  6.dp)
+                        .padding(6.dp)
                 )
             }
-
-       }
-
         }
-
     }
-
+}

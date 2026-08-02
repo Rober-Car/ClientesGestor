@@ -25,82 +25,52 @@ import com.roberto.clientesgestor.navigation.Routes
  * LoginScreen.kt
  * --------------
  * ✔ TIPO: archivo de código fuente Kotlin (pantalla de autenticación)
- *
- * ¿Qué es?
- * El archivo que define la pantalla de inicio de sesión de la aplicación.
- *
- * ¿Qué hace?
- * - Declara LoginScreen, el composable del formulario de acceso.
- * - Gestiona los campos de email y contraseña y valida el formulario.
- * - Navega a Home cuando el usuario pulsa "Entrar".
- *
- * ¿Para qué sirve?
- * Para autenticar al usuario y dar acceso al menú principal de ClientesGestor.
+ * Es el archivo que define la pantalla de inicio de sesión de la aplicación.
+ * Sirve para autenticar al usuario y dar acceso al menú principal de ClientesGestor.
  */
 
 /**
  * LoginScreen
  * -----------
- * ✔ Tipo: función @Composable
- *
- * ¿Qué hace?
- * Dibuja la pantalla de inicio de sesión.
- *
- * Elementos clave:
- * - Recibe un NavHostController para poder navegar.
- * - Muestra textos y un botón.
- * - Gestiona estados internos si la pantalla los necesita.
+ * ✔ TIPO: función @Composable
+ * Es la pantalla de inicio de sesión que muestra el formulario de acceso.
+ * Sirve para capturar email y contraseña y navegar a Home al pulsar "Entrar".
  */
 @Composable
 fun LoginScreen(
-
     navController: NavHostController
-
 ) {
-
 
     /**
      * mensaje
      * -------
-     * ✔ TIPO: variable con estado (var)
-     * ✔ MECANISMO: delegación con 'by'
+     * ✔ TIPO: variable con estado (var) mediante delegación `by`
      * ✔ ORIGEN DEL ESTADO: remember { mutableStateOf(...) }
-     *
-     * ¿Qué es?
-     * Una **variable de estado** que Compose recuerda entre recomposiciones.
-     * No es una variable normal: está conectada al sistema de UI.
-     *
-     * ¿Cómo funciona?
-     * - `remember` → ✔ FUNCIÓN que guarda un valor dentro del Composable.
-     * - `mutableStateOf` → ✔ FUNCIÓN que crea un **estado observable**.
-     * - `by` → ✔ OPERADOR de delegación que permite usar la variable como si fuera normal.
-     *
-     * Cuando el valor cambia:
-     * - Compose detecta el cambio.
-     * - Vuelve a dibujar solo las partes necesarias.
-     *
-     * ¿Qué hace?
-     * Guarda el texto que se muestra en pantalla (inicialmente el nombre de la app).
-     *
-     * ¿Para qué sirve?
-     * Para que, al pulsar el botón, el texto cambie automáticamente
-     * y la UI se actualice sin que tú tengas que hacer nada más.
-     *
-     * ¿Qué elementos contiene?
-     * nombreApp → ✔ PARÁMETRO de la función LoginScreen
-     * remember → ✔ FUNCIÓN de Compose
-     * mutableStateOf → ✔ FUNCIÓN que crea un estado
-     * by → ✔ OPERADOR de delegación
+     * Es un estado observable que Compose recuerda entre recomposiciones.
+     * Sirve para mostrar el nombre de la app y actualizar el texto al entrar.
      */
     var mensaje by remember {
         mutableStateOf("ClientesGestor")
     }
 
-
+    /**
+     * email
+     * -----
+     * ✔ TIPO: variable con estado (var)
+     * Es el estado que guarda el texto escrito en el campo Email.
+     * Sirve para controlar el valor del campo y validar el formulario.
+     */
     var email by remember {
         mutableStateOf("")
     }
 
+    /**
+     * password
+     * --------
+     * ✔ TIPO: variable con estado (var)
+     * Es el estado que guarda el texto escrito en el campo Contraseña.
+     * Sirve para controlar el valor del campo y validar el formulario.
+     */
     var password by remember {
         mutableStateOf("")
     }
@@ -109,46 +79,19 @@ fun LoginScreen(
      * formularioValido
      * ----------------
      * ✔ TIPO DE DATO: Boolean
-     *
-     *  Es Una variable booleana que guarda el resultado de una condición.
-     * Evalúa dos comprobaciones
-     *  - email.isNotBlank()
-     *  - password.isNotBlank()
-     * Y combina ambas usando el operador lógico AND (&&).
-     *
-     * Funciona como un condicional. Es una expresión lógica que decide un valor.
-     *
-     * ¿Cómo se lee?
-     * “formularioValido es true si email NO está vacío Y password NO está vacía”.
-     *
-     * .isNotBlank()
-     * ------------------
-     * ✔ TIPO: función de extensión de String
-     * ✔ DEVUELVE: Boolean
-     * Devuelve true si el texto no está vacío y no son solo espacios.
-     *
-     * &&
-     * --
-     * ✔ TIPO: operador lógico AND
-     * Devuelve true solo si las dos condiciones son true.
+     * Es una expresión lógica que comprueba email y password con .isNotBlank() y el operador &&.
+     * Sirve para activar o desactivar el botón "Entrar" según el formulario esté completo.
      */
     val formularioValido =
         email.isNotBlank() &&
                 password.isNotBlank()
+
     /**
      * Column
      * ------
-     * ✔ Tipo: contenedor vertical
-     *
-     * ¿Qué es?
-     * Un layout que coloca elementos uno debajo del otro.
-     *
-     * ¿Qué hace?
-     * - Ocupa toda la pantalla.
-     * - Centra todo vertical y horizontalmente.
-     *
-     * ¿Para qué sirve?
-     * Para organizar la pantalla del login de forma limpia y centrada.
+     * ✔ TIPO: contenedor vertical
+     * Es un layout que coloca elementos uno debajo del otro.
+     * Sirve para organizar el login de forma centrada en toda la pantalla.
      */
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -159,52 +102,27 @@ fun LoginScreen(
         /**
          * Text(text = mensaje)
          * --------------------
-         * ✔ Tipo: texto en pantalla
-         *
-         * ¿Qué hace?
-         * Muestra el contenido de la variable "mensaje".
-         *
-         * ¿Para qué sirve?
-         * Para enseñar el nombre de la app o el mensaje actualizado.
+         * ✔ TIPO: Text
+         * Es el texto que muestra el contenido de la variable "mensaje".
+         * Sirve para enseñar el nombre de la app o el mensaje actualizado.
          */
         Text(
             text = mensaje,
             modifier = Modifier.padding(32.dp)
         )
 
-
-
         /**
-         * deja un hueco vertical de 16dp, entre los dos elemntos
-         * se puede usar tambien Modifier.padding(...)
-         * */
+         * deja un hueco vertical de 16dp entre los dos elementos.
+         */
         Spacer(modifier = Modifier.height(16.dp))
-        /**
-         * OutlinedTextField:
-         * -------------------
-         * Es un campo de texto con borde (estilo Material 3).
-         * Sirve para que el usuario escriba información, en este caso, un email.
-         *
-         * value = email:
-         * ---------------
-         * Qué es: el contenido actual del campo.
-         * Qué hace: muestra en pantalla el valor de la variable email.
-         * Para qué sirve: mantiene sincronizado el texto del usuario con tu variable de estado.
-         *
-         * onValueChange = { email = it }:
-         * -------------------------------
-         * Qué es: una función que se ejecuta cada vez que el usuario escribe algo.
-         * Qué hace: actualiza la variable email con el nuevo texto (it).
-         * Para qué sirve: permite que el campo sea controlado, es decir, que tú tengas el control del valor.
-         * Cada vez que el usuario escriba algo lo guárda en email.
-         *
-         * label = { Text("Email") }:
-         * ---------------------------º
-         * Qué es: el texto flotante del campo.
-         * Qué hace: muestra “Email” encima del borde cuando el usuario escribe.
-         * Para qué sirve: indica qué debe introducir el usuario.
-         * */
 
+        /**
+         * OutlinedTextField (Email)
+         * -------------------------
+         * ✔ TIPO: OutlinedTextField (Material 3)
+         * Es un campo de texto con borde para que el usuario escriba información.
+         * Sirve para capturar el email manteniéndolo sincronizado con la variable de estado.
+         */
         OutlinedTextField(
             value = email,
             onValueChange = {
@@ -215,137 +133,79 @@ fun LoginScreen(
         )
 
         /**
-         * deja un hueco vertical de 16dp, entre los dos elemntos
-         * se puede usar tambien Modifier.padding(...)
-         * */
-
+         * deja un hueco vertical de 16dp entre los dos elementos.
+         */
         Spacer(modifier = Modifier.height(16.dp))
 
-
-
+        /**
+         * OutlinedTextField (Contraseña)
+         * -----------------------------
+         * ✔ TIPO: OutlinedTextField (Material 3)
+         * Es un campo de texto con borde para introducir la contraseña.
+         * Sirve para capturar la contraseña manteniéndola sincronizada con la variable de estado.
+         */
         OutlinedTextField(
-
-            /**
-             * value
-             * -----
-             * ✔ TIPO: parámetro
-             * ✔ CONTENIDO: variable que contiene el texto actual del campo.
-             * Muestra el texto que el usuario ha escrito hasta ahora.
-             */
             value = password,
-
-            /**
-             * onValueChange
-             * -------------
-             * ✔ TIPO: parámetro función (lambda)
-             * ✔ RECIBE: el nuevo texto escrito por el usuario.
-             * Actualiza la variable "password" con el texto nuevo.
-             */
             onValueChange = {
                 password = it
             },
-
-            /**
-             * label
-             * -----
-             * ✔ TIPO: parámetro composable
-             * ✔ CONTIENE: un Text() → función composable
-             * Muestra un texto pequeño encima del campo indicando qué debe escribir el usuario.
-             */
             label = {
-                Text("Contraseña")   // ← FUNCIÓN composable | muestra la etiqueta del campo
+                Text("Contraseña")
             }
-
         )
 
-
-
-
         /**
-         * deja un hueco vertical de 16dp, entre los dos elemntos
-         * se puede usar tambien Modifier.padding(...)
-         * */
+         * deja un hueco vertical de 16dp entre los dos elementos.
+         */
         Spacer(modifier = Modifier.height(16.dp))
 
-
+        /**
+         * Text("Has escrito: $email")
+         * --------------------------
+         * ✔ TIPO: Text
+         * Es un texto informativo que muestra en pantalla lo escrito en el email.
+         * Sirve para comprobar en tiempo real el valor del estado.
+         */
         Text(
             text = "Has escrito: $email"
         )
+
         /**
          * Segundo texto informativo
          * -------------------------
-         * Muestra una frase fija debajo del mensaje principal.
+         * ✔ TIPO: Text
+         * Es una frase fija que se muestra debajo del mensaje principal.
+         * Sirve para presentar el propósito de la aplicación.
          */
-
         Spacer(
             modifier = Modifier.height(16.dp)
         )
 
-
         Text("Gestión de clientes y cuotas")
-
-
-
 
         /**
          * Button
          * ------
-         * ✔ TIPO: función @Composable
-         * ✔ CLASE REAL: androidx.compose.material3.Button
-         *
-         * ¿Qué es?
-         * Un componente interactivo que el usuario puede pulsar.
-         *
-         * ¿Qué hace?
-         * Ejecuta el bloque de código definido en el parámetro `onClick`cuando el usuario toca el botón.
-         *
-         * Parámetro: onClick
-         * ------------------
-         * ✔ TIPO: función lambda
-         *
-         * ¿Qué hace?
-         * - Actualiza la variable de estado `mensaje` con el texto "Bienvenido".
-         * - Llama a navController.navigate(Routes.HOME) para cambiar de pantalla.
-         *
-         *
-         * Parámetro: enabled
-         * ------------------
-         * ✔ TIPO: Boolean
-         *
-         * ¿Qué hace?
-         * Controla si el botón está activo o desactivado.
-         * - true → el usuario puede pulsarlo.
-         * - false → aparece deshabilitado y no responde.
-         *
-         * Contenido del botón
-         * -------------------
-         * Text("Entrar")
-         * ✔ TIPO: función @Composable
-         * ✔ CLASE REAL: androidx.compose.material3.Text
-         *
-         * ¿Qué hace?
-         * Muestra el texto dentro del botón.
-         *
+         * ✔ TIPO: función @Composable (androidx.compose.material3.Button)
+         * Es un componente interactivo que el usuario puede pulsar.
+         * Sirve para actualizar el mensaje y navegar a Home cuando el formulario es válido.
          */
         Button(
             onClick = {
-
-                mensaje = "Bienvenido"   // ← VARIABLE con estado que se actualiza
-
+                mensaje = "Bienvenido"
                 navController.navigate(Routes.HOME)
             },
-
-            enabled = formularioValido   // ← PARÁMETRO booleano que controla si el botón está activo
+            enabled = formularioValido
         ) {
 
             /**
              * Text("Entrar")
              * -------------
-             * ✔ Muestra el texto dentro del botón.
+             * ✔ TIPO: Text
+             * Es el texto que se muestra dentro del botón.
+             * Sirve para indicar la acción de acceso a la aplicación.
              */
             Text("Entrar")
         }
-
     }
-
 }

@@ -28,51 +28,46 @@ import com.roberto.clientesgestor.model.Estado
  * ClienteItem.kt
  * --------------
  * ✔ TIPO: archivo de código fuente Kotlin (componente reutilizable)
- *
- * ¿Qué es?
- * El archivo que define el componente ClienteItem.
- *
- * ¿Qué hace?
- * - Declara ClienteItem, un composable reutilizable.
- * - Dibuja una tarjeta con la información de un cliente (nombre y estado).
- * - Ejecuta una acción (onClick) al pulsar la tarjeta.
- *
- * ¿Para qué sirve?
- * Para representar cada cliente dentro de una lista en la aplicación.
+ * Es el archivo que define el componente ClienteItem.
+ * Sirve para representar cada cliente dentro de una lista en la aplicación.
  */
 
 /**
  * ClienteItem
  * -----------
  * ✔ TIPO: función @Composable (componente reutilizable)
- *
- * ¿Qué es?
- * Un componente que encapsula una Card con los datos de un cliente.
- *
- * ¿Qué hace?
- * - Recibe el nombre, el teléfono, el estado y una acción al pulsar.
- * - Dibuja una fila con icono, nombre y estado del cliente.
- *
- * ¿Para qué sirve?
- * Para mostrar cada cliente de forma uniforme en una lista.
+ * Es un componente que encapsula una Card con los datos de un cliente.
+ * Sirve para mostrar cada cliente de forma uniforme en una lista.
  */
 @Composable
 fun ClienteItem(
-
     nombre: String,
     telefono: String,
     estado: Estado,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
-
 ) {
 
-    val textoEstado = when(estado){
-        Estado.ACTIVO  -> "Activo"
+    /**
+     * textoEstado
+     * -----------
+     * ✔ TIPO: variable inmutable (val) → String
+     * Es el texto legible del estado del cliente mediante when(estado).
+     * Sirve para mostrar "Activo", "Moroso" o "Baja" en la tarjeta.
+     */
+    val textoEstado = when (estado) {
+        Estado.ACTIVO -> "Activo"
         Estado.MOROSO -> "Moroso"
-        Estado.BAJA  -> "Baja"
+        Estado.BAJA -> "Baja"
     }
 
+    /**
+     * colorEstado
+     * -----------
+     * ✔ TIPO: variable inmutable (val) → Color
+     * Es el color asociado al estado del cliente mediante when(estado).
+     * Sirve para colorear visualmente el estado del cliente.
+     */
     val colorEstado = when (estado) {
         Estado.ACTIVO -> Color.Green
         Estado.MOROSO -> Color.Red
@@ -84,19 +79,7 @@ fun ClienteItem(
      * ----
      * ✔ TIPO: Card (contenedor Material Design)
      * Es un contenedor visual con elevación, bordes y color configurable.
-     * Sirve para agrupar información del cliente en un bloque visual único.
-     *
-     * Sintaxis:
-     * Card(
-     *     onClick = ...,
-     *     modifier = ...,
-     *     shape = ...,
-     *     elevation = CardDefaults.cardElevation(...),
-     *     colors = CardDefaults.cardColors(...)
-     * ) { contenido }
-     *
-     * Uso:
-     * Se utiliza para representar elementos clicables dentro de listas.
+     * Sirve para agrupar la información del cliente en un bloque visual único.
      */
     Card(
         onClick = onClick,
@@ -104,29 +87,25 @@ fun ClienteItem(
         shape = RoundedCornerShape(20.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
-    ){
+    ) {
 
         /**
          * Column
          * ------
          * ✔ TIPO: Column (layout vertical)
          * Es un contenedor que coloca elementos uno debajo del otro.
-         * Sirve para organizar el contenido textual y visual del cliente.
-         *
-         * (Detalles completos ya explicados en la primera aparición de Column)
+         * Sirve para organizar el contenido del cliente.
          */
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
 
             /**
-             * Row
-             * ---
+             * Row (nombre y estado)
+             * --------------------
              * ✔ TIPO: Row (layout horizontal)
              * Es un contenedor que coloca elementos uno al lado del otro.
              * Sirve para mostrar icono, nombre y estado en una misma línea.
-             *
-             * (Detalles completos ya explicados en la primera aparición de Row)
              */
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -135,11 +114,9 @@ fun ClienteItem(
                 /**
                  * Icon (persona)
                  * --------------
-                 * ✔ TIPO: Icon (Composable)
-                 * Es un componente que muestra un icono vectorial.
-                 * Sirve para representar visualmente al cliente.
-                 *
-                 * (Detalles completos ya explicados en la primera aparición de Icon)
+                 * ✔ TIPO: Icon
+                 * Es el icono vectorial que representa al cliente.
+                 * Sirve para identificar visualmente al cliente.
                  */
                 Icon(
                     imageVector = Icons.Default.Person,
@@ -154,8 +131,6 @@ fun ClienteItem(
                  * ✔ TIPO: Spacer
                  * Es un elemento invisible que ocupa espacio.
                  * Sirve para separar el icono del texto.
-                 *
-                 * (Detalles completos ya explicados en la primera aparición de Spacer)
                  */
                 Spacer(
                     modifier = Modifier.width(8.dp)
@@ -167,8 +142,6 @@ fun ClienteItem(
                  * ✔ TIPO: Text
                  * Es el nombre del cliente.
                  * Sirve para identificar al cliente dentro de la lista.
-                 *
-                 * (Detalles completos ya explicados en la primera aparición de Text)
                  */
                 Text(
                     text = nombre,
@@ -181,9 +154,7 @@ fun ClienteItem(
                  * -----------------
                  * ✔ TIPO: Text
                  * Es el estado del cliente (Activo, Moroso, Baja).
-                 * Sirve para mostrar su situación actual.
-                 *
-                 * (Detalles completos ya explicados en la primera aparición de Text)
+                 * Sirve para mostrar la situación actual del cliente.
                  */
                 Text(
                     text = textoEstado,
@@ -198,11 +169,9 @@ fun ClienteItem(
             /**
              * Row (teléfono)
              * --------------
-             * ✔ TIPO: Row
-             * Es un contenedor horizontal.
-             * Sirve para mostrar icono y número de teléfono juntos.
-             *
-             * (Detalles completos ya explicados en la primera aparición de Row)
+             * ✔ TIPO: Row (layout horizontal)
+             * Es un contenedor que coloca elementos uno al lado del otro.
+             * Sirve para mostrar el icono y el teléfono juntos.
              */
             Row() {
 
@@ -223,16 +192,12 @@ fun ClienteItem(
                  * ✔ TIPO: Text
                  * Es el número de teléfono del cliente.
                  * Sirve para mostrar información de contacto.
-                 *
-                 * (Detalles completos ya explicados en la primera aparición de Text)
                  */
                 Text(
                     text = telefono,
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
-
         }
-
     }
 }
