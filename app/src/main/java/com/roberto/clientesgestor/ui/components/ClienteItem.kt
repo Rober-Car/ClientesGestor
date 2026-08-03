@@ -48,6 +48,7 @@ import com.roberto.clientesgestor.model.Estado
 fun ClienteItem(
     nombre: String,
     telefono: String,
+    estaSeleccionada: Boolean,
     estado: Estado,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -129,6 +130,21 @@ fun ClienteItem(
                 )
 
 
+                /**
+                 * Icon (persona)
+                 * --------------
+                 * ✔ TIPO: Icon
+                 * Es el icono vectorial que representa al cliente.
+                 * Sirve para identificar visualmente al cliente.
+                 */
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "Icono de persona",
+                    tint = Color(0xFF64B5F6),
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp)
+                        .size(50.dp)
+                )
 
                 /**
                  * Column
@@ -138,44 +154,11 @@ fun ClienteItem(
                  * Sirve para organizar el contenido del cliente.
                  */
                 Column(
-                    modifier = Modifier.padding(16.dp)
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(16.dp)
                 ) {
 
-                    /**
-                     * Row (nombre y estado)
-                     * --------------------
-                     * ✔ TIPO: Row (layout horizontal)
-                     * Es un contenedor que coloca elementos uno al lado del otro.
-                     * Sirve para mostrar icono, nombre y estado en una misma línea.
-                     */
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-
-                        /**
-                         * Icon (persona)
-                         * --------------
-                         * ✔ TIPO: Icon
-                         * Es el icono vectorial que representa al cliente.
-                         * Sirve para identificar visualmente al cliente.
-                         */
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Icono de persona",
-                            tint = Color(0xFF64B5F6),
-                            modifier = Modifier.size(30.dp)
-                        )
-
-                        /**
-                         * Spacer
-                         * ------
-                         * ✔ TIPO: Spacer
-                         * Es un elemento invisible que ocupa espacio.
-                         * Sirve para separar el icono del texto.
-                         */
-                        Spacer(
-                            modifier = Modifier.width(8.dp)
-                        )
 
                         /**
                          * Text(nombre)
@@ -190,22 +173,17 @@ fun ClienteItem(
                             modifier = Modifier.weight(1f)
                         )
 
-                        /**
-                         * Text(textoEstado)
-                         * -----------------
-                         * ✔ TIPO: Text
-                         * Es el estado del cliente (Activo, Moroso, Baja).
-                         * Sirve para mostrar la situación actual del cliente.
-                         */
-                        Text(
-                            text = textoEstado,
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                    }
-
+                    /**
+                     * Spacer
+                     * ------
+                     * ✔ TIPO: Spacer
+                     * Es un elemento invisible que ocupa espacio.
+                     * Sirve para separar el icono del texto.
+                     */
                     Spacer(
-                        modifier = Modifier.height(8.dp)
+                        modifier = Modifier.width(8.dp)
                     )
+
 
                     /**
                      * Row (teléfono)
