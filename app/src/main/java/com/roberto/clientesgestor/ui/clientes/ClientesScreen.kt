@@ -58,10 +58,24 @@ fun ClientesScreen(
     navController: NavHostController
 ) {
 
+    /**
+     * filtroSeleccionado
+     * ------------------
+     * ✔ TIPO: variable con estado (var) mediante delegación `by`
+     * Es el filtro que está activo en la pantalla de clientes.
+     * Sirve para decidir qué clientes se muestran al pulsar cada tarjeta de resumen.
+     */
     var filtroSeleccionado by remember {
         mutableStateOf(FiltroClientes.TODOS)
     }
 
+    /**
+     * listaClientes
+     * -------------
+     * ✔ TIPO: variable inmutable (val) → List<Cliente>
+     * Es la lista completa de clientes de ejemplo.
+     * Sirve para tener datos de prueba con los que rellenar la pantalla.
+     */
     val listaClientes = listOf(
 
         Cliente(
@@ -109,6 +123,73 @@ fun ClientesScreen(
 
 
     )
+
+    /**
+     * clientesFiltrados
+     * -----------------
+     * ✔ TIPO: variable inmutable (val) → List<Cliente>
+     * Es la lista de clientes que cumple el filtro seleccionado.
+     * Sirve para mostrar solo los clientes del estado elegido o todos.
+     */
+    val clientesFiltrados = when (filtroSeleccionado) {
+
+        FiltroClientes.TODOS -> listaClientes
+
+        FiltroClientes.ACTIVO ->  listaClientes.filter { cliente ->
+                cliente.estado == Estado.ACTIVO}
+
+        FiltroClientes.MOROSO -> listaClientes.filter { cliente ->
+                cliente.estado == Estado.MOROSO }
+
+        FiltroClientes.BAJA -> listaClientes.filter { cliente ->
+
+            cliente.estado == Estado.BAJA
+        }
+    }
+
+
+    /**
+     * totalClientes
+     * -------------
+     * ✔ TIPO: variable inmutable (val) → Int
+     * Es el número total de clientes de la lista.
+     * Sirve para mostrar la cantidad en la tarjeta "Todos".
+     */
+    val totalClientes = listaClientes.size
+
+    /**
+     * totalActivos
+     * ------------
+     * ✔ TIPO: variable inmutable (val) → Int
+     * Es el número de clientes activos de la lista.
+     * Sirve para mostrar la cantidad en la tarjeta "Activos".
+     */
+    val totalActivos = listaClientes.count { cliente ->
+        cliente.estado == Estado.ACTIVO
+    }
+
+    /**
+     * totalMorosos
+     * ------------
+     * ✔ TIPO: variable inmutable (val) → Int
+     * Es el número de clientes morosos de la lista.
+     * Sirve para mostrar la cantidad en la tarjeta "Morosos".
+     */
+    val totalMorosos = listaClientes.count { cliente ->
+        cliente.estado == Estado.MOROSO
+    }
+
+    /**
+     * totalBajas
+     * ----------
+     * ✔ TIPO: variable inmutable (val) → Int
+     * Es el número de clientes dados de baja de la lista.
+     * Sirve para mostrar la cantidad en la tarjeta "Bajas".
+     */
+    val totalBajas = listaClientes.count { cliente ->
+        cliente.estado == Estado.BAJA
+    }
+
     /**
      * Scaffold
      * --------
@@ -160,7 +241,7 @@ fun ClientesScreen(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Volver",
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(30.dp)
                     )
                 }
 
@@ -202,6 +283,25 @@ fun ClientesScreen(
             ) {
 
                 /**
+                 * ResumenCard (Todos)
+                 * -------------------
+                 * ✔ TIPO: Composable personalizado (ResumenCard)
+                 * Es una tarjeta que muestra el número total de clientes.
+                 * Sirve para ver el total y volver a mostrar todos los clientes.
+                 */
+                ResumenCard(
+                    titulo = "Todos",
+                    cantidad = totalClientes,
+                    estaSeleccionada = filtroSeleccionado == FiltroClientes.TODOS,
+                    Color(0xFF4CAF50),
+                    onClick = {
+                        filtroSeleccionado = FiltroClientes.TODOS
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(6.dp)
+                )
+                /**
                  * ResumenCard (Activos)
                  * --------------------
                  * ✔ TIPO: Composable personalizado (ResumenCard)
@@ -210,7 +310,7 @@ fun ClientesScreen(
                  */
                 ResumenCard(
                     titulo = "Activos",
-                    cantidad = 10,
+                    cantidad = totalActivos,
                     estaSeleccionada = filtroSeleccionado == FiltroClientes.ACTIVO,
                     Color(0xFF4CAF50),
                     onClick = {
@@ -230,7 +330,7 @@ fun ClientesScreen(
                  */
                 ResumenCard(
                     "Bajas",
-                    10,
+                    totalBajas,
                     estaSeleccionada = filtroSeleccionado == FiltroClientes.BAJA,
                     color = Color.Gray,
                     onClick = {
@@ -250,7 +350,7 @@ fun ClientesScreen(
                  */
                 ResumenCard(
                     "Morosos",
-                    10,
+                    totalMorosos ,
                     estaSeleccionada = filtroSeleccionado == FiltroClientes.MOROSO,
                     color = Color.Red,
                     onClick = {
@@ -262,6 +362,13 @@ fun ClientesScreen(
                 )
             }
 
+            /**
+             * LazyColumn
+             * ----------
+             * ✔ TIPO: LazyColumn (lista perezosa vertical)
+             * Es una lista que solo dibuja los elementos visibles en pantalla.
+             * Sirve para mostrar los clientes filtrados uno debajo del otro.
+             */
             LazyColumn(
 
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -269,7 +376,21 @@ fun ClientesScreen(
 
             ){
 
-                items (listaClientes){ cliente ->
+                /**
+                 * items(clientesFiltrados)
+                 * ------------------------
+                 * ✔ TIPO: función (androidx.compose.foundation.lazy.items)
+                 * Es la función que recorre la lista de clientes filtrados.
+                 * Sirve para crear un ClienteItem por cada cliente de la lista.
+                 */
+                items (clientesFiltrados){ cliente ->
+                    /**
+                     * ClienteItem
+                     * -----------
+                     * ✔ TIPO: Composable personalizado (ClienteItem)
+                     * Es la tarjeta que muestra los datos de un cliente.
+                     * Sirve para representar cada cliente dentro de la lista.
+                     */
                     ClienteItem(
                         nombre = cliente.nombre,
                         telefono = cliente.telefono,
@@ -283,8 +404,7 @@ fun ClientesScreen(
 
         }
 
-
-
-
     }
+
 }
+

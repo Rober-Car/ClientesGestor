@@ -100,6 +100,13 @@ fun HomeScreen(
                 modifier = Modifier.padding(start = 16.dp)
             )
 
+            /**
+             * Spacer
+             * ------
+             * ✔ TIPO: Spacer
+             * Es un elemento invisible que ocupa espacio.
+             * Sirve para separar visualmente los componentes.
+             */
             Spacer(modifier = Modifier.height(24.dp))
 
             /**

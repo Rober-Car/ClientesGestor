@@ -69,8 +69,22 @@ fun ClientesGestorTheme(
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
+    /**
+     * colorScheme
+     * -----------
+     * ✔ TIPO: variable inmutable (val) → ColorScheme
+     * Es el esquema de colores que se usará según el tema del sistema.
+     * Sirve para aplicar colores dinámicos, oscuros o claros según el caso.
+     */
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            /**
+             * context
+             * -------
+             * ✔ TIPO: variable inmutable (val) → Context
+             * Es el contexto de la aplicación en el momento actual.
+             * Sirve para generar el esquema de colores dinámico del sistema.
+             */
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }

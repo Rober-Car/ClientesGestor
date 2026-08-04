@@ -9,6 +9,13 @@ package com.roberto.clientesgestor.model
  */
 
 
+/**
+ * Cliente
+ * -------
+ * ✔ TIPO: data class (clase de datos de Kotlin)
+ * Es la clase que agrupa los datos de un cliente.
+ * Sirve para representar a cada cliente con su nombre, teléfono y estado.
+ */
 data class Cliente(
 
 

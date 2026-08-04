@@ -123,7 +123,7 @@ fun ClienteItem(
                  */
                 Box(
                     modifier = Modifier
-                        .width(4.dp)
+                        .width(5.dp)
                         .fillMaxHeight()
                         .background(colorEstado)
                 )
@@ -193,6 +193,13 @@ fun ClienteItem(
                      */
                     Row() {
 
+                        /**
+                         * Icon (teléfono)
+                         * ---------------
+                         * ✔ TIPO: Icon
+                         * Es el icono que representa el teléfono del cliente.
+                         * Sirve para identificar visualmente el campo de teléfono.
+                         */
                         Icon(
                             imageVector = Icons.Default.Phone,
                             contentDescription = "Icono de telefono",
@@ -200,6 +207,13 @@ fun ClienteItem(
                             modifier = Modifier.size(25.dp)
                         )
 
+                        /**
+                         * Spacer
+                         * ------
+                         * ✔ TIPO: Spacer
+                         * Es un elemento invisible que ocupa espacio.
+                         * Sirve para separar el icono del teléfono del número.
+                         */
                         Spacer(
                             modifier = Modifier.width(8.dp)
                         )

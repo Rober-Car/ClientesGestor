@@ -100,6 +100,13 @@ fun MenuCard(
                 color = Color.White,
                 shadowElevation = 4.dp
             ) {
+                /**
+                 * Box
+                 * ---
+                 * ✔ TIPO: Box (layout básico)
+                 * Es un contenedor que centra el icono dentro del círculo.
+                 * Sirve para mantener el icono en el centro de la Surface.
+                 */
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center

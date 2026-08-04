@@ -24,6 +24,13 @@ import androidx.compose.ui.unit.sp
 
 // Set of Material typography styles to start with
 val Typography = Typography(
+    /**
+     * bodyLarge
+     * ---------
+     * ✔ TIPO: estilo de texto (TextStyle)
+     * Es el estilo base para los textos grandes de la aplicación.
+     * Sirve para que la mayoría de textos usen un tamaño y fuente coherentes.
+     */
     bodyLarge = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Normal,

@@ -43,4 +43,7 @@ object Routes {
      * Sirve para navegar a la pantalla de clientes con navController.navigate(CLIENTES).
      */
     const val CLIENTES = "clientes"
+
+
+    const val PERFILCLIENTE = "perfil_cliente"
 }

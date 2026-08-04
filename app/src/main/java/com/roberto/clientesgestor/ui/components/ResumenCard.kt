@@ -1,4 +1,4 @@
-package com.roberto.clientesgestor.ui.components
+ package com.roberto.clientesgestor.ui.components
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -42,20 +42,19 @@ fun ResumenCard(
     modifier: Modifier = Modifier
 ) {
 
+    /**
+     * containerColor
+     * --------------
+     * ✔ TIPO: variable inmutable (val) → Color
+     * Es el color de fondo de la tarjeta según esté seleccionada o no.
+     * Sirve para resaltar la tarjeta elegida respecto a las demás.
+     */
     val containerColor = if (estaSeleccionada) {
-        Color(0xFFE0E0E0)
+        Color(0xFFBBDEFB)
     } else {
         Color.White
     }
 
-    val elevacion = if (estaSeleccionada) {
-        CardDefaults.cardElevation(
-            defaultElevation = 10.dp)
-
-    }else{
-        CardDefaults.cardElevation(
-            defaultElevation = 6.dp)
-    }
 
     /**
      * Card
@@ -68,7 +67,8 @@ fun ResumenCard(
         onClick = onClick,
         modifier = modifier,
         shape = RoundedCornerShape(20.dp),
-        elevation = elevacion,
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 6.dp),
         colors = CardDefaults.cardColors(
             containerColor = containerColor
         )

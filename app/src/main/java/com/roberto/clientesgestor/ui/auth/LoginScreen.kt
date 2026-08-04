@@ -171,16 +171,23 @@ fun LoginScreen(
         )
 
         /**
-         * Segundo texto informativo
-         * -------------------------
-         * ✔ TIPO: Text
-         * Es una frase fija que se muestra debajo del mensaje principal.
-         * Sirve para presentar el propósito de la aplicación.
+         * Spacer
+         * ------
+         * ✔ TIPO: Spacer
+         * Es un elemento invisible que ocupa espacio.
+         * Sirve para separar el texto del email del texto informativo.
          */
         Spacer(
             modifier = Modifier.height(16.dp)
         )
 
+        /**
+         * Text("Gestión de clientes y cuotas")
+         * ------------------------------------
+         * ✔ TIPO: Text
+         * Es una frase fija que se muestra debajo del mensaje principal.
+         * Sirve para presentar el propósito de la aplicación.
+         */
         Text("Gestión de clientes y cuotas")
 
         /**
