@@ -36,10 +36,26 @@ import androidx.compose.ui.unit.dp
 fun ResumenCard(
     titulo: String,
     cantidad: Int,
+    estaSeleccionada: Boolean,
     color: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+
+    val containerColor = if (estaSeleccionada) {
+        Color(0xFFE0E0E0)
+    } else {
+        Color.White
+    }
+
+    val elevacion = if (estaSeleccionada) {
+        CardDefaults.cardElevation(
+            defaultElevation = 10.dp)
+
+    }else{
+        CardDefaults.cardElevation(
+            defaultElevation = 6.dp)
+    }
 
     /**
      * Card
@@ -52,10 +68,9 @@ fun ResumenCard(
         onClick = onClick,
         modifier = modifier,
         shape = RoundedCornerShape(20.dp),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 6.dp),
+        elevation = elevacion,
         colors = CardDefaults.cardColors(
-            containerColor = androidx.compose.ui.graphics.Color.White
+            containerColor = containerColor
         )
     ) {
 
@@ -123,3 +138,4 @@ fun ResumenCard(
         }
     }
 }
+

@@ -48,7 +48,6 @@ import com.roberto.clientesgestor.model.Estado
 fun ClienteItem(
     nombre: String,
     telefono: String,
-    estaSeleccionada: Boolean,
     estado: Estado,
     onClick: () -> Unit,
     modifier: Modifier = Modifier

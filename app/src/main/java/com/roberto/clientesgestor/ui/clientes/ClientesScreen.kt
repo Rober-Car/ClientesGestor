@@ -21,6 +21,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -29,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.roberto.clientesgestor.model.Cliente
 import com.roberto.clientesgestor.model.Estado
+import com.roberto.clientesgestor.model.FiltroClientes
 import com.roberto.clientesgestor.ui.components.ClienteItem
 
 import com.roberto.clientesgestor.ui.components.ResumenCard
@@ -53,6 +58,9 @@ fun ClientesScreen(
     navController: NavHostController
 ) {
 
+    var filtroSeleccionado by remember {
+        mutableStateOf(FiltroClientes.TODOS)
+    }
 
     val listaClientes = listOf(
 
@@ -201,10 +209,12 @@ fun ClientesScreen(
                  * Sirve para resumir de un vistazo los clientes activos.
                  */
                 ResumenCard(
-                    "Activos",
-                    10,
+                    titulo = "Activos",
+                    cantidad = 10,
+                    estaSeleccionada = filtroSeleccionado == FiltroClientes.ACTIVO,
                     Color(0xFF4CAF50),
                     onClick = {
+                        filtroSeleccionado = FiltroClientes.ACTIVO
                     },
                     modifier = Modifier
                         .weight(1f)
@@ -221,8 +231,10 @@ fun ClientesScreen(
                 ResumenCard(
                     "Bajas",
                     10,
+                    estaSeleccionada = filtroSeleccionado == FiltroClientes.BAJA,
                     color = Color.Gray,
                     onClick = {
+                        filtroSeleccionado = FiltroClientes.BAJA
                     },
                     modifier = Modifier
                         .weight(1f)
@@ -239,8 +251,10 @@ fun ClientesScreen(
                 ResumenCard(
                     "Morosos",
                     10,
+                    estaSeleccionada = filtroSeleccionado == FiltroClientes.MOROSO,
                     color = Color.Red,
                     onClick = {
+                        filtroSeleccionado = FiltroClientes.MOROSO
                     },
                     modifier = Modifier
                         .weight(1f)
