@@ -408,7 +408,7 @@ fun PerfilClienteScreen(
                      * Tipo Icon detallado más arriba con "persona".
                      */
                     Icon(
-                        imageVector = Icons.Default.SportsGymnastics,
+                        imageVector = Icons.Default.Bolt,
                         contentDescription = "Icono de crossfit",
                         tint = Color(0xFF64B5F6),
                         modifier = Modifier
