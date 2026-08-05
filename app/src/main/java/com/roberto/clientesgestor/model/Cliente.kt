@@ -19,6 +19,15 @@ package com.roberto.clientesgestor.model
 data class Cliente(
 
     /**
+     * idCliente
+     * ---------
+     * ✔ TIPO: propiedad (val) → Int
+     * Es el identificador único del cliente.
+     * Sirve para distinguir cada cliente de forma unívoca.
+     */
+    val idCliente: Int,
+
+    /**
      * nombre
      * ------
      * ✔ TIPO: propiedad (val) → String

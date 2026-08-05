@@ -71,58 +71,51 @@ fun ClientesScreen(
     }
 
     /**
-     * listaClientes
-     * -------------
-     * ✔ TIPO: variable inmutable (val) → List<Cliente>
-     * Es la lista completa de clientes de ejemplo.
-     * Sirve para tener datos de prueba con los que rellenar la pantalla.
+     * Lista de prueba con datos mockeados de clientes.
      */
     val listaClientes = listOf(
-
         Cliente(
+            id = 1,
             nombre = "Roberto Pérez",
             telefono = "600123123",
             estado = Estado.ACTIVO
         ),
-
         Cliente(
+            id = 2,
             nombre = "Ana García",
             telefono = "611456789",
             estado = Estado.MOROSO
         ),
-
         Cliente(
+            id = 3,
             nombre = "Juan López",
             telefono = "622987654",
             estado = Estado.BAJA
         ),
-
         Cliente(
+            id = 4,
             nombre = "María Fernández",
             telefono = "633112233",
             estado = Estado.ACTIVO
         ),
-
         Cliente(
+            id = 5,
             nombre = "Luis Ramírez",
             telefono = "644998877",
             estado = Estado.MOROSO
         ),
-
         Cliente(
+            id = 6,
             nombre = "Carmen Soto",
             telefono = "655443322",
             estado = Estado.BAJA
         ),
-
         Cliente(
+            id = 7,
             nombre = "Pedro Martín",
             telefono = "677221100",
             estado = Estado.ACTIVO
         )
-
-
-
     )
 
     /**
