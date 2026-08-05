@@ -364,7 +364,7 @@ fun PerfilClienteScreen(
                  * Spacer igual que el detallado más arriba.
                  */
                 Spacer(
-                    modifier = Modifier.width(8.dp)
+                    modifier = Modifier.height(8.dp)
                 )
 
                 /**
