@@ -112,7 +112,11 @@ fun LoginScreen(
         )
 
         /**
-         * deja un hueco vertical de 16dp entre los dos elementos.
+         * Spacer
+         * ------
+         * ✔ TIPO: Spacer
+         * Es un elemento invisible que ocupa espacio.
+         * Sirve para dejar un hueco vertical de 16dp entre elementos.
          */
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -133,16 +137,15 @@ fun LoginScreen(
         )
 
         /**
-         * deja un hueco vertical de 16dp entre los dos elementos.
+         * Spacer igual que el detallado más arriba.
          */
         Spacer(modifier = Modifier.height(16.dp))
 
         /**
          * OutlinedTextField (Contraseña)
          * -----------------------------
-         * ✔ TIPO: OutlinedTextField (Material 3)
-         * Es un campo de texto con borde para introducir la contraseña.
-         * Sirve para capturar la contraseña manteniéndola sincronizada con la variable de estado.
+         * Campo de texto para introducir la contraseña.
+         * Tipo OutlinedTextField detallado más arriba con "Email".
          */
         OutlinedTextField(
             value = password,
@@ -155,7 +158,7 @@ fun LoginScreen(
         )
 
         /**
-         * deja un hueco vertical de 16dp entre los dos elementos.
+         * Spacer igual que el detallado más arriba.
          */
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -171,11 +174,7 @@ fun LoginScreen(
         )
 
         /**
-         * Spacer
-         * ------
-         * ✔ TIPO: Spacer
-         * Es un elemento invisible que ocupa espacio.
-         * Sirve para separar el texto del email del texto informativo.
+         * Spacer igual que el detallado más arriba.
          */
         Spacer(
             modifier = Modifier.height(16.dp)

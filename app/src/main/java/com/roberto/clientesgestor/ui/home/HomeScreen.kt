@@ -101,11 +101,7 @@ fun HomeScreen(
             )
 
             /**
-             * Spacer
-             * ------
-             * ✔ TIPO: Spacer
-             * Es un elemento invisible que ocupa espacio.
-             * Sirve para separar visualmente los componentes.
+             * Segundo Spacer, igual que el detallado más arriba.
              */
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -128,9 +124,8 @@ fun HomeScreen(
             /**
              * MenuCard (Cuotas)
              * -----------------
-             * ✔ TIPO: Composable personalizado (MenuCard)
-             * Es una tarjeta del menú que representa la sección de cuotas.
-             * Sirve para acceder a la gestión de cuotas.
+             * Tarjeta que representa la sección de cuotas.
+             * Tipo MenuCard detallado más arriba con "Clientes".
              */
             MenuCard(
                 titulo = "Cuotas",
@@ -143,9 +138,8 @@ fun HomeScreen(
             /**
              * MenuCard (Pagos)
              * ----------------
-             * ✔ TIPO: Composable personalizado (MenuCard)
-             * Es una tarjeta del menú que representa la sección de pagos.
-             * Sirve para acceder a la validación de pagos.
+             * Tarjeta que representa la sección de pagos.
+             * Tipo MenuCard detallado más arriba con "Clientes".
              */
             MenuCard(
                 titulo = "Pagos",
@@ -158,9 +152,8 @@ fun HomeScreen(
             /**
              * MenuCard (Economía)
              * ------------------
-             * ✔ TIPO: Composable personalizado (MenuCard)
-             * Es una tarjeta del menú que representa la sección de economía.
-             * Sirve para acceder a los datos económicos.
+             * Tarjeta que representa la sección de economía.
+             * Tipo MenuCard detallado más arriba con "Clientes".
              */
             MenuCard(
                 titulo = "Economia",
@@ -173,9 +166,8 @@ fun HomeScreen(
             /**
              * MenuCard (Configuración)
              * ------------------------
-             * ✔ TIPO: Composable personalizado (MenuCard)
-             * Es una tarjeta del menú que representa la sección de configuración.
-             * Sirve para acceder a los ajustes de la aplicación.
+             * Tarjeta que representa la sección de configuración.
+             * Tipo MenuCard detallado más arriba con "Clientes".
              */
             MenuCard(
                 titulo = "Configuración",

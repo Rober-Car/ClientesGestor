@@ -34,6 +34,7 @@ import androidx.navigation.NavHostController
 import com.roberto.clientesgestor.model.Cliente
 import com.roberto.clientesgestor.model.Estado
 import com.roberto.clientesgestor.model.FiltroClientes
+import com.roberto.clientesgestor.navigation.Routes
 import com.roberto.clientesgestor.ui.components.ClienteItem
 
 import com.roberto.clientesgestor.ui.components.ResumenCard
@@ -193,7 +194,7 @@ fun ClientesScreen(
     /**
      * Scaffold
      * --------
-     * ✔ TIPO: Scaffold (estructura de Material Design)
+     * ✔ TIPO: Scaffold Estructura base de Material Design para la pantalla de Clientes.
      * Es un contenedor de alto nivel que organiza la pantalla en zonas.
      * Sirve para estructurar la pantalla de clientes con un layout coherente.
      */
@@ -293,7 +294,7 @@ fun ClientesScreen(
                     titulo = "Todos",
                     cantidad = totalClientes,
                     estaSeleccionada = filtroSeleccionado == FiltroClientes.TODOS,
-                    Color(0xFF4CAF50),
+                    Color.Transparent,
                     onClick = {
                         filtroSeleccionado = FiltroClientes.TODOS
                     },
@@ -304,9 +305,8 @@ fun ClientesScreen(
                 /**
                  * ResumenCard (Activos)
                  * --------------------
-                 * ✔ TIPO: Composable personalizado (ResumenCard)
-                 * Es una tarjeta que muestra el número de clientes activos.
-                 * Sirve para resumir de un vistazo los clientes activos.
+                 * Tarjeta que muestra el número de clientes activos.
+                 * Tipo ResumenCard detallado más arriba con "Todos".
                  */
                 ResumenCard(
                     titulo = "Activos",
@@ -324,9 +324,8 @@ fun ClientesScreen(
                 /**
                  * ResumenCard (Bajas)
                  * -------------------
-                 * ✔ TIPO: Composable personalizado (ResumenCard)
-                 * Es una tarjeta que muestra el número de clientes dados de baja.
-                 * Sirve para resumir de un vistazo los clientes de baja.
+                 * Tarjeta que muestra el número de clientes dados de baja.
+                 * Tipo ResumenCard detallado más arriba con "Todos".
                  */
                 ResumenCard(
                     "Bajas",
@@ -344,9 +343,8 @@ fun ClientesScreen(
                 /**
                  * ResumenCard (Morosos)
                  * --------------------
-                 * ✔ TIPO: Composable personalizado (ResumenCard)
-                 * Es una tarjeta que muestra el número de clientes morosos.
-                 * Sirve para resumir de un vistazo los clientes morosos.
+                 * Tarjeta que muestra el número de clientes morosos.
+                 * Tipo ResumenCard detallado más arriba con "Todos".
                  */
                 ResumenCard(
                     "Morosos",
@@ -395,7 +393,10 @@ fun ClientesScreen(
                         nombre = cliente.nombre,
                         telefono = cliente.telefono,
                         estado = cliente.estado,
-                        onClick = {},
+                        onClick = {
+
+                            navController.navigate(Routes.PERFILCLIENTE)
+                        },
                     )
 
 

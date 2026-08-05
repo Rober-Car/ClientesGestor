@@ -173,11 +173,7 @@ fun ClienteItem(
                         )
 
                     /**
-                     * Spacer
-                     * ------
-                     * ✔ TIPO: Spacer
-                     * Es un elemento invisible que ocupa espacio.
-                     * Sirve para separar el icono del texto.
+                     * Spacer igual que el detallado más arriba.
                      */
                     Spacer(
                         modifier = Modifier.width(8.dp)
@@ -187,18 +183,16 @@ fun ClienteItem(
                     /**
                      * Row (teléfono)
                      * --------------
-                     * ✔ TIPO: Row (layout horizontal)
-                     * Es un contenedor que coloca elementos uno al lado del otro.
-                     * Sirve para mostrar el icono y el teléfono juntos.
+                     * Fila para mostrar el icono y el teléfono juntos.
+                     * Tipo Row detallado más arriba con "barra y contenido".
                      */
                     Row() {
 
                         /**
                          * Icon (teléfono)
                          * ---------------
-                         * ✔ TIPO: Icon
-                         * Es el icono que representa el teléfono del cliente.
-                         * Sirve para identificar visualmente el campo de teléfono.
+                         * Icono que representa el teléfono del cliente.
+                         * Tipo Icon detallado más arriba con "persona".
                          */
                         Icon(
                             imageVector = Icons.Default.Phone,
@@ -208,11 +202,7 @@ fun ClienteItem(
                         )
 
                         /**
-                         * Spacer
-                         * ------
-                         * ✔ TIPO: Spacer
-                         * Es un elemento invisible que ocupa espacio.
-                         * Sirve para separar el icono del teléfono del número.
+                         * Spacer igual que el detallado más arriba.
                          */
                         Spacer(
                             modifier = Modifier.width(8.dp)

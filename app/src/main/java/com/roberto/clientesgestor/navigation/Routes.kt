@@ -45,5 +45,12 @@ object Routes {
     const val CLIENTES = "clientes"
 
 
+    /**
+     * PERFILCLIENTE
+     * --------------
+     * ✔ TIPO: constante (const val)
+     * Es la ruta de la pantalla de perfil del cliente.
+     * Sirve para navegar al detalle de un cliente con navController.navigate(PERFILCLIENTE).
+     */
     const val PERFILCLIENTE = "perfil_cliente"
 }

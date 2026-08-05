@@ -6,6 +6,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.roberto.clientesgestor.ui.auth.LoginScreen
 import com.roberto.clientesgestor.ui.clientes.ClientesScreen
+import com.roberto.clientesgestor.ui.clientes.PerfilClienteScreen
 import com.roberto.clientesgestor.ui.home.HomeScreen
 
 /**
@@ -61,9 +62,8 @@ fun AppNavigation() {
         /**
          * composable(Routes.HOME)
          * ----------------------
-         * ✔ TIPO: función @Composable
-         * Es la ruta registrada para la pantalla principal.
-         * Sirve para mostrar HomeScreen cuando se navega a la ruta home.
+         * Ruta registrada para la pantalla principal.
+         * Tipo `composable()` detallado más arriba con la ruta Routes.LOGIN.
          */
         composable(Routes.HOME) {
             HomeScreen(navController)
@@ -72,12 +72,21 @@ fun AppNavigation() {
         /**
          * composable(Routes.CLIENTES)
          * --------------------------
-         * ✔ TIPO: función @Composable
-         * Es la ruta registrada para la pantalla de clientes.
-         * Sirve para mostrar ClientesScreen cuando se navega a la ruta clientes.
+         * Ruta registrada para la pantalla de clientes.
+         * Tipo `composable()` detallado más arriba con la ruta Routes.LOGIN.
          */
         composable(Routes.CLIENTES) {
             ClientesScreen(navController)
+        }
+
+        /**
+         * composable(Routes.PERFILCLIENTE)
+         * --------------------------------
+         * Ruta registrada para la pantalla de perfil del cliente.
+         * Tipo `composable()` detallado más arriba con la ruta Routes.LOGIN.
+         */
+        composable(Routes.PERFILCLIENTE) {
+            PerfilClienteScreen(navController)
         }
     }
 }

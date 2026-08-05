@@ -95,7 +95,7 @@ fun ResumenCard(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(4.dp),
+                    .height(5.dp),
                 color = color
             ) {}
 
