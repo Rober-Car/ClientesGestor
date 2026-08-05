@@ -20,14 +20,12 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.roberto.clientesgestor.model.Estado
+import com.roberto.clientesgestor.model.EstadoCliente
 
 /**
  * ClienteItem.kt
@@ -48,7 +46,7 @@ import com.roberto.clientesgestor.model.Estado
 fun ClienteItem(
     nombre: String,
     telefono: String,
-    estado: Estado,
+    estado: EstadoCliente,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -61,9 +59,9 @@ fun ClienteItem(
      * Sirve para mostrar "Activo", "Moroso" o "Baja" en la tarjeta.
      */
     val textoEstado = when (estado) {
-        Estado.ACTIVO -> "Activo"
-        Estado.MOROSO -> "Moroso"
-        Estado.BAJA -> "Baja"
+        EstadoCliente.ACTIVO -> "Activo"
+        EstadoCliente.MOROSO -> "Moroso"
+        EstadoCliente.BAJA -> "Baja"
     }
 
     /**
@@ -74,9 +72,9 @@ fun ClienteItem(
      * Sirve para colorear visualmente el estado del cliente.
      */
     val colorEstado = when (estado) {
-        Estado.ACTIVO -> Color(0xFF4CAF50)
-        Estado.MOROSO -> Color.Red
-        Estado.BAJA -> Color.Gray
+        EstadoCliente.ACTIVO -> Color(0xFF4CAF50)
+        EstadoCliente.MOROSO -> Color.Red
+        EstadoCliente.BAJA -> Color.Gray
     }
 
     /**

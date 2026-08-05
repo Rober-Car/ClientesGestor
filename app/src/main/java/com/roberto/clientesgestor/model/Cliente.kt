@@ -52,5 +52,5 @@ data class Cliente(
      * Es el estado del cliente (ACTIVO, MOROSO o BAJA).
      * Sirve para saber la situación de cada cliente en el gestor.
      */
-    val estado: Estado
+    val estado: EstadoCliente
 )

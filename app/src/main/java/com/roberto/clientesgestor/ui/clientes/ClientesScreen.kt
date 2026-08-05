@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.dp
 
 import androidx.navigation.NavHostController
 import com.roberto.clientesgestor.model.Cliente
-import com.roberto.clientesgestor.model.Estado
+import com.roberto.clientesgestor.model.EstadoCliente
 import com.roberto.clientesgestor.model.FiltroClientes
 import com.roberto.clientesgestor.navigation.Routes
 import com.roberto.clientesgestor.ui.components.ClienteItem
@@ -71,50 +71,54 @@ fun ClientesScreen(
     }
 
     /**
-     * Lista de prueba con datos mockeados de clientes.
+     * listaClientes
+     * -------------
+     * ✔ TIPO: variable inmutable (val) → List<Cliente>
+     * Es una lista de prueba con datos mockeados de clientes.
+     * Sirve para mostrar la pantalla de clientes con datos de ejemplo.
      */
     val listaClientes = listOf(
         Cliente(
             idCliente = 1,
             nombre = "Roberto Pérez",
             telefono = "600123123",
-            estado = Estado.ACTIVO
+            estado = EstadoCliente.ACTIVO
         ),
         Cliente(
             idCliente = 2,
             nombre = "Ana García",
             telefono = "611456789",
-            estado = Estado.MOROSO
+            estado = EstadoCliente.MOROSO
         ),
         Cliente(
             idCliente = 3,
             nombre = "Juan López",
             telefono = "622987654",
-            estado = Estado.BAJA
+            estado = EstadoCliente.BAJA
         ),
         Cliente(
             idCliente = 4,
             nombre = "María Fernández",
             telefono = "633112233",
-            estado = Estado.ACTIVO
+            estado = EstadoCliente.ACTIVO
         ),
         Cliente(
             idCliente = 5,
             nombre = "Luis Ramírez",
             telefono = "644998877",
-            estado = Estado.MOROSO
+            estado = EstadoCliente.MOROSO
         ),
         Cliente(
             idCliente = 6,
             nombre = "Carmen Soto",
             telefono = "655443322",
-            estado = Estado.BAJA
+            estado = EstadoCliente.BAJA
         ),
         Cliente(
             idCliente = 7,
             nombre = "Pedro Martín",
             telefono = "677221100",
-            estado = Estado.ACTIVO
+            estado = EstadoCliente.ACTIVO
         )
     )
 
@@ -130,14 +134,14 @@ fun ClientesScreen(
         FiltroClientes.TODOS -> listaClientes
 
         FiltroClientes.ACTIVO ->  listaClientes.filter { cliente ->
-                cliente.estado == Estado.ACTIVO}
+                cliente.estado == EstadoCliente.ACTIVO}
 
         FiltroClientes.MOROSO -> listaClientes.filter { cliente ->
-                cliente.estado == Estado.MOROSO }
+                cliente.estado == EstadoCliente.MOROSO }
 
         FiltroClientes.BAJA -> listaClientes.filter { cliente ->
 
-            cliente.estado == Estado.BAJA
+            cliente.estado == EstadoCliente.BAJA
         }
     }
 
@@ -159,7 +163,7 @@ fun ClientesScreen(
      * Sirve para mostrar la cantidad en la tarjeta "Activos".
      */
     val totalActivos = listaClientes.count { cliente ->
-        cliente.estado == Estado.ACTIVO
+        cliente.estado == EstadoCliente.ACTIVO
     }
 
     /**
@@ -170,7 +174,7 @@ fun ClientesScreen(
      * Sirve para mostrar la cantidad en la tarjeta "Morosos".
      */
     val totalMorosos = listaClientes.count { cliente ->
-        cliente.estado == Estado.MOROSO
+        cliente.estado == EstadoCliente.MOROSO
     }
 
     /**
@@ -181,7 +185,7 @@ fun ClientesScreen(
      * Sirve para mostrar la cantidad en la tarjeta "Bajas".
      */
     val totalBajas = listaClientes.count { cliente ->
-        cliente.estado == Estado.BAJA
+        cliente.estado == EstadoCliente.BAJA
     }
 
     /**

@@ -15,7 +15,7 @@ package com.roberto.clientesgestor.model
  * Es el conjunto de valores fijos que representan el estado de un cliente.
  * Sirve para garantizar que un cliente solo puede estar en ACTIVO, MOROSO o BAJA.
  */
-enum class Estado {
+enum class EstadoCliente {
 
     /**
      * ACTIVO
