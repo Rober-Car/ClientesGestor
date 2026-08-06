@@ -93,6 +93,13 @@ fun ClientesGestorTheme(
         else -> LightColorScheme
     }
 
+    /**
+     * MaterialTheme
+     * -------------
+     * ✔ TIPO: función @Composable (androidx.compose.material3.MaterialTheme)
+     * Es el componente de Material 3 que aplica el tema a toda la interfaz.
+     * Sirve para que los elementos hijos hereden el colorScheme y la tipografía definidos.
+     */
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,

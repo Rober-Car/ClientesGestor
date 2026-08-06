@@ -18,39 +18,15 @@ package com.roberto.clientesgestor.model
  */
 data class Cliente(
 
-    /**
-     * idCliente
-     * ---------
-     * ✔ TIPO: propiedad (val) → Int
-     * Es el identificador único del cliente.
-     * Sirve para distinguir cada cliente de forma unívoca.
-     */
+
     val idCliente: Int,
 
-    /**
-     * nombre
-     * ------
-     * ✔ TIPO: propiedad (val) → String
-     * Es el nombre del cliente.
-     * Sirve para identificar a cada cliente en la aplicación.
-     */
+
     val nombre: String,
 
-    /**
-     * telefono
-     * --------
-     * ✔ TIPO: propiedad (val) → String
-     * Es el teléfono del cliente.
-     * Sirve para guardar el número de contacto de cada cliente.
-     */
+
     val telefono: String,
 
-    /**
-     * estado
-     * ------
-     * ✔ TIPO: propiedad (val) → Estado
-     * Es el estado del cliente (ACTIVO, MOROSO o BAJA).
-     * Sirve para saber la situación de cada cliente en el gestor.
-     */
+
     val estado: EstadoCliente
 )

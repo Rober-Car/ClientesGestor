@@ -1,10 +1,26 @@
 package com.roberto.clientesgestor.data.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.roberto.clientesgestor.model.EstadoCliente
 
+/**
+ * ClienteEntity.kt
+ * ----------------
+ * ✔ TIPO: archivo de código fuente Kotlin (entidad de datos)
+ * Es el archivo que define la entidad de la tabla de clientes de la base de datos.
+ * Sirve para que Room cree la tabla de clientes a partir de esta clase.
+ */
 
+/**
+ * @Entity(indices = [Index(value = ["dni"], unique = true)])
+ * ----------------------------------------------------------
+ * ✔ TIPO: anotación (androidx.room.Entity)
+ * Es la anotación que marca esta clase como tabla de la base de datos.
+ * Sirve para que Room cree una tabla llamada "ClienteEntity" con una columna por cada propiedad,
+ * añadiendo además un índice único sobre la columna "dni" para evitar DNI duplicados.
+ */
 
 /**
  * ClienteEntity
@@ -14,93 +30,36 @@ import com.roberto.clientesgestor.model.EstadoCliente
  * Sirve para que Room pueda guardar y recuperar clientes de forma persistente,
  * creando una fila en la tabla por cada instancia de esta clase.
  */
-
-/**
- * @Entity
- * -------
- * ✔ TIPO: anotación (androidx.room.Entity)
- * Es la anotación que marca esta clase como tabla de la base de datos.
- * Sirve para que Room cree una tabla llamada "ClienteEntity" y una columna por cada propiedad.
- */
-@Entity
+@Entity(
+    indices = [Index(value = ["dni"], unique = true)]
+)
 data class ClienteEntity(
 
+
     /**
-     * idUsuario
+     * idCliente
      * ---------
-     * ✔ TIPO: propiedad (val) → Int
+     * ✔ TIPO: propiedad (val) → Int (clave primaria)
      * Es el identificador único del cliente en la base de datos.
      * Sirve como clave primaria (@PrimaryKey) de la tabla de clientes:
      * con autoGenerate = true Room asigna un valor automático e incremental a cada nuevo cliente.
      */
     @PrimaryKey(autoGenerate = true)
+    val idCliente: Int = 0,
 
-    val idUsuario: Int = 0,
-
-    /**
-     * nombre
-     * ------
-     * ✔ TIPO: propiedad (val) → String
-     * Es el nombre del cliente.
-     * Sirve para guardar el nombre del cliente en la base de datos.
-     */
     val nombre: String,
-
-    /**
-     * apellidos
-     * ---------
-     * ✔ TIPO: propiedad (val) → String
-     * Es el apellido o apellidos del cliente.
-     * Sirve para guardar los apellidos del cliente en la base de datos.
-     */
     val apellidos: String,
-
-    /**
-     * dni
-     * ---
-     * ✔ TIPO: propiedad (val) → String
-     * Es el DNI del cliente.
-     * Sirve para guardar el documento de identidad del cliente en la base de datos.
-     */
     val dni: String,
-
-    /**
-     * telefono
-     * --------
-     * ✔ TIPO: propiedad (val) → String
-     * Es el teléfono del cliente.
-     * Sirve para guardar el número de contacto del cliente en la base de datos.
-     */
+    val password: String,
     val telefono: String,
-
-    /**
-     * email
-     * -----
-     * ✔ TIPO: propiedad (val) → String?
-     * Es el email del cliente, puede ser nulo si no se ha registrado.
-     * Sirve para guardar el correo de contacto del cliente en la base de datos;
-     * al ser nullable, Room permite guardar NULL en esa columna.
-     */
-    val email: String?,
-
-    /**
-     * estado
-     * ------
-     * ✔ TIPO: propiedad (val) → EstadoCliente
-     * Es el estado del cliente (ACTIVO, MOROSO o BAJA).
-     * Sirve para saber la situación del cliente en el gestor;
-     * al ser un enum, Room lo guarda como texto gracias al conversor EstadoClienteConverter.
-     */
+    val email: String? = null,
+    val foto: String,
+    val fechaNacimiento: Long,
+    val fechaRegistro: Long = System.currentTimeMillis(),
+    val fechaAlta: Long? = null,
+    val fechaBaja: Long? = null,
     val estado: EstadoCliente,
-
-    /**
-     * tieneLlave
-     * ----------
-     * ✔ TIPO: propiedad (val) → Boolean
-     * Es el indicador de si el cliente tiene llave de acceso al gimnasio.
-     * Sirve para saber si el cliente dispone de llave física.
-     */
-    val tieneLlave: Boolean
-
-
+    val tieneLlave: Boolean,
+    val observaciones: String? = null,
+    val firebaseUid: String? = null
 )

@@ -1,8 +1,10 @@
 package com.roberto.clientesgestor.data.dao
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Update
 import com.roberto.clientesgestor.data.entity.ClienteEntity
 
 /**
@@ -40,6 +42,28 @@ interface ClienteDao {
      */
     @Insert
     fun insertarCliente(cliente: ClienteEntity)
+
+    /**
+     * actualizarCliente
+     * -----------------
+     * ✔ TIPO: método (fun) de Room con anotación @Update
+     * Es la operación que actualiza los datos de un cliente ya existente en la tabla.
+     * Sirve para guardar los cambios de un ClienteEntity en la base de datos
+     * buscando el cliente por su clave primaria.
+     */
+    @Update
+    fun actualizarCliente(cliente: ClienteEntity)
+
+    /**
+     * eliminarCliente
+     * ---------------
+     * ✔ TIPO: método (fun) de Room con anotación @Delete
+     * Es la operación que elimina un cliente de la tabla de la base de datos.
+     * Sirve para borrar un ClienteEntity de la base de datos
+     * buscando el cliente por su clave primaria.
+     */
+    @Delete
+    fun eliminarCliente(cliente: ClienteEntity)
 
     /**
      * obtenerClientes
