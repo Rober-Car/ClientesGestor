@@ -16,27 +16,27 @@ import androidx.room.Room
  * ----------------
  * ✔ TIPO: object (objeto singleton de Kotlin)
  * Es el objeto único encargado de construir y devolver la base de datos Room.
- * Sirve para tener un punto central desde el que obtener la instancia de GymDatabase.
+ * Sirve para tener un punto central desde el que obtener la instancia de ClientesDatabase.
  */
 object DatabaseProvider {
 
     /**
      * database
      * --------
-     * ✔ TIPO: propiedad privada mutable (private var) → GymDatabase?
+     * ✔ TIPO: propiedad privada mutable (private var) → ClientesDatabase?
      * Es la instancia de la base de datos Room, que empieza sin valor (null).
      * Sirve para guardar la base de datos en memoria y no tener que crearla varias veces.
      */
-    private var database: GymDatabase? = null
+    private var database: ClientesDatabase? = null
 
     /**
      * getDatabase
      * -----------
-     * ✔ TIPO: método (fun) → GymDatabase
+     * ✔ TIPO: método (fun) → ClientesDatabase
      * Es el método que devuelve la base de datos Room de la aplicación.
      * Sirve para construir la base de datos solo la primera vez que se solicita y reutilizarla después.
      */
-    fun getDatabase(context: Context): GymDatabase {
+    fun getDatabase(context: Context): ClientesDatabase {
 
         /**
          * return database ?: synchronized(this) { ... }
@@ -62,14 +62,14 @@ object DatabaseProvider {
          * Sirve como "doble chequeo": si otro hilo ya construyó la base de datos mientras este esperaba
          * su turno, se devuelve esa instancia en vez de construir otra.
          *
-         * Room.databaseBuilder(context, GymDatabase::class.java, DATABASE_NAME):
+         * Room.databaseBuilder(context, ClientesDatabase::class.java, DATABASE_NAME):
          * ✔ TIPO: método (fun) de Room
          * Es el constructor de la base de datos Room, que recibe el contexto, la clase de la base y su nombre.
          * Sirve para configurar cómo se creará el archivo de la base de datos en el dispositivo.
          *
          * .build():
          * ✔ TIPO: método (fun) encadenado del builder de Room
-         * Es la llamada que termina la configuración y crea la instancia real de GymDatabase.
+         * Es la llamada que termina la configuración y crea la instancia real de ClientesDatabase.
          * Sirve para obtener el objeto de la base de datos ya listo para usarse.
          *
          * .also { database = it }:
@@ -81,7 +81,7 @@ object DatabaseProvider {
 
             database ?: Room.databaseBuilder(
                 context,
-                GymDatabase::class.java,
+                ClientesDatabase::class.java,
                 DATABASE_NAME
             ).build().also { database = it }
         }
