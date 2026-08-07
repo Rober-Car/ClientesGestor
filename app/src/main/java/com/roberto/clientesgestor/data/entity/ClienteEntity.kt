@@ -31,6 +31,7 @@ import com.roberto.clientesgestor.model.EstadoCliente
  * creando una fila en la tabla por cada instancia de esta clase.
  */
 @Entity(
+    tableName = "cliente",
     indices = [Index(value = ["dni"], unique = true)]
 )
 data class ClienteEntity(

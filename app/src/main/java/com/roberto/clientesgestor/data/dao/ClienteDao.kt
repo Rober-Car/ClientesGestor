@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
 import com.roberto.clientesgestor.data.entity.ClienteEntity
+import com.roberto.clientesgestor.model.EstadoCliente
 
 /**
  * ClienteDao.kt
@@ -34,17 +35,17 @@ import com.roberto.clientesgestor.data.entity.ClienteEntity
 interface ClienteDao {
 
     /**
-     * insertarCliente
+     * insertarClienteDao
      * ---------------
      * ✔ TIPO: método (fun) de Room con anotación @Insert
      * Es la operación que inserta un cliente en la tabla de la base de datos.
      * Sirve para guardar un nuevo ClienteEntity (o actualizarlo) cuando se le pasa como parámetro.
      */
     @Insert
-    fun insertarCliente(cliente: ClienteEntity)
+    suspend fun insertarClienteDao(cliente: ClienteEntity)
 
     /**
-     * actualizarCliente
+     * actualizarClienteDao
      * -----------------
      * ✔ TIPO: método (fun) de Room con anotación @Update
      * Es la operación que actualiza los datos de un cliente ya existente en la tabla.
@@ -52,10 +53,10 @@ interface ClienteDao {
      * buscando el cliente por su clave primaria.
      */
     @Update
-    fun actualizarCliente(cliente: ClienteEntity)
+    suspend fun actualizarClienteDao(cliente: ClienteEntity)
 
     /**
-     * eliminarCliente
+     * eliminarClienteDao
      * ---------------
      * ✔ TIPO: método (fun) de Room con anotación @Delete
      * Es la operación que elimina un cliente de la tabla de la base de datos.
@@ -63,17 +64,42 @@ interface ClienteDao {
      * buscando el cliente por su clave primaria.
      */
     @Delete
-    fun eliminarCliente(cliente: ClienteEntity)
+    suspend fun eliminarClienteDao(cliente: ClienteEntity)
 
     /**
-     * obtenerClientes
+     * obtenerClientesDao
      * ---------------
      * ✔ TIPO: método (fun) de Room con anotación @Query → List<ClienteEntity>
      * Es la operación que consulta todos los clientes guardados en la tabla.
      * Sirve para recuperar la lista completa de clientes con la consulta SQL
      * "SELECT * FROM ClienteEntity".
      */
-    @Query("SELECT * FROM ClienteEntity")
-    fun obtenerClientes(): List<ClienteEntity>
+    @Query("SELECT * FROM Cliente")
+    suspend fun obtenerClientesDao(): List<ClienteEntity>
+
+
+
+    /**
+     * obtenerClientePorDniDao
+     * -----------------------
+     * ✔ TIPO: método (fun) de Room con anotación @Query → ClienteEntity?
+     * Es la operación que consulta un cliente buscándolo por su DNI en la tabla.
+     * Sirve para recuperar un ClienteEntity concreto (o null si no existe)
+     * mediante la consulta SQL "SELECT * FROM Cliente WHERE dni = :dni".
+     */
+    @Query("SELECT * FROM Cliente WHERE dni = :dni")
+    suspend fun obtenerClientePorDniDao(dni: String): ClienteEntity?
+
+
+    /**
+     * obtenerClientesPorEstadoDao
+     * ---------------------------
+     * ✔ TIPO: método (fun) de Room con anotación @Query → List<ClienteEntity>
+     * Es la operación que consulta los clientes filtrados por su estado.
+     * Sirve para recuperar la lista de ClienteEntity con un EstadoCliente concreto
+     * mediante la consulta SQL "SELECT * FROM Cliente WHERE estado = :estado".
+     */
+    @Query("SELECT * FROM Cliente WHERE estado = :estado" )
+    suspend fun  obtenerClientesPorEstadoDao(estado: EstadoCliente): List<ClienteEntity>
 
 }
