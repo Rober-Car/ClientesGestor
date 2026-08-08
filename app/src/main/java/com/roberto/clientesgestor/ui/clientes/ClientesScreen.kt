@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 
 import androidx.navigation.NavHostController
 import com.roberto.clientesgestor.model.Cliente
@@ -38,6 +39,7 @@ import com.roberto.clientesgestor.navigation.Routes
 import com.roberto.clientesgestor.ui.components.ClienteItem
 
 import com.roberto.clientesgestor.ui.components.ResumenCard
+import com.roberto.clientesgestor.ui.viewmodel.ClienteViewModel
 
 /**
  * ClientesScreen.kt
@@ -70,6 +72,7 @@ fun ClientesScreen(
         mutableStateOf(FiltroClientes.TODOS)
     }
 
+    val viewModel: ClienteViewModel = hiltViewModel()
     /**
      * listaClientes
      * -------------

@@ -72,9 +72,9 @@ interface ClienteDao {
      * ✔ TIPO: método (fun) de Room con anotación @Query → List<ClienteEntity>
      * Es la operación que consulta todos los clientes guardados en la tabla.
      * Sirve para recuperar la lista completa de clientes con la consulta SQL
-     * "SELECT * FROM ClienteEntity".
+     * "SELECT * FROM cliente".
      */
-    @Query("SELECT * FROM Cliente")
+    @Query("SELECT * FROM cliente")
     suspend fun obtenerClientesDao(): List<ClienteEntity>
 
 
@@ -85,9 +85,9 @@ interface ClienteDao {
      * ✔ TIPO: método (fun) de Room con anotación @Query → ClienteEntity?
      * Es la operación que consulta un cliente buscándolo por su DNI en la tabla.
      * Sirve para recuperar un ClienteEntity concreto (o null si no existe)
-     * mediante la consulta SQL "SELECT * FROM Cliente WHERE dni = :dni".
+     * mediante la consulta SQL "SELECT * FROM cliente WHERE dni = :dni".
      */
-    @Query("SELECT * FROM Cliente WHERE dni = :dni")
+    @Query("SELECT * FROM cliente WHERE dni = :dni")
     suspend fun obtenerClientePorDniDao(dni: String): ClienteEntity?
 
 
@@ -97,9 +97,9 @@ interface ClienteDao {
      * ✔ TIPO: método (fun) de Room con anotación @Query → List<ClienteEntity>
      * Es la operación que consulta los clientes filtrados por su estado.
      * Sirve para recuperar la lista de ClienteEntity con un EstadoCliente concreto
-     * mediante la consulta SQL "SELECT * FROM Cliente WHERE estado = :estado".
+     * mediante la consulta SQL "SELECT * FROM cliente WHERE estado = :estado".
      */
-    @Query("SELECT * FROM Cliente WHERE estado = :estado" )
+    @Query("SELECT * FROM cliente WHERE estado = :estado" )
     suspend fun  obtenerClientesPorEstadoDao(estado: EstadoCliente): List<ClienteEntity>
 
 }
