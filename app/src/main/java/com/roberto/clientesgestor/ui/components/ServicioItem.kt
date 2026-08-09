@@ -33,13 +33,44 @@ import androidx.compose.ui.unit.dp
  */
 @Composable
 fun ServicioItem(
+    /**
+     * nombreServicio
+     * ---------------
+     * ✔ TIPO: parámetro (param) → String
+     * Es el nombre del servicio contratado por el cliente.
+     * Sirve para mostrarlo en la fila del servicio.
+     */
     nombreServicio: String,
+
+    /**
+     * iconoServicio
+     * -------------
+     * ✔ TIPO: parámetro (param) → ImageVector
+     * Es el icono que representa el servicio.
+     * Sirve para mostrar visualmente cada servicio junto a su nombre.
+     */
     iconoServicio: ImageVector
 ) {
+
+    /**
+     * Row del servicio
+     * ----------------
+     * ✔ TIPO: función @Composable (androidx.compose.foundation.layout.Row)
+     * Es la fila horizontal de un servicio contratado.
+     * Sirve para alinear el icono del servicio y su nombre en la lista.
+     */
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.padding(bottom = 8.dp)
     ) {
+
+        /**
+         * Icon del servicio
+         * -----------------
+         * ✔ TIPO: función @Composable (androidx.compose.material3.Icon)
+         * Es el icono que representa el servicio contratado.
+         * Sirve como identificador visual del servicio en la fila.
+         */
         Icon(
             imageVector = iconoServicio,
             contentDescription = nombreServicio,
@@ -47,6 +78,14 @@ fun ServicioItem(
             modifier = Modifier.size(20.dp)
         )
         Spacer(modifier = Modifier.width(8.dp))
+
+        /**
+         * Text del servicio
+         * -----------------
+         * ✔ TIPO: función @Composable (androidx.compose.material3.Text)
+         * Es el nombre del servicio contratado.
+         * Sirve para mostrar el nombre del servicio junto a su icono.
+         */
         Text(
             text = nombreServicio,
             style = MaterialTheme.typography.bodyLarge

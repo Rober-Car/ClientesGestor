@@ -22,6 +22,15 @@ import androidx.compose.ui.unit.sp
  * Sirve para que todos los textos de la app usen una tipografía consistente.
  */
 val Typography = Typography(
+
+    /**
+     * bodyLarge
+     * ---------
+     * ✔ TIPO: estilo de texto (TextStyle) dentro de Typography
+     * Es el estilo de texto principal para los cuerpos de texto grandes.
+     * Sirve para que los textos normales de la app usen la familia por defecto,
+     * peso normal, tamaño 16sp y una altura de línea de 24sp.
+     */
     bodyLarge = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Normal,

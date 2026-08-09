@@ -27,6 +27,14 @@ import dagger.hilt.android.AndroidEntryPoint
  * Es la ventana principal de la aplicación, el punto de entrada que usa Android para lanzarla.
  * Sirve como contenedor base donde se muestra toda la interfaz.
  */
+/**
+ * @AndroidEntryPoint
+ * ------------------
+ * ✔ TIPO: anotación (dagger.hilt.android.AndroidEntryPoint)
+ * Es la anotación que registra esta Activity como punto de inyección de Hilt.
+ * Sirve para que Hilt genere el código que inyecta las dependencias
+ * en esta Activity y en las que se montan a partir de ella.
+ */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
@@ -53,6 +61,13 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/**
+ * Greeting
+ * --------
+ * ✔ TIPO: función @Composable
+ * Es un componente simple que muestra un texto de saludo.
+ * Sirve como ejemplo de composable con parámetros (nombre y modificador).
+ */
 @Composable
 fun Greeting(name: String, modifier: Modifier = Modifier) {
     // Text: composable de Material que muestra el texto de saludo.
@@ -62,6 +77,13 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
     )
 }
 
+/**
+ * GreetingPreview
+ * ---------------
+ * ✔ TIPO: función @Composable anotada con @Preview
+ * Es la vista previa del componente Greeting para el modo diseño.
+ * Sirve para previsualizar el saludo de ejemplo dentro del tema de la app en Android Studio.
+ */
 @Preview(showBackground = true)
 @Composable
 fun GreetingPreview() {

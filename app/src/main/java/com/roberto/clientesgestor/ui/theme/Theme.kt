@@ -63,21 +63,86 @@ private val LightColorScheme = lightColorScheme(
  */
 @Composable
 fun ClientesGestorTheme(
+    /**
+     * darkTheme
+     * ---------
+     * ✔ TIPO: parámetro (param) → Boolean
+     * Es el indicador de si la app debe usar el tema oscuro.
+     * Sirve para elegir el esquema de colores oscuro o claro,
+     * detectando automáticamente la preferencia del sistema por defecto.
+     */
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
+
+    // El color dinámico está disponible a partir de Android 12+
+    /**
+     * dynamicColor
+     * ------------
+     * ✔ TIPO: parámetro (param) → Boolean
+     * Es el indicador de si se usa el color dinámico de Material You.
+     * Sirve para que la app tome los colores del fondo de pantalla del dispositivo
+     * cuando el sistema lo permite (Android 12+).
+     */
     dynamicColor: Boolean = true,
+
+    /**
+     * content
+     * -------
+     * ✔ TIPO: parámetro (param) → @Composable () -> Unit (lambda)
+     * Es el contenido de la interfaz que envuelve el tema.
+     * Sirve para aplicar el tema a todas las pantallas de la aplicación.
+     */
     content: @Composable () -> Unit
 ) {
+
+    /**
+     * colorScheme
+     * -----------
+     * ✔ TIPO: variable inmutable (val) → ColorScheme
+     * Es el esquema de colores elegido para la app.
+     * Sirve para decidir qué colores usar según el tema y la versión de Android.
+     */
     val colorScheme = when {
+
+        /**
+         * Rama del color dinámico
+         * -----------------------
+         * ✔ TIPO: rama (when) del esquema de colores
+         * Es el caso en que el color dinámico está activo y el dispositivo es Android 12+.
+         * Sirve para usar los colores dinámicos del fondo de pantalla
+         * (oscuros o claros según el tema activo).
+         */
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
 
+        /**
+         * Rama del tema oscuro
+         * --------------------
+         * ✔ TIPO: rama (when) del esquema de colores
+         * Es el caso en que está activo el tema oscuro sin color dinámico.
+         * Sirve para usar el esquema de colores oscuro personalizado.
+         */
         darkTheme -> DarkColorScheme
+
+        /**
+         * Rama del tema claro
+         * -------------------
+         * ✔ TIPO: rama (when) del esquema de colores
+         * Es el caso restante en que la app usa el tema claro.
+         * Sirve para usar el esquema de colores claro personalizado.
+         */
         else -> LightColorScheme
     }
 
+    /**
+     * MaterialTheme
+     * -------------
+     * ✔ TIPO: función @Composable (androidx.compose.material3.MaterialTheme)
+     * Es el componente que aplica el tema a toda la interfaz.
+     * Sirve para que todas las pantallas hereden el esquema de colores
+     * y la tipografía definidos en la aplicación.
+     */
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,
