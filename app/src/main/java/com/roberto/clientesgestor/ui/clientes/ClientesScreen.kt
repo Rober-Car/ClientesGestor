@@ -164,14 +164,44 @@ fun ClientesScreen(
      */
     val clientesFiltrados = when (filtroSeleccionado) {
 
+        /**
+         * Filtro TODOS
+         * ------------
+         * ✔ TIPO: rama (when) del filtro seleccionado
+         * Es el caso en que el filtro elegido es TODOS.
+         * Sirve para mostrar la lista completa de clientes sin filtrar.
+         */
         FiltroClientes.TODOS -> clientes
 
+        /**
+         * Filtro ACTIVO
+         * -------------
+         * ✔ TIPO: rama (when) del filtro seleccionado
+         * Es el caso en que el filtro elegido es ACTIVO.
+         * Sirve para mostrar solo los clientes cuyo estado es ACTIVO.
+         */
         FiltroClientes.ACTIVO -> clientes.filter { cliente ->
             cliente.estado == EstadoCliente.ACTIVO
         }
+
+        /**
+         * Filtro MOROSO
+         * -------------
+         * ✔ TIPO: rama (when) del filtro seleccionado
+         * Es el caso en que el filtro elegido es MOROSO.
+         * Sirve para mostrar solo los clientes cuyo estado es MOROSO.
+         */
         FiltroClientes.MOROSO -> clientes.filter { cliente ->
             cliente.estado == EstadoCliente.MOROSO
         }
+
+        /**
+         * Filtro BAJA
+         * -----------
+         * ✔ TIPO: rama (when) del filtro seleccionado
+         * Es el caso en que el filtro elegido es BAJA.
+         * Sirve para mostrar solo los clientes cuyo estado es BAJA.
+         */
         FiltroClientes.BAJA -> clientes.filter { cliente ->
             cliente.estado == EstadoCliente.BAJA
         }
@@ -219,12 +249,35 @@ fun ClientesScreen(
         cliente.estado == EstadoCliente.BAJA
     }
 
+    /**
+     * Scaffold
+     * --------
+     * ✔ TIPO: función @Composable (androidx.compose.material3.Scaffold)
+     * Es el contenedor base de la pantalla de clientes.
+     * Sirve como estructura general y proporciona el innerPadding para el contenido.
+     */
     Scaffold { innerPadding ->
+
+        /**
+         * Column
+         * ------
+         * ✔ TIPO: función @Composable (androidx.compose.foundation.layout.Column)
+         * Es el contenedor vertical principal de la pantalla de clientes.
+         * Sirve para apilar la cabecera, las tarjetas de resumen y la lista de clientes.
+         */
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
+
+            /**
+             * Row de la cabecera
+             * ------------------
+             * ✔ TIPO: función @Composable (androidx.compose.foundation.layout.Row)
+             * Es la fila superior de la pantalla con el botón de volver y el título.
+             * Sirve para situar el botón "Volver" a la izquierda y el título "Clientes" a su lado.
+             */
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -232,11 +285,26 @@ fun ClientesScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
 
+                /**
+                 * IconButton de volver
+                 * --------------------
+                 * ✔ TIPO: función @Composable (androidx.compose.material3.IconButton)
+                 * Es el botón con forma de icono que permite retroceder.
+                 * Sirve para volver a la pantalla anterior pulsando la flecha.
+                 */
                 IconButton(
                     onClick = {
                         navController.popBackStack()
                     }
                 ) {
+
+                    /**
+                     * Icon de flecha
+                     * --------------
+                     * ✔ TIPO: función @Composable (androidx.compose.material3.Icon)
+                     * Es el icono de flecha hacia atrás del botón.
+                     * Sirve para indicar visualmente la acción de volver.
+                     */
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Volver",
@@ -244,17 +312,40 @@ fun ClientesScreen(
                     )
                 }
                 Spacer(modifier = Modifier.width(16.dp))
+
+                /**
+                 * Text del título
+                 * ---------------
+                 * ✔ TIPO: función @Composable (androidx.compose.material3.Text)
+                 * Es el título de la pantalla de clientes.
+                 * Sirve para indicar al usuario en qué sección se encuentra.
+                 */
                 Text(
                     text = "Clientes",
                     style = MaterialTheme.typography.titleLarge
                 )
             }
 
+            /**
+             * Row de resumen
+             * --------------
+             * ✔ TIPO: función @Composable (androidx.compose.foundation.layout.Row)
+             * Es la fila que contiene las tarjetas de resumen de clientes.
+             * Sirve para mostrar y seleccionar los filtros Todos, Activos, Bajas y Morosos.
+             */
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(6.dp)
             ) {
+
+                /**
+                 * ResumenCard de Todos
+                 * --------------------
+                 * ✔ TIPO: componente @Composable (ResumenCard)
+                 * Es la tarjeta que muestra el total de clientes y selecciona el filtro TODOS.
+                 * Sirve para consultar la lista completa al pulsarla.
+                 */
                 ResumenCard(
                     titulo = "Todos",
                     cantidad = totalClientes,
@@ -268,6 +359,13 @@ fun ClientesScreen(
                         .padding(6.dp)
                 )
 
+                /**
+                 * ResumenCard de Activos
+                 * ----------------------
+                 * ✔ TIPO: componente @Composable (ResumenCard)
+                 * Es la tarjeta verde que muestra los clientes activos y selecciona el filtro ACTIVO.
+                 * Sirve para consultar solo los clientes activos al pulsarla.
+                 */
                 ResumenCard(
                     titulo = "Activos",
                     cantidad = totalActivos,
@@ -281,6 +379,13 @@ fun ClientesScreen(
                         .padding(6.dp)
                 )
 
+                /**
+                 * ResumenCard de Bajas
+                 * --------------------
+                 * ✔ TIPO: componente @Composable (ResumenCard)
+                 * Es la tarjeta gris que muestra los clientes de baja y selecciona el filtro BAJA.
+                 * Sirve para consultar solo los clientes dados de baja al pulsarla.
+                 */
                 ResumenCard(
                     "Bajas",
                     totalBajas,
@@ -294,6 +399,13 @@ fun ClientesScreen(
                         .padding(6.dp)
                 )
 
+                /**
+                 * ResumenCard de Morosos
+                 * ----------------------
+                 * ✔ TIPO: componente @Composable (ResumenCard)
+                 * Es la tarjeta roja que muestra los clientes morosos y selecciona el filtro MOROSO.
+                 * Sirve para consultar solo los clientes morosos al pulsarla.
+                 */
                 ResumenCard(
                     "Morosos",
                     totalMorosos,
@@ -308,12 +420,36 @@ fun ClientesScreen(
                 )
             }
 
-
+            /**
+             * LazyColumn
+             * ----------
+             * ✔ TIPO: función @Composable (androidx.compose.foundation.lazy.LazyColumn)
+             * Es la lista vertical de clientes con carga perezosa.
+             * Sirve para mostrar los clientes filtrados de forma eficiente,
+             * creando solo los elementos visibles y separándolos con 8.dp.
+             */
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(16.dp)
             ) {
+
+                /**
+                 * items(clientesFiltrados)
+                 * -----------------------
+                 * ✔ TIPO: extensión de LazyListScope (items)
+                 * Es el bloque que recorre la lista de clientes filtrados.
+                 * Sirve para crear un ClienteItem por cada cliente de la lista.
+                 */
                 items(clientesFiltrados) { cliente ->
+
+                    /**
+                     * ClienteItem
+                     * -----------
+                     * ✔ TIPO: componente @Composable (ClienteItem)
+                     * Es el elemento de lista que muestra los datos de un cliente.
+                     * Sirve para mostrar nombre, teléfono y estado del cliente
+                     * y navegar a su perfil al pulsarlo.
+                     */
                     ClienteItem(
                         nombre = cliente.nombre,
                         telefono = cliente.telefono,
