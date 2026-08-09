@@ -40,15 +40,47 @@ import com.roberto.clientesgestor.ui.components.MenuCard
  */
 @Composable
 fun HomeScreen(
+    /**
+     * navController
+     * -------------
+     * ✔ TIPO: parámetro (param) → NavHostController
+     * Es el controlador de navegación que recibe la pantalla de Home.
+     * Sirve para poder navegar desde el menú principal a las demás secciones.
+     */
     navController: NavHostController
 ) {
+
+    /**
+     * Scaffold
+     * --------
+     * ✔ TIPO: función @Composable (androidx.compose.material3.Scaffold)
+     * Es el contenedor base de la pantalla que aplica los rellenos del sistema.
+     * Sirve como estructura general y proporciona el innerPadding para el contenido.
+     */
     Scaffold { innerPadding ->
+
+        /**
+         * Column
+         * ------
+         * ✔ TIPO: función @Composable (androidx.compose.foundation.layout.Column)
+         * Es el contenedor vertical del contenido del menú.
+         * Sirve para apilar el título y las tarjetas de MenúCard en orden,
+         * permitiendo hacer scroll si el contenido no cabe en pantalla.
+         */
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
         ) {
+
+            /**
+             * Text del título
+             * ---------------
+             * ✔ TIPO: función @Composable (androidx.compose.material3.Text)
+             * Es el título principal de la aplicación en la pantalla de inicio.
+             * Sirve para mostrar el nombre "ClientesGestor" con un estilo destacado.
+             */
             Text(
                 text = "ClientesGestor",
                 style = MaterialTheme.typography.headlineMedium,
@@ -56,12 +88,26 @@ fun HomeScreen(
             )
             Spacer(modifier = Modifier.height(24.dp))
 
+            /**
+             * Text de bienvenida
+             * ------------------
+             * ✔ TIPO: función @Composable (androidx.compose.material3.Text)
+             * Es el saludo de bienvenida que se muestra al usuario.
+             * Sirve para dar la bienvenida al menú principal de la aplicación.
+             */
             Text(
                 text = "Bienvenido",
                 modifier = Modifier.padding(start = 16.dp)
             )
             Spacer(modifier = Modifier.height(24.dp))
 
+            /**
+             * MenuCard de Clientes
+             * --------------------
+             * ✔ TIPO: componente @Composable (MenuCard)
+             * Es la tarjeta de acceso a la gestión de clientes.
+             * Sirve para navegar a la pantalla de Clientes al pulsarla.
+             */
             MenuCard(
                 titulo = "Clientes",
                 descripcion = "Gestión de clientes ",
@@ -71,6 +117,13 @@ fun HomeScreen(
                 }
             )
 
+            /**
+             * MenuCard de Cuotas
+             * ------------------
+             * ✔ TIPO: componente @Composable (MenuCard)
+             * Es la tarjeta de acceso a la gestión de cuotas.
+             * Sirve como entrada a la futura sección de cuotas de la aplicación.
+             */
             MenuCard(
                 titulo = "Cuotas",
                 descripcion = "Gestiona las cuotas",
@@ -79,6 +132,13 @@ fun HomeScreen(
                 }
             )
 
+            /**
+             * MenuCard de Pagos
+             * -----------------
+             * ✔ TIPO: componente @Composable (MenuCard)
+             * Es la tarjeta de acceso a la validación de pagos.
+             * Sirve como entrada a la futura sección de pagos de la aplicación.
+             */
             MenuCard(
                 titulo = "Pagos",
                 descripcion = "Valida los pagos",
@@ -87,6 +147,13 @@ fun HomeScreen(
                 }
             )
 
+            /**
+             * MenuCard de Economía
+             * --------------------
+             * ✔ TIPO: componente @Composable (MenuCard)
+             * Es la tarjeta de acceso a los datos económicos.
+             * Sirve como entrada a la futura sección de economía de la aplicación.
+             */
             MenuCard(
                 titulo = "Economia",
                 descripcion = "Datos economicos",
@@ -95,6 +162,13 @@ fun HomeScreen(
                 }
             )
 
+            /**
+             * MenuCard de Configuración
+             * -------------------------
+             * ✔ TIPO: componente @Composable (MenuCard)
+             * Es la tarjeta de acceso a los ajustes de la aplicación.
+             * Sirve como entrada a la futura sección de configuración.
+             */
             MenuCard(
                 titulo = "Configuración",
                 descripcion = "Ajustes de la aplicación",

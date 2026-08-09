@@ -35,21 +35,69 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface ClienteDao {
 
+    /**
+     * insertarClienteDao
+     * ------------------
+     * ✔ TIPO: método (fun) de Room con anotación @Insert
+     * Es la operación que inserta un cliente en la tabla de la base de datos.
+     * Sirve para guardar un nuevo ClienteEntity cuando se le pasa como parámetro.
+     */
     @Insert
     suspend fun insertarClienteDao(cliente: ClienteEntity)
 
+    /**
+     * actualizarClienteDao
+     * --------------------
+     * ✔ TIPO: método (fun) de Room con anotación @Update
+     * Es la operación que actualiza los datos de un cliente ya existente en la tabla.
+     * Sirve para guardar los cambios de un ClienteEntity en la base de datos
+     * buscando el cliente por su clave primaria.
+     */
     @Update
     suspend fun actualizarClienteDao(cliente: ClienteEntity)
 
+    /**
+     * eliminarClienteDao
+     * ------------------
+     * ✔ TIPO: método (fun) de Room con anotación @Delete
+     * Es la operación que elimina un cliente de la tabla de la base de datos.
+     * Sirve para borrar un ClienteEntity de la base de datos
+     * buscando el cliente por su clave primaria.
+     */
     @Delete
     suspend fun eliminarClienteDao(cliente: ClienteEntity)
 
+    /**
+     * obtenerClientesDao
+     * ------------------
+     * ✔ TIPO: método (fun) de Room con anotación @Query → Flow<List<ClienteEntity>>
+     * Es la operación que consulta todos los clientes guardados en la tabla.
+     * Sirve para recuperar la lista completa de clientes con la consulta SQL
+     * "SELECT * FROM cliente", devolviéndola de forma reactiva con Flow.
+     */
     @Query("SELECT * FROM cliente")
     fun obtenerClientesDao(): Flow<List<ClienteEntity>>
 
+    /**
+     * obtenerClientePorDniDao
+     * -----------------------
+     * ✔ TIPO: método (fun) de Room con anotación @Query → ClienteEntity?
+     * Es la operación que consulta un cliente buscándolo por su DNI en la tabla.
+     * Sirve para recuperar un ClienteEntity concreto (o null si no existe)
+     * mediante la consulta SQL "SELECT * FROM cliente WHERE dni = :dni".
+     */
     @Query("SELECT * FROM cliente WHERE dni = :dni")
     suspend fun obtenerClientePorDniDao(dni: String): ClienteEntity?
 
+    /**
+     * obtenerClientesPorEstadoDao
+     * ---------------------------
+     * ✔ TIPO: método (fun) de Room con anotación @Query → Flow<List<ClienteEntity>>
+     * Es la operación que consulta los clientes filtrados por su estado.
+     * Sirve para recuperar la lista de ClienteEntity con un EstadoCliente concreto
+     * mediante la consulta SQL "SELECT * FROM cliente WHERE estado = :estado",
+     * devolviéndola de forma reactiva con Flow.
+     */
     @Query("SELECT * FROM cliente WHERE estado = :estado" )
     fun obtenerClientesPorEstadoDao(estado: EstadoCliente): Flow<List<ClienteEntity>>
 

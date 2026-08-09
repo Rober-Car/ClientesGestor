@@ -57,7 +57,16 @@ object AppModule {
      */
     @Provides
     @Singleton
-    fun provideDatabase(@ApplicationContext context: Context): ClientesDatabase {
+    fun provideDatabase(
+        /**
+         * context
+         * -------
+         * ✔ TIPO: parámetro (param) → Context
+         * Es el contexto de la aplicación inyectado con @ApplicationContext.
+         * Sirve para que la base de datos Room sepa dónde guardar el fichero .db.
+         */
+        @ApplicationContext context: Context
+    ): ClientesDatabase {
         return Room.databaseBuilder(
             context,
             ClientesDatabase::class.java,
@@ -73,7 +82,16 @@ object AppModule {
      * Sirve para que Hilt inyecte ClienteDao en las clases que necesiten acceder a la tabla de clientes.
      */
     @Provides
-    fun provideClienteDao(database: ClientesDatabase): ClienteDao {
+    fun provideClienteDao(
+        /**
+         * database
+         * --------
+         * ✔ TIPO: parámetro (param) → ClientesDatabase
+         * Es la base de datos Room de la aplicación.
+         * Sirve para obtener el DAO de clientes a partir de ella.
+         */
+        database: ClientesDatabase
+    ): ClienteDao {
         return database.clienteDao()
     }
 
@@ -85,7 +103,16 @@ object AppModule {
      * Sirve para que Hilt inyecte ClienteRepository en las clases que necesiten operar con clientes.
      */
     @Provides
-    fun provideClienteRepository(clienteDao: ClienteDao): ClienteRepository {
+    fun provideClienteRepository(
+        /**
+         * clienteDao
+         * ----------
+         * ✔ TIPO: parámetro (param) → ClienteDao
+         * Es el DAO de clientes de la base de datos.
+         * Sirve para construir el repositorio de clientes a partir de él.
+         */
+        clienteDao: ClienteDao
+    ): ClienteRepository {
         return ClienteRepository(clienteDao)
     }
 }

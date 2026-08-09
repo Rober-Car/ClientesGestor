@@ -16,8 +16,40 @@ package com.roberto.clientesgestor.navigation
  * Sirve para evitar errores tipográficos y centralizar las rutas del NavHost.
  */
 object Routes {
+
+    /**
+     * LOGIN
+     * -----
+     * ✔ TIPO: constante (const val) → String
+     * Es la ruta de la pantalla de inicio de sesión.
+     * Sirve para que NavHost y las pantallas naveguen hasta Login con la misma ruta.
+     */
     const val LOGIN = "login"
+
+    /**
+     * HOME
+     * ----
+     * ✔ TIPO: constante (const val) → String
+     * Es la ruta de la pantalla de inicio o menú principal.
+     * Sirve para que NavHost y las pantallas naveguen hasta Home con la misma ruta.
+     */
     const val HOME = "home"
+
+    /**
+     * CLIENTES
+     * --------
+     * ✔ TIPO: constante (const val) → String
+     * Es la ruta de la pantalla de la lista de clientes.
+     * Sirve para que NavHost y las pantallas naveguen hasta Clientes con la misma ruta.
+     */
     const val CLIENTES = "clientes"
+
+    /**
+     * PERFILCLIENTE
+     * -------------
+     * ✔ TIPO: constante (const val) → String
+     * Es la ruta de la pantalla de perfil de un cliente.
+     * Sirve para que NavHost y las pantallas naveguen hasta el perfil con la misma ruta.
+     */
     const val PERFILCLIENTE = "perfil_cliente"
 }

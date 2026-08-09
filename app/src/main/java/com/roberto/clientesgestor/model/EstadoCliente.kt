@@ -3,20 +3,44 @@ package com.roberto.clientesgestor.model
 /**
  * EstadoCliente.kt
  * ----------------
- * ✔ TIPO: archivo de código fuente Kotlin (modelo de datos)
- * Es el archivo del paquete `model` que define el estado de un cliente.
- * Sirve para representar de forma tipada y segura la situación de cada cliente en toda la aplicación.
+ * ✔ TIPO: archivo de código fuente Kotlin (enum de estados)
+ * Es el archivo que define los estados posibles de un cliente.
+ * Sirve para representar la situación de cada cliente dentro del gestor.
  */
 
 /**
  * EstadoCliente
  * -------------
- * ✔ TIPO: enum class (enum de Kotlin)
- * Es el conjunto de valores fijos que representan el estado de un cliente.
- * Sirve para garantizar que un cliente solo puede estar en ACTIVO, MOROSO o BAJA.
+ * ✔ TIPO: enum (enumerado de Kotlin)
+ * Es el enumerado que contiene los estados posibles de un cliente.
+ * Sirve para saber en qué situación está cada cliente y poder filtrarlos.
  */
 enum class EstadoCliente {
+
+    /**
+     * ACTIVO
+     * ------
+     * ✔ TIPO: constante (valor del enum EstadoCliente)
+     * Es el estado de los clientes que están dados de alta y al día.
+     * Sirve para marcar a los clientes activos del gestor.
+     */
     ACTIVO,
+
+    /**
+     * MOROSO
+     * ------
+     * ✔ TIPO: constante (valor del enum EstadoCliente)
+     * Es el estado de los clientes que tienen pagos pendientes o deudas.
+     * Sirve para marcar a los clientes morosos del gestor.
+     */
     MOROSO,
+
+    /**
+     * BAJA
+     * ----
+     * ✔ TIPO: constante (valor del enum EstadoCliente)
+     * Es el estado de los clientes que se han dado de baja del servicio.
+     * Sirve para marcar a los clientes que ya no forman parte del gestor.
+     */
     BAJA
 }

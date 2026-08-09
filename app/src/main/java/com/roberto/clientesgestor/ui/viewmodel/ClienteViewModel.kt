@@ -1,5 +1,6 @@
 package com.roberto.clientesgestor.ui.viewmodel
 
+import android.database.sqlite.SQLiteConstraintException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 
@@ -9,7 +10,9 @@ import com.roberto.clientesgestor.data.entity.toCliente
 import com.roberto.clientesgestor.data.repository.ClienteRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import jakarta.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
@@ -50,6 +53,25 @@ import kotlinx.coroutines.launch
 class ClienteViewModel @Inject constructor(
     private val clienteRepository: ClienteRepository
 ) : ViewModel() {
+
+
+    /**
+     * _error
+     * ------
+     * ✔ TIPO: propiedad (private val) → MutableStateFlow<String?>
+     * Es el flujo privado de errores del ViewModel, mutable solo dentro de la clase.
+     * Sirve para guardar el mensaje de error actual y cambiarlo cuando ocurre una excepción.
+     */
+    private val _error = MutableStateFlow<String?>(null)
+
+    /**
+     * error
+     * -----
+     * ✔ TIPO: propiedad (val) → StateFlow<String?>
+     * Es la versión de solo lectura del flujo _error.
+     * Sirve para que la interfaz observe el mensaje de error en tiempo real y lo muestre al usuario.
+     */
+    val error = _error.asStateFlow()
 
     /**
      * Clientes
@@ -97,7 +119,76 @@ class ClienteViewModel @Inject constructor(
              * Es la operación que inserta el cliente a través del repositorio.
              * Sirve para que el DAO guarde el ClienteEntity en la base de datos Room.
              */
-            clienteRepository.insertarClienteRepo(cliente)
+
+            /**
+             * try / catch (SQLiteConstraintException)
+             * ----------------------------------------
+             * ✔ TIPO: bloque de control de excepciones
+             * Es el bloque que intenta insertar el cliente y captura el error si ocurre.
+             * Sirve para controlar el caso en que el DNI ya existe en la base de datos
+             * (por el índice único de la tabla) y avisar al usuario con un mensaje de error.
+             */
+            try {
+                clienteRepository.insertarClienteRepo(cliente)
+            }catch(e: SQLiteConstraintException){
+
+                /**
+                 * _error.value
+                 * ------------
+                 * ✔ TIPO: asignación al flujo mutable de errores
+                 * Es la línea que guarda el mensaje de error del DNI duplicado.
+                 * Sirve para que el StateFlow error emita "El DNI ya está registrado"
+                 * y la interfaz pueda mostrarlo.
+                 */
+                _error.value = "El DNI ya está registrado"
+
+            }
         }
+    }
+
+    /**
+     * actualizarCliente
+     * -----------------
+     * ✔ TIPO: método (fun) de ClienteViewModel
+     * Es la función que actualiza los datos de un cliente ya existente.
+     * Sirve para que la interfaz modifique un cliente sin bloquear la UI,
+     * lanzando la operación de Room en segundo plano.
+     */
+    fun actualizarCliente(cliente: ClienteEntity) {
+
+        /**
+         * viewModelScope.launch
+         * ---------------------
+         * ✔ TIPO: corrutina lanzada en el ámbito del ViewModel
+         * Es la corrutina que ejecuta la actualización del cliente en segundo plano.
+         * Sirve para no bloquear el hilo principal de la UI.
+         */
+        viewModelScope.launch{
+            clienteRepository.actualizarClienteRepo(cliente)
+        }
+    }
+
+    /**
+     * eliminarCliente
+     * ---------------
+     * ✔ TIPO: método (fun) de ClienteViewModel
+     * Es la función que elimina un cliente de la base de datos.
+     * Sirve para que la interfaz borre un cliente sin bloquear la UI,
+     * lanzando la operación de Room en segundo plano.
+     */
+    fun eliminarCliente(cliente: ClienteEntity){
+
+        /**
+         * viewModelScope.launch
+         * ---------------------
+         * ✔ TIPO: corrutina lanzada en el ámbito del ViewModel
+         * Es la corrutina que ejecuta la eliminación del cliente en segundo plano.
+         * Sirve para no bloquear el hilo principal de la UI.
+         */
+        viewModelScope.launch {
+            clienteRepository.eliminarClienteRepo(cliente)
+        }
+
+
     }
 }

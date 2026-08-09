@@ -82,6 +82,8 @@ fun ClientesScreen(
      */
     val viewModel: ClienteViewModel = hiltViewModel()
 
+
+
     /**
      * clientes
      * --------
@@ -90,6 +92,16 @@ fun ClientesScreen(
      * Sirve para que la pantalla se actualice automáticamente cuando cambian los datos de la base de datos.
      */
     val clientes by viewModel.clientes.collectAsStateWithLifecycle()
+
+    /**
+     * error
+     * -----
+     * ✔ TIPO: variable inmutable (val) → String?
+     * Es el mensaje de error observado desde el ViewModel.
+     * Sirve para mostrar al usuario avisos como "El DNI ya está registrado"
+     * cuando ocurre un error al guardar datos.
+     */
+    val error by viewModel.error.collectAsStateWithLifecycle()
 
     /**
      * listaClientes

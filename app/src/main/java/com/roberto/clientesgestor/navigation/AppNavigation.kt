@@ -47,18 +47,51 @@ fun AppNavigation() {
         navController = navController,
         startDestination = Routes.LOGIN
     ) {
+
+        /**
+         * Ruta LOGIN
+         * ----------
+         * ✔ TIPO: ruta de navegación (composable)
+         * Es la ruta de inicio que muestra la pantalla de Login.
+         * Sirve para que al abrir la aplicación se muestre el inicio de sesión
+         * y se pase el navController para poder navegar al Home.
+         */
         composable(Routes.LOGIN) {
             LoginScreen(navController)
         }
 
+        /**
+         * Ruta HOME
+         * ---------
+         * ✔ TIPO: ruta de navegación (composable)
+         * Es la ruta que muestra la pantalla de inicio o menú principal.
+         * Sirve para que desde Login se llegue al menú principal
+         * y se pase el navController para poder navegar al resto de pantallas.
+         */
         composable(Routes.HOME) {
             HomeScreen(navController)
         }
 
+        /**
+         * Ruta CLIENTES
+         * -------------
+         * ✔ TIPO: ruta de navegación (composable)
+         * Es la ruta que muestra la pantalla de la lista de clientes.
+         * Sirve para que desde el menú principal se acceda a la gestión de clientes
+         * y se pase el navController para poder navegar al perfil de un cliente.
+         */
         composable(Routes.CLIENTES) {
             ClientesScreen(navController)
         }
 
+        /**
+         * Ruta PERFILCLIENTE
+         * ------------------
+         * ✔ TIPO: ruta de navegación (composable)
+         * Es la ruta que muestra la pantalla de perfil de un cliente.
+         * Sirve para que desde la lista de clientes se acceda a los detalles
+         * y se pase el navController para poder volver atrás.
+         */
         composable(Routes.PERFILCLIENTE) {
             PerfilClienteScreen(navController)
         }

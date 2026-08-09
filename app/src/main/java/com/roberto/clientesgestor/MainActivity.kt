@@ -38,10 +38,15 @@ class MainActivity : ComponentActivity() {
      * Sirve para activar el modo edge-to-edge y montar el tema ClientesGestorTheme con AppNavigation.
      */
     override fun onCreate(savedInstanceState: Bundle?) {
+        // super.onCreate: ejecuta la preparación básica de la Activity que hace Android.
         super.onCreate(savedInstanceState)
+        // enableEdgeToEdge: permite que la app pinte detrás de la barra de estado y navegación.
         enableEdgeToEdge()
+        // setContent: monta el contenido Compose de la pantalla; se llama una única vez.
         setContent {
+            // ClientesGestorTheme: aplica colores y tipografía del tema a toda la interfaz.
             ClientesGestorTheme {
+                // AppNavigation: define el NavHost con todas las rutas de la aplicación.
                 AppNavigation()
             }
         }
@@ -50,6 +55,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun Greeting(name: String, modifier: Modifier = Modifier) {
+    // Text: composable de Material que muestra el texto de saludo.
     Text(
         text = "Hello $name!",
         modifier = modifier
@@ -60,6 +66,7 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
 @Composable
 fun GreetingPreview() {
     ClientesGestorTheme {
+        // Greeting: se muestra el saludo de ejemplo dentro del tema de la app.
         Greeting("Android")
     }
 }
