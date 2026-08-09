@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -50,40 +49,18 @@ fun ClienteItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-
-    /**
-     * textoEstado
-     * -----------
-     * ✔ TIPO: variable inmutable (val) → String
-     * Es el texto legible del estado del cliente mediante when(estado).
-     * Sirve para mostrar "Activo", "Moroso" o "Baja" en la tarjeta.
-     */
     val textoEstado = when (estado) {
         EstadoCliente.ACTIVO -> "Activo"
         EstadoCliente.MOROSO -> "Moroso"
         EstadoCliente.BAJA -> "Baja"
     }
 
-    /**
-     * colorEstado
-     * -----------
-     * ✔ TIPO: variable inmutable (val) → Color
-     * Es el color asociado al estado del cliente mediante when(estado).
-     * Sirve para colorear visualmente el estado del cliente.
-     */
     val colorEstado = when (estado) {
         EstadoCliente.ACTIVO -> Color(0xFF4CAF50)
         EstadoCliente.MOROSO -> Color.Red
         EstadoCliente.BAJA -> Color.Gray
     }
 
-    /**
-     * Card
-     * ----
-     * ✔ TIPO: Card (contenedor Material Design)
-     * Es un contenedor visual con elevación, bordes y color configurable.
-     * Sirve para agrupar la información del cliente en un bloque visual único.
-     */
     Card(
         onClick = onClick,
         modifier = modifier,
@@ -91,134 +68,52 @@ fun ClienteItem(
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
+        Row(
+            modifier = Modifier.height(IntrinsicSize.Min)
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(5.dp)
+                    .fillMaxHeight()
+                    .background(colorEstado)
+            )
 
-            /**
-             * Row (barra y contenido)
-             * -----------------------
-             * ✔ TIPO: Row (layout horizontal)
-             * Es una fila que contiene la barra de color y los datos del cliente.
-             * Sirve para que la barra y el contenido compartan la misma altura.
-             *
-             * Modifier.height(IntrinsicSize.Min):
-             * ✔ TIPO: modificador de layout
-             * Es un modificador que fija la altura del Row según la altura mínima de sus hijos.
-             * Sirve para que el Box con fillMaxHeight() pueda llenar toda la altura del Row.
-             */
-            Row(
-                modifier = Modifier.height(IntrinsicSize.Min)
+            Icon(
+                imageVector = Icons.Default.Person,
+                contentDescription = "Icono de persona",
+                tint = Color(0xFF64B5F6),
+                modifier = Modifier
+                    .padding(horizontal = 8.dp)
+                    .size(50.dp)
+            )
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(16.dp)
             ) {
-
-                /**
-                 * Box (barra de color)
-                 * -------------------
-                 * ✔ TIPO: Box (layout básico)
-                 * Es una barra vertical estrecha coloreada con el color del estado.
-                 * Sirve para indicar de un vistazo el estado del cliente (verde, rojo o gris).
-                 *
-                 * .width(4.dp) → ancho de la barra.
-                 * .fillMaxHeight() → la barra se estira hasta la altura del Row.
-                 * .background(colorEstado) → pinta la barra con el color del estado.
-                 */
-                Box(
-                    modifier = Modifier
-                        .width(5.dp)
-                        .fillMaxHeight()
-                        .background(colorEstado)
+                Text(
+                    text = nombre,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f)
                 )
 
+                Spacer(modifier = Modifier.width(8.dp))
 
-                /**
-                 * Icon (persona)
-                 * --------------
-                 * ✔ TIPO: Icon
-                 * Es el icono vectorial que representa al cliente.
-                 * Sirve para identificar visualmente al cliente.
-                 */
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = "Icono de persona",
-                    tint = Color(0xFF64B5F6),
-                    modifier = Modifier
-                        .padding(horizontal = 8.dp)
-                        .size(50.dp)
-                )
-
-                /**
-                 * Column
-                 * ------
-                 * ✔ TIPO: Column (layout vertical)
-                 * Es un contenedor que coloca elementos uno debajo del otro.
-                 * Sirve para organizar el contenido del cliente.
-                 */
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(16.dp)
-                ) {
-
-
-                        /**
-                         * Text(nombre)
-                         * ------------
-                         * ✔ TIPO: Text
-                         * Es el nombre del cliente.
-                         * Sirve para identificar al cliente dentro de la lista.
-                         */
-                        Text(
-                            text = nombre,
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.weight(1f)
-                        )
-
-                    /**
-                     * Spacer igual que el detallado más arriba.
-                     */
-                    Spacer(
-                        modifier = Modifier.width(8.dp)
+                Row() {
+                    Icon(
+                        imageVector = Icons.Default.Phone,
+                        contentDescription = "Icono de telefono",
+                        tint = Color(0xFF64B5F6),
+                        modifier = Modifier.size(25.dp)
                     )
-
-
-                    /**
-                     * Row (teléfono)
-                     * --------------
-                     * Fila para mostrar el icono y el teléfono juntos.
-                     * Tipo Row detallado más arriba con "barra y contenido".
-                     */
-                    Row() {
-
-                        /**
-                         * Icon (teléfono)
-                         * ---------------
-                         * Icono que representa el teléfono del cliente.
-                         * Tipo Icon detallado más arriba con "persona".
-                         */
-                        Icon(
-                            imageVector = Icons.Default.Phone,
-                            contentDescription = "Icono de telefono",
-                            tint = Color(0xFF64B5F6),
-                            modifier = Modifier.size(25.dp)
-                        )
-
-                        /**
-                         * Spacer igual que el detallado más arriba.
-                         */
-                        Spacer(
-                            modifier = Modifier.width(8.dp)
-                        )
-
-                        /**
-                         * Text(telefono)
-                         * --------------
-                         * ✔ TIPO: Text
-                         * Es el número de teléfono del cliente.
-                         * Sirve para mostrar información de contacto.
-                         */
-                        Text(
-                            text = telefono,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = telefono,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
                 }
             }
+        }
     }
 }

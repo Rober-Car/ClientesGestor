@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.roberto.clientesgestor.navigation.AppNavigation
 import com.roberto.clientesgestor.ui.theme.ClientesGestorTheme
+import dagger.hilt.android.AndroidEntryPoint
 
 /**
  * MainActivity.kt
@@ -26,6 +27,7 @@ import com.roberto.clientesgestor.ui.theme.ClientesGestorTheme
  * Es la ventana principal de la aplicación, el punto de entrada que usa Android para lanzarla.
  * Sirve como contenedor base donde se muestra toda la interfaz.
  */
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     /**
@@ -46,13 +48,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/**
- * Greeting
- * --------
- * ✔ TIPO: función @Composable
- * Es un composable sencillo que muestra un texto de saludo.
- * Sirve como ejemplo de función composable, no se usa en la navegación real.
- */
 @Composable
 fun Greeting(name: String, modifier: Modifier = Modifier) {
     Text(
@@ -61,13 +56,6 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
     )
 }
 
-/**
- * GreetingPreview
- * ---------------
- * ✔ TIPO: función @Composable con anotación @Preview
- * Es una vista previa de diseño que se muestra en Android Studio.
- * Sirve para ver el resultado de Greeting sin necesidad de instalar la app.
- */
 @Preview(showBackground = true)
 @Composable
 fun GreetingPreview() {

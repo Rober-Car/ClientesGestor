@@ -21,33 +21,13 @@ import com.roberto.clientesgestor.model.EstadoCliente
  */
 class EstadoClienteConverter {
 
-    /**
-     * fromEstadoCliente
-     * -----------------
-     * ✔ TIPO: método (fun) → String
-     * Es la función que convierte un EstadoCliente en su nombre como String.
-     * Sirve para guardar el estado del cliente como texto en la base de datos
-     * (ejemplo: EstadoCliente.ACTIVO se guarda como "ACTIVO").
-     */
     @TypeConverter
     fun fromEstadoCliente(estado: EstadoCliente): String {
-
         return estado.name
-
     }
 
-    /**
-     * toEstadoCliente
-     * ---------------
-     * ✔ TIPO: método (fun) → EstadoCliente
-     * Es la función que convierte un String en su EstadoCliente correspondiente.
-     * Sirve para recuperar el estado del cliente desde la base de datos como enum
-     * (ejemplo: el texto "ACTIVO" se convierte en EstadoCliente.ACTIVO).
-     */
     @TypeConverter
     fun toEstadoCliente(estado: String): EstadoCliente {
-
         return EstadoCliente.valueOf(estado)
-
     }
 }

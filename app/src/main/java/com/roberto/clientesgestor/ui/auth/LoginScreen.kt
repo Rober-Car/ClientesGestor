@@ -2,22 +2,21 @@ package com.roberto.clientesgestor.ui.auth
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
-import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.roberto.clientesgestor.navigation.Routes
 
@@ -40,162 +39,41 @@ import com.roberto.clientesgestor.navigation.Routes
 fun LoginScreen(
     navController: NavHostController
 ) {
+    var mensaje by remember { mutableStateOf("ClientesGestor") }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
 
-    /**
-     * mensaje
-     * -------
-     * ✔ TIPO: variable con estado (var) mediante delegación `by`
-     * ✔ ORIGEN DEL ESTADO: remember { mutableStateOf(...) }
-     * Es un estado observable que Compose recuerda entre recomposiciones.
-     * Sirve para mostrar el nombre de la app y actualizar el texto al entrar.
-     */
-    var mensaje by remember {
-        mutableStateOf("ClientesGestor")
-    }
-
-    /**
-     * email
-     * -----
-     * ✔ TIPO: variable con estado (var)
-     * Es el estado que guarda el texto escrito en el campo Email.
-     * Sirve para controlar el valor del campo y validar el formulario.
-     */
-    var email by remember {
-        mutableStateOf("")
-    }
-
-    /**
-     * password
-     * --------
-     * ✔ TIPO: variable con estado (var)
-     * Es el estado que guarda el texto escrito en el campo Contraseña.
-     * Sirve para controlar el valor del campo y validar el formulario.
-     */
-    var password by remember {
-        mutableStateOf("")
-    }
-
-    /**
-     * formularioValido
-     * ----------------
-     * ✔ TIPO DE DATO: Boolean
-     * Es una expresión lógica que comprueba email y password con .isNotBlank() y el operador &&.
-     * Sirve para activar o desactivar el botón "Entrar" según el formulario esté completo.
-     */
     val formularioValido =
         email.isNotBlank() &&
                 password.isNotBlank()
 
-    /**
-     * Column
-     * ------
-     * ✔ TIPO: contenedor vertical
-     * Es un layout que coloca elementos uno debajo del otro.
-     * Sirve para organizar el login de forma centrada en toda la pantalla.
-     */
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-
-        /**
-         * Text(text = mensaje)
-         * --------------------
-         * ✔ TIPO: Text
-         * Es el texto que muestra el contenido de la variable "mensaje".
-         * Sirve para enseñar el nombre de la app o el mensaje actualizado.
-         */
-        Text(
-            text = mensaje,
-            modifier = Modifier.padding(32.dp)
-        )
-
-        /**
-         * Spacer
-         * ------
-         * ✔ TIPO: Spacer
-         * Es un elemento invisible que ocupa espacio.
-         * Sirve para dejar un hueco vertical de 16dp entre elementos.
-         */
+        Text(text = mensaje, modifier = Modifier.padding(32.dp))
         Spacer(modifier = Modifier.height(16.dp))
 
-        /**
-         * OutlinedTextField (Email)
-         * -------------------------
-         * ✔ TIPO: OutlinedTextField (Material 3)
-         * Es un campo de texto con borde para que el usuario escriba información.
-         * Sirve para capturar el email manteniéndolo sincronizado con la variable de estado.
-         */
         OutlinedTextField(
             value = email,
-            onValueChange = {
-                email = it
-            }, label = {
-                Text("Email")
-            }
+            onValueChange = { email = it },
+            label = { Text("Email") }
         )
-
-        /**
-         * Spacer igual que el detallado más arriba.
-         */
         Spacer(modifier = Modifier.height(16.dp))
 
-        /**
-         * OutlinedTextField (Contraseña)
-         * -----------------------------
-         * Campo de texto para introducir la contraseña.
-         * Tipo OutlinedTextField detallado más arriba con "Email".
-         */
         OutlinedTextField(
             value = password,
-            onValueChange = {
-                password = it
-            },
-            label = {
-                Text("Contraseña")
-            }
+            onValueChange = { password = it },
+            label = { Text("Contraseña") }
         )
-
-        /**
-         * Spacer igual que el detallado más arriba.
-         */
         Spacer(modifier = Modifier.height(16.dp))
 
-        /**
-         * Text("Has escrito: $email")
-         * --------------------------
-         * ✔ TIPO: Text
-         * Es un texto informativo que muestra en pantalla lo escrito en el email.
-         * Sirve para comprobar en tiempo real el valor del estado.
-         */
-        Text(
-            text = "Has escrito: $email"
-        )
+        Text(text = "Has escrito: $email")
+        Spacer(modifier = Modifier.height(16.dp))
 
-        /**
-         * Spacer igual que el detallado más arriba.
-         */
-        Spacer(
-            modifier = Modifier.height(16.dp)
-        )
-
-        /**
-         * Text("Gestión de clientes y cuotas")
-         * ------------------------------------
-         * ✔ TIPO: Text
-         * Es una frase fija que se muestra debajo del mensaje principal.
-         * Sirve para presentar el propósito de la aplicación.
-         */
         Text("Gestión de clientes y cuotas")
 
-        /**
-         * Button
-         * ------
-         * ✔ TIPO: función @Composable (androidx.compose.material3.Button)
-         * Es un componente interactivo que el usuario puede pulsar.
-         * Sirve para actualizar el mensaje y navegar a Home cuando el formulario es válido.
-         */
         Button(
             onClick = {
                 mensaje = "Bienvenido"
@@ -203,14 +81,6 @@ fun LoginScreen(
             },
             enabled = formularioValido
         ) {
-
-            /**
-             * Text("Entrar")
-             * -------------
-             * ✔ TIPO: Text
-             * Es el texto que se muestra dentro del botón.
-             * Sirve para indicar la acción de acceso a la aplicación.
-             */
             Text("Entrar")
         }
     }

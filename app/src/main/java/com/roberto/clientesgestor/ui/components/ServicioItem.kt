@@ -6,9 +6,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FitnessCenter
-import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -38,63 +35,21 @@ import androidx.compose.ui.unit.dp
 fun ServicioItem(
     nombreServicio: String,
     iconoServicio: ImageVector
-
 ) {
-
-
-    /**
-     * Row
-     * ---
-     * ✔ TIPO: Row (layout horizontal)
-     * Es un contenedor que coloca elementos uno al lado del otro.
-     * Sirve para mostrar el icono y el nombre del servicio juntos.
-     */
     Row(
-
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.padding(bottom = 8.dp)
-    ){
-
-
-        /**
-         * Icon
-         * ----
-         * ✔ TIPO: Icon
-         * Es el icono vectorial que representa el servicio.
-         * Sirve para identificar visualmente cada servicio contratado.
-         */
+    ) {
         Icon(
             imageVector = iconoServicio,
             contentDescription = nombreServicio,
             tint = Color(0xFF64B5F6),
-            modifier = Modifier
-                .size(20.dp)
+            modifier = Modifier.size(20.dp)
         )
-
-
-        /**
-         * Spacer
-         * ------
-         * ✔ TIPO: Spacer
-         * Es un elemento invisible que ocupa espacio.
-         * Sirve para separar el icono del nombre del servicio.
-         */
-        Spacer(
-            modifier = Modifier.width(8.dp)
-        )
-
-
-        /**
-         * Text
-         * ----
-         * ✔ TIPO: Text
-         * Es el nombre del servicio.
-         * Sirve para mostrar qué servicio tiene contratado el cliente.
-         */
+        Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = nombreServicio,
             style = MaterialTheme.typography.bodyLarge
         )
-
     }
 }

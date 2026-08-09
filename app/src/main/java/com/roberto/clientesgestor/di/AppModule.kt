@@ -1,4 +1,5 @@
 package com.roberto.clientesgestor.di
+
 import android.content.Context
 import androidx.room.Room
 import com.roberto.clientesgestor.data.dao.ClienteDao
@@ -7,6 +8,7 @@ import com.roberto.clientesgestor.data.repository.ClienteRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import jakarta.inject.Singleton
 
@@ -55,19 +57,7 @@ object AppModule {
      */
     @Provides
     @Singleton
-    fun provideDatabase(context: Context): ClientesDatabase {
-
-        /**
-         * Room.databaseBuilder(context, ClientesDatabase::class.java, "clientesgestor_database"):
-         * ✔ TIPO: método (fun) de Room
-         * Es el constructor de la base de datos Room, que recibe el contexto, la clase de la base y su nombre.
-         * Sirve para configurar cómo se creará el archivo de la base de datos en el dispositivo.
-         *
-         * .build():
-         * ✔ TIPO: método (fun) encadenado del builder de Room
-         * Es la llamada que termina la configuración y crea la instancia real de ClientesDatabase.
-         * Sirve para obtener el objeto de la base de datos ya listo para usarse.
-         */
+    fun provideDatabase(@ApplicationContext context: Context): ClientesDatabase {
         return Room.databaseBuilder(
             context,
             ClientesDatabase::class.java,
@@ -84,13 +74,6 @@ object AppModule {
      */
     @Provides
     fun provideClienteDao(database: ClientesDatabase): ClienteDao {
-
-        /**
-         * database.clienteDao():
-         * ✔ TIPO: método (fun) de Room
-         * Es la llamada que devuelve la instancia de ClienteDao generada por Room.
-         * Sirve para obtener el DAO de clientes desde la base de datos.
-         */
         return database.clienteDao()
     }
 
@@ -102,23 +85,7 @@ object AppModule {
      * Sirve para que Hilt inyecte ClienteRepository en las clases que necesiten operar con clientes.
      */
     @Provides
-    fun provideClienteRepository(
-        /**
-         * clienteDao
-         * ----------
-         * ✔ TIPO: parámetro (param) → ClienteDao
-         * Es el DAO de clientes que recibirá el repositorio.
-         * Sirve para que Hilt lo inyecte automáticamente al construir ClienteRepository.
-         */
-        clienteDao: ClienteDao
-    ): ClienteRepository {
-
-        /**
-         * ClienteRepository(clienteDao):
-         * ✔ TIPO: constructor de clase
-         * Es la llamada que crea el repositorio pasándole el DAO de clientes.
-         * Sirve para devolver una instancia de ClienteRepository lista para usarse.
-         */
+    fun provideClienteRepository(clienteDao: ClienteDao): ClienteRepository {
         return ClienteRepository(clienteDao)
     }
 }

@@ -47,44 +47,18 @@ fun AppNavigation() {
         navController = navController,
         startDestination = Routes.LOGIN
     ) {
-
-        /**
-         * composable(Routes.LOGIN)
-         * -----------------------
-         * ✔ TIPO: función @Composable (androidx.navigation.compose.composable)
-         * Es la ruta registrada para la pantalla de inicio de sesión.
-         * Sirve para mostrar LoginScreen cuando se navega a la ruta login.
-         */
         composable(Routes.LOGIN) {
             LoginScreen(navController)
         }
 
-        /**
-         * composable(Routes.HOME)
-         * ----------------------
-         * Ruta registrada para la pantalla principal.
-         * Tipo `composable()` detallado más arriba con la ruta Routes.LOGIN.
-         */
         composable(Routes.HOME) {
             HomeScreen(navController)
         }
 
-        /**
-         * composable(Routes.CLIENTES)
-         * --------------------------
-         * Ruta registrada para la pantalla de clientes.
-         * Tipo `composable()` detallado más arriba con la ruta Routes.LOGIN.
-         */
         composable(Routes.CLIENTES) {
             ClientesScreen(navController)
         }
 
-        /**
-         * composable(Routes.PERFILCLIENTE)
-         * --------------------------------
-         * Ruta registrada para la pantalla de perfil del cliente.
-         * Tipo `composable()` detallado más arriba con la ruta Routes.LOGIN.
-         */
         composable(Routes.PERFILCLIENTE) {
             PerfilClienteScreen(navController)
         }

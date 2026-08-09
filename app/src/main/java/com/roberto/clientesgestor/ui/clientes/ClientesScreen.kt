@@ -1,6 +1,5 @@
 package com.roberto.clientesgestor.ui.clientes
 
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -30,16 +30,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import com.roberto.clientesgestor.data.entity.ClienteEntity
 import com.roberto.clientesgestor.model.Cliente
 import com.roberto.clientesgestor.model.EstadoCliente
 import com.roberto.clientesgestor.model.FiltroClientes
 import com.roberto.clientesgestor.navigation.Routes
 import com.roberto.clientesgestor.ui.components.ClienteItem
-
 import com.roberto.clientesgestor.ui.components.ResumenCard
 import com.roberto.clientesgestor.ui.viewmodel.ClienteViewModel
+import kotlin.random.Random
 
 /**
  * ClientesScreen.kt
@@ -72,7 +73,24 @@ fun ClientesScreen(
         mutableStateOf(FiltroClientes.TODOS)
     }
 
+    /**
+     * viewModel
+     * ---------
+     * ✔ TIPO: variable inmutable (val) → ClienteViewModel (inyectado por Hilt)
+     * Es el ViewModel de la pantalla de clientes.
+     * Sirve para obtener los datos de los clientes desde la base de datos a través del repositorio.
+     */
     val viewModel: ClienteViewModel = hiltViewModel()
+
+    /**
+     * clientes
+     * --------
+     * ✔ TIPO: variable inmutable (val) → List<Cliente>
+     * Es la lista de clientes observada desde el ViewModel.
+     * Sirve para que la pantalla se actualice automáticamente cuando cambian los datos de la base de datos.
+     */
+    val clientes by viewModel.clientes.collectAsStateWithLifecycle()
+
     /**
      * listaClientes
      * -------------
@@ -80,7 +98,7 @@ fun ClientesScreen(
      * Es una lista de prueba con datos mockeados de clientes.
      * Sirve para mostrar la pantalla de clientes con datos de ejemplo.
      */
-    val listaClientes = listOf(
+    /*val listaClientes = listOf(
         Cliente(
             idCliente = 1,
             nombre = "Roberto Pérez",
@@ -124,7 +142,7 @@ fun ClientesScreen(
             estado = EstadoCliente.ACTIVO
         )
     )
-
+*/
     /**
      * clientesFiltrados
      * -----------------
@@ -134,38 +152,36 @@ fun ClientesScreen(
      */
     val clientesFiltrados = when (filtroSeleccionado) {
 
-        FiltroClientes.TODOS -> listaClientes
+        FiltroClientes.TODOS -> clientes
 
-        FiltroClientes.ACTIVO ->  listaClientes.filter { cliente ->
-                cliente.estado == EstadoCliente.ACTIVO}
-
-        FiltroClientes.MOROSO -> listaClientes.filter { cliente ->
-                cliente.estado == EstadoCliente.MOROSO }
-
-        FiltroClientes.BAJA -> listaClientes.filter { cliente ->
-
+        FiltroClientes.ACTIVO -> clientes.filter { cliente ->
+            cliente.estado == EstadoCliente.ACTIVO
+        }
+        FiltroClientes.MOROSO -> clientes.filter { cliente ->
+            cliente.estado == EstadoCliente.MOROSO
+        }
+        FiltroClientes.BAJA -> clientes.filter { cliente ->
             cliente.estado == EstadoCliente.BAJA
         }
     }
-
 
     /**
      * totalClientes
      * -------------
      * ✔ TIPO: variable inmutable (val) → Int
-     * Es el número total de clientes de la lista.
-     * Sirve para mostrar la cantidad en la tarjeta "Todos".
+     * Es el número total de clientes registrados.
+     * Sirve para mostrarlo en la tarjeta de resumen "Todos".
      */
-    val totalClientes = listaClientes.size
+    val totalClientes = clientes.size
 
     /**
      * totalActivos
      * ------------
      * ✔ TIPO: variable inmutable (val) → Int
-     * Es el número de clientes activos de la lista.
-     * Sirve para mostrar la cantidad en la tarjeta "Activos".
+     * Es el número de clientes con estado ACTIVO.
+     * Sirve para mostrarlo en la tarjeta de resumen "Activos".
      */
-    val totalActivos = listaClientes.count { cliente ->
+    val totalActivos = clientes.count { cliente ->
         cliente.estado == EstadoCliente.ACTIVO
     }
 
@@ -173,10 +189,10 @@ fun ClientesScreen(
      * totalMorosos
      * ------------
      * ✔ TIPO: variable inmutable (val) → Int
-     * Es el número de clientes morosos de la lista.
-     * Sirve para mostrar la cantidad en la tarjeta "Morosos".
+     * Es el número de clientes con estado MOROSO.
+     * Sirve para mostrarlo en la tarjeta de resumen "Morosos".
      */
-    val totalMorosos = listaClientes.count { cliente ->
+    val totalMorosos = clientes.count { cliente ->
         cliente.estado == EstadoCliente.MOROSO
     }
 
@@ -184,42 +200,19 @@ fun ClientesScreen(
      * totalBajas
      * ----------
      * ✔ TIPO: variable inmutable (val) → Int
-     * Es el número de clientes dados de baja de la lista.
-     * Sirve para mostrar la cantidad en la tarjeta "Bajas".
+     * Es el número de clientes con estado BAJA.
+     * Sirve para mostrarlo en la tarjeta de resumen "Bajas".
      */
-    val totalBajas = listaClientes.count { cliente ->
+    val totalBajas = clientes.count { cliente ->
         cliente.estado == EstadoCliente.BAJA
     }
 
-    /**
-     * Scaffold
-     * --------
-     * ✔ TIPO: Scaffold Estructura base de Material Design para la pantalla de Clientes.
-     * Es un contenedor de alto nivel que organiza la pantalla en zonas.
-     * Sirve para estructurar la pantalla de clientes con un layout coherente.
-     */
     Scaffold { innerPadding ->
-
-        /**
-         * Column
-         * ------
-         * ✔ TIPO: Column (layout vertical)
-         * Es un contenedor que coloca elementos uno debajo del otro.
-         * Sirve para apilar verticalmente el contenido de la pantalla.
-         */
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-
-            /**
-             * Row (cabecera)
-             * --------------
-             * ✔ TIPO: Row (layout horizontal)
-             * Es una fila que contiene el botón de volver y el título.
-             * Sirve para mostrar la cabecera de la pantalla.
-             */
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -227,13 +220,6 @@ fun ClientesScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
 
-                /**
-                 * IconButton (volver)
-                 * ------------------
-                 * ✔ TIPO: IconButton
-                 * Es un botón que muestra la flecha de retroceso.
-                 * Sirve para volver a la pantalla anterior con popBackStack().
-                 */
                 IconButton(
                     onClick = {
                         navController.popBackStack()
@@ -245,51 +231,18 @@ fun ClientesScreen(
                         modifier = Modifier.size(30.dp)
                     )
                 }
-
-                /**
-                 * Spacer
-                 * ------
-                 * ✔ TIPO: Spacer
-                 * Es un elemento invisible que ocupa espacio.
-                 * Sirve para separar el botón de volver del título.
-                 */
-                Spacer(
-                    modifier = Modifier.width(16.dp)
-                )
-
-                /**
-                 * Text("Clientes")
-                 * ---------------
-                 * ✔ TIPO: Text
-                 * Es el título de la pantalla.
-                 * Sirve para identificar la sección de clientes.
-                 */
+                Spacer(modifier = Modifier.width(16.dp))
                 Text(
                     text = "Clientes",
                     style = MaterialTheme.typography.titleLarge
                 )
             }
 
-            /**
-             * Row (resúmenes)
-             * ---------------
-             * ✔ TIPO: Row (layout horizontal)
-             * Es una fila que contiene las tres tarjetas de resumen.
-             * Sirve para repartir el ancho entre Activos, Bajas y Morosos.
-             */
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(6.dp)
             ) {
-
-                /**
-                 * ResumenCard (Todos)
-                 * -------------------
-                 * ✔ TIPO: Composable personalizado (ResumenCard)
-                 * Es una tarjeta que muestra el número total de clientes.
-                 * Sirve para ver el total y volver a mostrar todos los clientes.
-                 */
                 ResumenCard(
                     titulo = "Todos",
                     cantidad = totalClientes,
@@ -302,12 +255,7 @@ fun ClientesScreen(
                         .weight(1f)
                         .padding(6.dp)
                 )
-                /**
-                 * ResumenCard (Activos)
-                 * --------------------
-                 * Tarjeta que muestra el número de clientes activos.
-                 * Tipo ResumenCard detallado más arriba con "Todos".
-                 */
+
                 ResumenCard(
                     titulo = "Activos",
                     cantidad = totalActivos,
@@ -321,12 +269,6 @@ fun ClientesScreen(
                         .padding(6.dp)
                 )
 
-                /**
-                 * ResumenCard (Bajas)
-                 * -------------------
-                 * Tarjeta que muestra el número de clientes dados de baja.
-                 * Tipo ResumenCard detallado más arriba con "Todos".
-                 */
                 ResumenCard(
                     "Bajas",
                     totalBajas,
@@ -340,15 +282,9 @@ fun ClientesScreen(
                         .padding(6.dp)
                 )
 
-                /**
-                 * ResumenCard (Morosos)
-                 * --------------------
-                 * Tarjeta que muestra el número de clientes morosos.
-                 * Tipo ResumenCard detallado más arriba con "Todos".
-                 */
                 ResumenCard(
                     "Morosos",
-                    totalMorosos ,
+                    totalMorosos,
                     estaSeleccionada = filtroSeleccionado == FiltroClientes.MOROSO,
                     color = Color.Red,
                     onClick = {
@@ -360,52 +296,22 @@ fun ClientesScreen(
                 )
             }
 
-            /**
-             * LazyColumn
-             * ----------
-             * ✔ TIPO: LazyColumn (lista perezosa vertical)
-             * Es una lista que solo dibuja los elementos visibles en pantalla.
-             * Sirve para mostrar los clientes filtrados uno debajo del otro.
-             */
-            LazyColumn(
 
+            LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(16.dp)
-
-            ){
-
-                /**
-                 * items(clientesFiltrados)
-                 * ------------------------
-                 * ✔ TIPO: función (androidx.compose.foundation.lazy.items)
-                 * Es la función que recorre la lista de clientes filtrados.
-                 * Sirve para crear un ClienteItem por cada cliente de la lista.
-                 */
-                items (clientesFiltrados){ cliente ->
-                    /**
-                     * ClienteItem
-                     * -----------
-                     * ✔ TIPO: Composable personalizado (ClienteItem)
-                     * Es la tarjeta que muestra los datos de un cliente.
-                     * Sirve para representar cada cliente dentro de la lista.
-                     */
+            ) {
+                items(clientesFiltrados) { cliente ->
                     ClienteItem(
                         nombre = cliente.nombre,
                         telefono = cliente.telefono,
                         estado = cliente.estado,
                         onClick = {
-
                             navController.navigate(Routes.PERFILCLIENTE)
-                        },
+                        }
                     )
-
-
                 }
             }
-
         }
-
     }
-
 }
-

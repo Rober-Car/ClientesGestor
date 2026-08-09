@@ -1,4 +1,4 @@
- package com.roberto.clientesgestor.ui.components
+package com.roberto.clientesgestor.ui.components
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -41,57 +41,26 @@ fun ResumenCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-
-    /**
-     * containerColor
-     * --------------
-     * ✔ TIPO: variable inmutable (val) → Color
-     * Es el color de fondo de la tarjeta según esté seleccionada o no.
-     * Sirve para resaltar la tarjeta elegida respecto a las demás.
-     */
     val containerColor = if (estaSeleccionada) {
         Color(0xFFBBDEFB)
     } else {
         Color.White
     }
 
-
-    /**
-     * Card
-     * ----
-     * ✔ TIPO: Card (contenedor Material Design)
-     * Es un contenedor visual con elevación y bordes que agrupa contenido.
-     * Sirve para mostrar la tarjeta de resumen de forma clicable.
-     */
     Card(
         onClick = onClick,
         modifier = modifier,
         shape = RoundedCornerShape(20.dp),
         elevation = CardDefaults.cardElevation(
-            defaultElevation = 6.dp),
+            defaultElevation = 6.dp
+        ),
         colors = CardDefaults.cardColors(
             containerColor = containerColor
         )
     ) {
-
-        /**
-         * Column
-         * ------
-         * ✔ TIPO: Column (layout vertical)
-         * Es un contenedor que coloca elementos uno debajo del otro.
-         * Sirve para apilar la barra, el título y la cantidad.
-         */
         Column(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-
-            /**
-             * Surface (barra de color)
-             * ------------------------
-             * ✔ TIPO: Surface
-             * Es una barra de color que indica el estado del resumen.
-             * Sirve para diferenciar visualmente cada tarjeta.
-             */
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -99,37 +68,14 @@ fun ResumenCard(
                 color = color
             ) {}
 
-            /**
-             * Text(titulo)
-             * ------------
-             * ✔ TIPO: Text
-             * Es el título del resumen.
-             * Sirve para identificar el estado representado por la tarjeta.
-             */
             Text(
                 text = titulo,
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(4.dp)
             )
 
-            /**
-             * Spacer
-             * ------
-             * ✔ TIPO: Spacer
-             * Es un elemento invisible que ocupa espacio.
-             * Sirve para separar el título de la cantidad.
-             */
-            Spacer(
-                modifier = Modifier.height(8.dp)
-            )
+            Spacer(modifier = Modifier.height(8.dp))
 
-            /**
-             * Text(cantidad)
-             * --------------
-             * ✔ TIPO: Text
-             * Es el número de clientes del resumen.
-             * Sirve para mostrar la cantidad asociada al estado.
-             */
             Text(
                 text = cantidad.toString(),
                 style = MaterialTheme.typography.titleLarge,
@@ -138,4 +84,3 @@ fun ResumenCard(
         }
     }
 }
-
