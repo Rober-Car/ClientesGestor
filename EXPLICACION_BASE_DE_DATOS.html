@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClientesGestor - Base de datos y Hilt (simple)</title>
+<style>
+  :root {
+    --bg: #0f172a; --card: #1e293b; --border: #334155;
+    --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg);
+    color: var(--text); line-height: 1.6; padding: 20px;
+  }
+  .container { max-width: 800px; margin: 0 auto; }
+  header { text-align: center; padding: 25px 0; }
+  header h1 { color: var(--accent); font-size: 1.7rem; }
+  header p { color: var(--muted); margin-top: 6px; font-size: 0.95rem; }
+
+  h2 {
+    color: var(--accent); border-left: 4px solid var(--accent);
+    padding-left: 10px; font-size: 1.25rem; margin: 35px 0 14px;
+  }
+
+  /* Flujo */
+  .flow { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; margin: 20px 0; }
+  .box {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; text-align: center; flex: 1 1 110px; cursor: pointer;
+    font-size: 0.9rem; transition: transform .15s, border-color .15s;
+  }
+  .box:hover { transform: translateY(-3px); border-color: var(--accent); }
+  .box b { display: block; margin-top: 4px; font-size: 0.85rem; }
+  .arrow { color: var(--accent); font-size: 1.2rem; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px; margin-bottom: 12px;
+  }
+  .card h3 { color: var(--accent); font-size: 1.05rem; margin-bottom: 8px; }
+  .card p { font-size: 0.95rem; }
+  .card .tag { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 4px; }
+
+  .analogy {
+    background: #1a2b45; border-left: 4px solid var(--accent); border-radius: 8px;
+    padding: 12px 14px; margin-top: 12px; font-size: 0.92rem;
+  }
+  .warn {
+    background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.4);
+    border-radius: 10px; padding: 12px 14px; margin: 14px 0; font-size: 0.92rem;
+  }
+  code { background: #0b1220; border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; font-size: 0.85em; color: #93c5fd; }
+  footer { text-align: center; color: var(--muted); font-size: 0.8rem; margin-top: 30px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>🗄️ ClientesGestor: la base de datos y Hilt</h1>
+  <p>Explicación sencilla, sin montañas de código. Clic en cada caja.</p>
+</header>
+
+<!-- ===== FLUJO ===== -->
+<h2>🧭 El camino de los datos (en una imagen)</h2>
+<div class="flow">
+  <div class="box" onclick="go('ui')"><span>1️⃣</span><b>PANTALLA</b><span style="font-size:.75rem;color:var(--muted)">lo que ves</span></div>
+  <div class="arrow">→</div>
+  <div class="box" onclick="go('vm')"><span>2️⃣</span><b>VIEWMODEL</b><span style="font-size:.75rem;color:var(--muted)">el organizador</span></div>
+  <div class="arrow">→</div>
+  <div class="box" onclick="go('repo')"><span>3️⃣</span><b>REPOSITORY</b><span style="font-size:.75rem;color:var(--muted)">el puente</span></div>
+  <div class="arrow">→</div>
+  <div class="box" onclick="go('dao')"><span>4️⃣</span><b>DAO</b><span style="font-size:.75rem;color:var(--muted)">el portero</span></div>
+  <div class="arrow">→</div>
+  <div class="box" onclick="go('db')"><span>5️⃣</span><b>ROOM</b><span style="font-size:.75rem;color:var(--muted)">la base</span></div>
+</div>
+<p style="color:var(--muted); font-size:.9rem; text-align:center">
+  Los datos van y vienen por este mismo camino: guardar y leer.
+</p>
+
+<!-- ===== CAPA DATA ===== -->
+<h2>📂 La carpeta <code>data</code>: 3 ideas, no más</h2>
+
+<div class="card" id="entity">
+  <span class="tag">data/entity/ClienteEntity.kt</span>
+  <h3>1️⃣ La ENTIDAD = el plano de la tabla</h3>
+  <p>Dice qué columnas tiene la tabla de clientes. Cada propiedad es una columna (<code>nombre</code>, <code>dni</code>...). Cada cliente guardado es una fila.</p>
+  <div class="analogy">🧠 <b>Imagínala como un formulario de inscripción</b> con sus casillas vacías. Room lo convierte en una tabla de verdad.</div>
+</div>
+
+<div class="card" id="dao">
+  <span class="tag">data/dao/ClienteDao.kt</span>
+  <h3>2️⃣ El DAO = la lista de órdenes</h3>
+  <p>Son los comandos que la app puede darle a la base: <b>insertar, actualizar, borrar, buscar</b>. Tú solo escribes <code>@Insert</code>, <code>@Query</code>... y Room escribe el SQL solo.</p>
+  <div class="analogy">🧠 <b>Es como un camarero:</b> tú le pides "tráeme todos los clientes" y él vuelve con ellos. No sabes (ni necesitas saber) cómo lo hizo.</div>
+</div>
+
+<div class="card" id="db">
+  <span class="tag">data/database/ClientesDatabase.kt</span>
+  <h3>3️⃣ Room = la base de datos en sí</h3>
+  <p>Solo declara 2 cosas: <b>qué tablas existen</b> (las entidades) y <b>a qué DAO puedes acceder</b>. Y el <code>DatabaseProvider</code> es quien la construye una única vez.</p>
+  <div class="analogy">🧠 <b>Es el edificio del archivo.</b> El Provider es el portero que lo abre una sola vez y te da el acceso.</div>
+</div>
+
+<div class="card">
+  <span class="tag">data/repository/ClienteRepository.kt</span>
+  <h3>Y el REPOSITORY = el puente</h3>
+  <p>Envuélve al DAO para que la pantalla no hable con la base directamente. Le pides "guarda esto" y él se lo pasa al DAO.</p>
+  <div class="analogy">🧠 <b>Es el intermediario:</b> la pantalla nunca toca la base. Si mañana cambias Room, solo tocas aquí.</div>
+</div>
+
+<!-- ===== HILT ===== -->
+<h2>🔌 Hilt: el "repartidor de piezas"</h2>
+
+<div class="card" id="vm">
+  <span class="tag">di/AppModule.kt</span>
+  <h3>¿Qué es Hilt?</h3>
+  <p>En vez de crear tú cada objeto a mano, Hilt <b>crea y reparte</b> las piezas donde hacen falta. Tú solo pones anotaciones (etiquetas) y Hilt hace el resto.</p>
+  <div class="analogy">🧠 <b>Es un repartidor de dependencias:</b> el ViewModel dice "necesito un Repository" y Hilt se lo lleva. Nadie lo fabrica a mano.</div>
+</div>
+
+<div class="card">
+  <span class="tag">ClientesGestorApplication.kt</span>
+  <h3>El "encendido" de Hilt</h3>
+  <p><code>@HiltAndroidApp</code> enciende Hilt cuando arranca la app. Sin esto, Hilt no existe.</p>
+</div>
+
+<div class="card">
+  <h3>Los 3 puntos donde se "etiqueta" (lo que falta)</h3>
+  <p>Para que Hilt conecte todo necesita 3 etiquetas, y en tu proyecto <b>solo falta esto</b>:</p>
+  <p style="margin-top:8px">1️⃣ En <code>AppModule</code>: las <b>recetas</b> para crear la base, el DAO y el Repository.<br>
+  2️⃣ En <code>MainActivity</code>: <code>@AndroidEntryPoint</code>.<br>
+  3️⃣ En <code>ClienteViewModel</code>: <code>@HiltViewModel</code> + <code>@Inject</code>.</p>
+  <div class="warn">⚠ Con todo etiquetado, la conexión queda así: <b>Pantalla pide datos → ViewModel los pide al Repository → Hilt se los da, porque ya sabe cómo crearlos</b> (base → DAO → Repository → ViewModel).</div>
+</div>
+
+<h2>✅ En una frase</h2>
+<div class="card">
+  <p style="font-size:1.05rem">La <b>pantalla</b> pide → el <b>ViewModel</b> organiza → el <b>Repository</b> traduce → el <b>DAO</b> ordena → <b>Room</b> guarda. Y <b>Hilt</b> es el que entrega cada pieza al sitio sin que tengas que crearla tú.</p>
+</div>
+
+<footer>Guía simplificada · ClientesGestor</footer>
+</div>
+
+<script>
+  function go(id) { document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+</script>
+</body>
+</html>
