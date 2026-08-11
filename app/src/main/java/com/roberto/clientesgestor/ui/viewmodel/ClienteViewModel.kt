@@ -1,10 +1,11 @@
+/* ============================================================
+ * ============ BLOQUE 1: IMPORTS =============================
+ * ============================================================ */
 package com.roberto.clientesgestor.ui.viewmodel
 
 import android.database.sqlite.SQLiteConstraintException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-
-
 import com.roberto.clientesgestor.data.entity.ClienteEntity
 import com.roberto.clientesgestor.data.entity.toCliente
 import com.roberto.clientesgestor.data.repository.ClienteRepository
@@ -15,16 +16,11 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-
-/**
- * launch
- * ------
- * ✔ TIPO: import (kotlinx.coroutines.launch)
- * Es la función de corrutinas que lanza un bloque de código en segundo plano.
- * Sirve para ejecutar operaciones suspendidas, como guardar en Room, dentro de viewModelScope.
- */
 import kotlinx.coroutines.launch
 
+/* ============================================================
+ * ============ BLOQUE 2: DOCUMENTACIÓN DEL ARCHIVO ===========
+ * ============================================================ */
 /**
  * ClienteViewModel.kt
  * -------------------
@@ -33,6 +29,9 @@ import kotlinx.coroutines.launch
  * Sirve para conectar la interfaz de usuario con el repositorio de clientes.
  */
 
+/* ============================================================
+ * ============ BLOQUE 3: VIEWMODEL DE CLIENTES ===============
+ * ============================================================ */
 /**
  * @HiltViewModel
  * --------------
@@ -54,7 +53,9 @@ class ClienteViewModel @Inject constructor(
     private val clienteRepository: ClienteRepository
 ) : ViewModel() {
 
-
+    /* ============================================================
+     * ============ BLOQUE 4: ESTADO DEL VIEWMODEL ================
+     * ============================================================ */
     /**
      * _error
      * ------
@@ -74,7 +75,7 @@ class ClienteViewModel @Inject constructor(
     val error = _error.asStateFlow()
 
     /**
-     * Clientes
+     * clientes
      * --------
      * ✔ TIPO: propiedad (val) → StateFlow<List<Cliente>>
      * Es el flujo de clientes convertido en StateFlow con stateIn(),
@@ -92,6 +93,9 @@ class ClienteViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
+    /* ============================================================
+     * ============ BLOQUE 5: OPERACIONES DEL VIEWMODEL ===========
+     * ============================================================ */
     /**
      * insertarCliente
      * ---------------
@@ -101,47 +105,19 @@ class ClienteViewModel @Inject constructor(
      * lanzando la operación de Room en segundo plano.
      */
     fun insertarCliente(cliente: ClienteEntity) {
-
-        /**
-         * viewModelScope.launch
-         * ---------------------
-         * ✔ TIPO: corrutina lanzada en el ámbito del ViewModel
-         * Es la corrutina que ejecuta la inserción del cliente en segundo plano.
-         * Sirve para no bloquear el hilo principal de la UI
-         * y cancelar la operación automáticamente si el ViewModel se destruye.
-         */
         viewModelScope.launch {
 
-            /**
-             * insertarClienteRepo
-             * -------------------
-             * ✔ TIPO: llamada suspendida a ClienteRepository
-             * Es la operación que inserta el cliente a través del repositorio.
-             * Sirve para que el DAO guarde el ClienteEntity en la base de datos Room.
-             */
+            val existe = clienteRepository.obtenerClientePorDniRepo(cliente.dni) != null
 
-            /**
-             * try / catch (SQLiteConstraintException)
-             * ----------------------------------------
-             * ✔ TIPO: bloque de control de excepciones
-             * Es el bloque que intenta insertar el cliente y captura el error si ocurre.
-             * Sirve para controlar el caso en que el DNI ya existe en la base de datos
-             * (por el índice único de la tabla) y avisar al usuario con un mensaje de error.
-             */
+            if (existe) {
+                _error.value = "El DNI ya está registrado"
+                return@launch
+            }
+
             try {
                 clienteRepository.insertarClienteRepo(cliente)
-            }catch(e: SQLiteConstraintException){
-
-                /**
-                 * _error.value
-                 * ------------
-                 * ✔ TIPO: asignación al flujo mutable de errores
-                 * Es la línea que guarda el mensaje de error del DNI duplicado.
-                 * Sirve para que el StateFlow error emita "El DNI ya está registrado"
-                 * y la interfaz pueda mostrarlo.
-                 */
+            } catch (e: SQLiteConstraintException) {
                 _error.value = "El DNI ya está registrado"
-
             }
         }
     }
@@ -163,7 +139,7 @@ class ClienteViewModel @Inject constructor(
          * Es la corrutina que ejecuta la actualización del cliente en segundo plano.
          * Sirve para no bloquear el hilo principal de la UI.
          */
-        viewModelScope.launch{
+        viewModelScope.launch {
             clienteRepository.actualizarClienteRepo(cliente)
         }
     }
@@ -176,7 +152,7 @@ class ClienteViewModel @Inject constructor(
      * Sirve para que la interfaz borre un cliente sin bloquear la UI,
      * lanzando la operación de Room en segundo plano.
      */
-    fun eliminarCliente(cliente: ClienteEntity){
+    fun eliminarCliente(cliente: ClienteEntity) {
 
         /**
          * viewModelScope.launch
@@ -188,7 +164,16 @@ class ClienteViewModel @Inject constructor(
         viewModelScope.launch {
             clienteRepository.eliminarClienteRepo(cliente)
         }
+    }
 
-
+    /**
+     * obtenerClientePorDni
+     * --------------------
+     * ✔ TIPO: método (fun) suspend de ClienteViewModel → Boolean
+     * Es la función que comprueba si ya existe un cliente con ese DNI.
+     * Sirve para saber si un DNI está registrado antes de insertar un cliente.
+     */
+    suspend fun obtenerClientePorDni(dni: String): Boolean {
+        return clienteRepository.obtenerClientePorDniRepo(dni) != null
     }
 }

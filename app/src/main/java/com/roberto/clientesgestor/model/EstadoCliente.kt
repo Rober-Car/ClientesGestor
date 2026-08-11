@@ -42,5 +42,8 @@ enum class EstadoCliente {
      * Es el estado de los clientes que se han dado de baja del servicio.
      * Sirve para marcar a los clientes que ya no forman parte del gestor.
      */
-    BAJA
+    BAJA,
+
+
+    REGISTRADO
 }

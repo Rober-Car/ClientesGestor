@@ -48,48 +48,19 @@ data class ClienteEntity(
     @PrimaryKey(autoGenerate = true)
     val idCliente: Int = 0,
 
-
     val nombre: String,
-
-
     val apellidos: String,
-
-
     val dni: String,
-
-
-    val password: String,
-
-
     val telefono: String,
-
-
     val email: String? = null,
-
-
     val foto: String,
-
-
     val fechaNacimiento: Long,
-
-
     val fechaRegistro: Long = System.currentTimeMillis(),
-
     val fechaAlta: Long? = null,
-
-
     val fechaBaja: Long? = null,
-
-
     val estado: EstadoCliente,
-
-
     val tieneLlave: Boolean,
-
-
     val observaciones: String? = null,
-
-
     val firebaseUid: String? = null
 )
 

@@ -1,3 +1,6 @@
+/* ============================================================
+ * ============ BLOQUE 1: IMPORTS =============================
+ * ============================================================ */
 package com.roberto.clientesgestor.ui.clientes
 
 import android.content.Context
@@ -9,6 +12,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -18,12 +22,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SelectableDates
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -41,6 +47,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
+import com.roberto.clientesgestor.data.entity.ClienteEntity
+import com.roberto.clientesgestor.model.EstadoCliente
 import com.roberto.clientesgestor.ui.viewmodel.ClienteViewModel
 import java.io.File
 import java.io.FileOutputStream
@@ -50,6 +58,9 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
+/* ============================================================
+ * ============ BLOQUE 2: DOCUMENTACIÓN DEL ARCHIVO ===========
+ * ============================================================ */
 /**
  * AñadirClienteScreen.kt
  * ----------------------
@@ -58,6 +69,9 @@ import java.time.format.DateTimeFormatter
  * Sirve para capturar los datos del cliente antes de guardarlos en la base de datos.
  */
 
+/* ============================================================
+ * ============ BLOQUE 3: PANTALLA AÑADIR CLIENTE =============
+ * ============================================================ */
 /**
  * AñadirClienteScreen
  * -------------------
@@ -78,6 +92,9 @@ fun AñadirClienteScreen(
     viewModel: ClienteViewModel = hiltViewModel()
 ) {
 
+    /* ============================================================
+     * ============ BLOQUE 4: ESTADO DEL FORMULARIO ===============
+     * ============================================================ */
     /**
      * nombre
      * ------
@@ -153,6 +170,90 @@ fun AñadirClienteScreen(
     }
 
     /**
+     * tieneLlave
+     * ----------
+     * ✔ TIPO: variable con estado (var) → Boolean
+     * Es el interruptor que indica si el cliente tiene llave del centro.
+     * Sirve para guardar la opción "Tiene llave" marcada en el formulario.
+     */
+    var tieneLlave by remember { mutableStateOf(false) }
+
+    /**
+     * observaciones
+     * -------------
+     * ✔ TIPO: variable con estado (var) → String
+     * Es el texto de observaciones que se escribe en el campo.
+     * Sirve para guardar las notas opcionales sobre el cliente.
+     */
+    var observaciones by remember { mutableStateOf("") }
+
+    /**
+     * errorNombre
+     * -----------
+     * ✔ TIPO: variable con estado (var) → Boolean
+     * Es el indicador de error del campo Nombre.
+     * Sirve para resaltar el campo y mostrar "El nombre es obligatorio" si está vacío al pulsar Guardar.
+     */
+    var errorNombre by remember { mutableStateOf(false) }
+
+    /**
+     * errorApellidos
+     * --------------
+     * ✔ TIPO: variable con estado (var) → Boolean
+     * Es el indicador de error del campo Apellidos.
+     * Sirve para resaltar el campo y mostrar "Los apellidos son obligatorios" si está vacío al pulsar Guardar.
+     */
+    var errorApellidos by remember { mutableStateOf(false) }
+
+    /**
+     * errorDni
+     * --------
+     * ✔ TIPO: variable con estado (var) → Boolean
+     * Es el indicador de error del campo DNI.
+     * Sirve para resaltar el campo y mostrar "Introduce un DNI válido" si el DNI no es correcto.
+     */
+    var errorDni by remember { mutableStateOf(false) }
+
+    /**
+     * errorTelefono
+     * -------------
+     * ✔ TIPO: variable con estado (var) → Boolean
+     * Es el indicador de error del campo Teléfono.
+     * Sirve para resaltar el campo y mostrar "Introduce un teléfono válido" si el teléfono no es correcto.
+     */
+    var errorTelefono by remember { mutableStateOf(false) }
+
+    /**
+     * errorEmail
+     * ----------
+     * ✔ TIPO: variable con estado (var) → Boolean
+     * Es el indicador de error del campo Email.
+     * Sirve para resaltar el campo y mostrar "Introduce un email válido" si el email no es correcto.
+     */
+    var errorEmail by remember { mutableStateOf(false) }
+
+    /**
+     * errorFechaNacimiento
+     * --------------------
+     * ✔ TIPO: variable con estado (var) → Boolean
+     * Es el indicador de error del campo Fecha de nacimiento.
+     * Sirve para resaltar el campo y mostrar "La fecha de nacimiento es obligatoria" si no se elige ninguna.
+     */
+    var errorFechaNacimiento by remember { mutableStateOf(false) }
+
+    /**
+     * errorFoto
+     * ---------
+     * ✔ TIPO: variable con estado (var) → Boolean
+     * Es el indicador de error de la foto del cliente.
+     * Sirve para avisar de que la foto es obligatoria si no se selecciona ninguna al pulsar Guardar.
+     */
+    var errorFoto by remember { mutableStateOf(false) }
+
+    /* ============================================================
+     * ============ BLOQUE 5: LÓGICA DE FECHA Y GALERÍA ===========
+     * ============================================================ */
+    /**
      * selectableDates
      * ---------------
      * ✔ TIPO: variable con estado (val) → SelectableDates
@@ -170,7 +271,6 @@ fun AñadirClienteScreen(
             override fun isSelectableYear(year: Int): Boolean =
                 year in (hoy.minusYears(120).year..hoy.year)
         }
-
     }
 
     /**
@@ -182,6 +282,13 @@ fun AñadirClienteScreen(
      */
     val context = LocalContext.current
 
+    /**
+     * foto
+     * ----
+     * ✔ TIPO: variable con estado (var) → String
+     * Es la ruta del archivo de la foto elegida por el usuario.
+     * Sirve para guardar en el formulario la foto seleccionada y mostrarla en la vista previa.
+     */
     var foto by remember { mutableStateOf("") }
 
     /**
@@ -203,20 +310,21 @@ fun AñadirClienteScreen(
         }
     }
 
+    /* ============================================================
+     * ============ BLOQUE 6: UI - FORMULARIO DE DATOS ============
+     * ============================================================ */
     /**
-     * Column
-     * ------
+     * Column del formulario
+     * ---------------------
      * ✔ TIPO: función @Composable (androidx.compose.foundation.layout.Column)
      * Es el contenedor vertical del formulario de alta.
      * Sirve para apilar todos los campos uno debajo de otro,
      * ocupando toda la pantalla y permitiendo hacer scroll si no caben.
      */
-
-
-    Column( modifier = Modifier
-        .fillMaxSize()
-        .verticalScroll(rememberScrollState())
-
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
     ) {
 
         /**
@@ -228,8 +336,17 @@ fun AñadirClienteScreen(
          */
         TextField(
             value = nombre,
-            onValueChange = { nombre = it },
-            label = { Text("Nombre") }
+            onValueChange = {
+                nombre = it
+                errorNombre = false
+            },
+            label = { Text("Nombre") },
+            isError = errorNombre,
+            supportingText = {
+                if (errorNombre) {
+                    Text("El nombre es obligatorio")
+                }
+            }
         )
 
         /**
@@ -241,8 +358,17 @@ fun AñadirClienteScreen(
          */
         TextField(
             value = apellidos,
-            onValueChange = { apellidos = it },
-            label = { Text("Apellidos") }
+            onValueChange = {
+                apellidos = it
+                errorApellidos = false
+            },
+            label = { Text("Apellidos") },
+            isError = errorApellidos,
+            supportingText = {
+                if (errorApellidos) {
+                    Text("Los apellidos son obligatorios")
+                }
+            }
         )
 
         /**
@@ -254,8 +380,17 @@ fun AñadirClienteScreen(
          */
         TextField(
             value = dni,
-            onValueChange = { dni = it },
-            label = { Text("DNI") }
+            onValueChange = {
+                dni = it
+                errorDni = false
+            },
+            label = { Text("DNI") },
+            isError = errorDni,
+            supportingText = {
+                if (errorDni) {
+                    Text("Introduce un DNI válido")
+                }
+            }
         )
 
         /**
@@ -267,8 +402,17 @@ fun AñadirClienteScreen(
          */
         TextField(
             value = telefono,
-            onValueChange = { telefono = it },
-            label = { Text("Teléfono") }
+            onValueChange = {
+                telefono = it
+                errorTelefono = false
+            },
+            label = { Text("Teléfono") },
+            isError = errorTelefono,
+            supportingText = {
+                if (errorTelefono) {
+                    Text("Introduce un teléfono válido")
+                }
+            }
         )
 
         /**
@@ -280,8 +424,17 @@ fun AñadirClienteScreen(
          */
         TextField(
             value = email,
-            onValueChange = { email = it },
-            label = { Text("Email") }
+            onValueChange = {
+                email = it
+                errorEmail = false
+            },
+            label = { Text("Email") },
+            isError = errorEmail,
+            supportingText = {
+                if (errorEmail) {
+                    Text("Introduce un email válido")
+                }
+            }
         )
 
         /**
@@ -297,6 +450,12 @@ fun AñadirClienteScreen(
             readOnly = true,
             label = { Text("Fecha de nacimiento") },
             placeholder = { Text("dd/MM/aaaa") },
+            isError = errorFechaNacimiento,
+            supportingText = {
+                if (errorFechaNacimiento) {
+                    Text("La fecha de nacimiento es obligatoria")
+                }
+            },
             trailingIcon = {
                 Icon(
                     imageVector = Icons.Default.DateRange,
@@ -305,13 +464,19 @@ fun AñadirClienteScreen(
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { mostrarDatePicker = true }
+                .clickable {
+                    mostrarDatePicker = true
+                    errorFechaNacimiento = false
+                }
         )
 
+        /* ============================================================
+         * ============ BLOQUE 7: UI - SELECCIÓN DE FOTO ==============
+         * ============================================================ */
         /**
-         * Bloque de selección de foto
-         * ----------------------------
-         * ✔ TIPO: Column anidada (androidx.compose.foundation.layout.Column)
+         * Column de selección de foto
+         * ---------------------------
+         * ✔ TIPO: función @Composable (androidx.compose.foundation.layout.Column)
          * Es la sección que muestra la foto del cliente y el botón para elegirla.
          * Sirve para centrar la vista previa de la foto y abrir el selector de imágenes.
          */
@@ -350,15 +515,103 @@ fun AñadirClienteScreen(
             OutlinedButton(
                 onClick = {
                     launcherGaleria.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        PickVisualMediaRequest(
+                            ActivityResultContracts.PickVisualMedia.ImageOnly
+                        )
                     )
+                    errorFoto = false
                 }
             ) {
                 Text(if (foto.isEmpty()) "Seleccionar foto" else "Cambiar foto")
             }
         }
+
+        /* ============================================================
+         * ============ BLOQUE 8: UI - OPCIONES Y GUARDAR =============
+         * ============================================================ */
+        /**
+         * Row de "Tiene llave"
+         * --------------------
+         * ✔ TIPO: función @Composable (androidx.compose.foundation.layout.Row)
+         * Es la fila que junta el texto "Tiene llave" con el interruptor.
+         * Sirve para activar o desactivar la opción de que el cliente tenga llave.
+         */
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Tiene llave")
+
+            Switch(
+                checked = tieneLlave,
+                onCheckedChange = { tieneLlave = it }
+            )
+        }
+
+        /**
+         * TextField de Observaciones
+         * --------------------------
+         * ✔ TIPO: función @Composable (androidx.compose.material3.TextField)
+         * Es el campo de texto de varias líneas donde se escriben las observaciones.
+         * Sirve para capturar las notas opcionales sobre el cliente.
+         */
+        TextField(
+            value = observaciones,
+            onValueChange = { observaciones = it },
+            label = { Text("Observaciones") },
+            minLines = 3
+        )
+
+        /**
+         * Button de Guardar cliente
+         * -------------------------
+         * ✔ TIPO: función @Composable (androidx.compose.material3.Button)
+         * Es el botón que valida el formulario y guarda el cliente.
+         * Sirve para comprobar todos los campos obligatorios a la vez, marcar los incorrectos
+         * y, si no hay errores, crear el ClienteEntity.
+         */
+        Button(
+            onClick = {
+                errorNombre = nombre.isBlank()
+                errorApellidos = apellidos.isBlank()
+                errorDni = !esDniValido(dni)
+                errorTelefono = !esTelefonoValido(telefono)
+                errorEmail = !esEmailValido(email)
+                errorFechaNacimiento = fechaNacimiento == null
+                errorFoto = foto.isBlank()
+
+                val hayErrores =
+                    errorNombre ||
+                        errorApellidos ||
+                        errorDni ||
+                        errorTelefono ||
+                        errorEmail ||
+                        errorFechaNacimiento ||
+                        errorFoto
+
+                if (!hayErrores) {
+                    val cliente = ClienteEntity(
+                        nombre = nombre,
+                        apellidos = apellidos,
+                        dni = dni,
+                        telefono = telefono,
+                        email = email,
+                        foto = foto,
+                        fechaNacimiento = fechaNacimiento!!,
+                        estado = EstadoCliente.REGISTRADO,
+                        tieneLlave = tieneLlave,
+                        observaciones = observaciones.ifBlank { null }
+                    )
+
+                }
+            }
+        ) {
+            Text("Guardar cliente")
+        }
     }
 
+    /* ============================================================
+     * ============ BLOQUE 9: UI - SELECTOR DE FECHA ==============
+     * ============================================================ */
     /**
      * DatePickerDialog
      * ----------------
@@ -431,6 +684,9 @@ fun AñadirClienteScreen(
     }
 }
 
+/* ============================================================
+ * ============ BLOQUE 10: FUNCIONES AUXILIARES ===============
+ * ============================================================ */
 /**
  * formatearFecha
  * --------------
@@ -471,9 +727,9 @@ private fun guardarFotoEnInterna(context: Context, uri: Uri): String? {
     return try {
 
         /**
-         * options / bounds
-         * ----------------
-         * ✔ TIPO: variables (val) → BitmapFactory.Options
+         * bounds
+         * ------
+         * ✔ TIPO: variable (val) → BitmapFactory.Options
          * Es la configuración que solo lee las dimensiones de la imagen sin cargarla completa.
          * Sirve para conocer el tamaño real de la foto y decidir cuánto reducirla después.
          */
@@ -551,6 +807,54 @@ private fun guardarFotoEnInterna(context: Context, uri: Uri): String? {
     }
 }
 
+/**
+ * esDniValido
+ * -----------
+ * ✔ TIPO: función privada (private fun) → Boolean
+ * Es la función que valida el formato y la letra de control de un DNI español.
+ * Sirve para comprobar que el DNI tenga 8 dígitos y una letra correcta antes de guardarlo.
+ */
+private fun esDniValido(dni: String): Boolean {
+
+    if (!dni.matches(Regex("\\d{8}[A-Za-z]"))) {
+        return false
+    }
+
+    val numeros = dni.substring(0, 8).toInt()
+    val letra = dni.last().uppercaseChar()
+
+    val letras = "TRWAGMYFPDXBNJZSQVHLCKE"
+
+    return letras[numeros % 23] == letra
+}
+
+/**
+ * esTelefonoValido
+ * ----------------
+ * ✔ TIPO: función privada (private fun) → Boolean
+ * Es la función que valida el formato de un teléfono móvil español.
+ * Sirve para comprobar que el teléfono empiece por 6, 7, 8 o 9 y tenga 9 dígitos.
+ */
+private fun esTelefonoValido(telefono: String): Boolean {
+    return telefono.matches(Regex("[6789]\\d{8}"))
+}
+
+/**
+ * esEmailValido
+ * -------------
+ * ✔ TIPO: función privada (private fun) → Boolean
+ * Es la función que valida el formato de un correo electrónico.
+ * Sirve para comprobar que el email tenga un formato válido antes de guardarlo.
+ */
+private fun esEmailValido(email: String): Boolean {
+    return android.util.Patterns.EMAIL_ADDRESS
+        .matcher(email)
+        .matches()
+}
+
+/* ============================================================
+ * ============ BLOQUE 11: CONSTANTES =========================
+ * ============================================================ */
 /**
  * MAX_FOTO_DIMENSION
  * ------------------
