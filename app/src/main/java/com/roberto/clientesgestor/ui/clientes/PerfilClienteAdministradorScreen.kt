@@ -30,6 +30,8 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,7 +39,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -48,9 +49,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
 import com.roberto.clientesgestor.model.EstadoCliente
+import com.roberto.clientesgestor.navigation.Routes
 import com.roberto.clientesgestor.ui.components.ServicioItem
 import com.roberto.clientesgestor.ui.viewmodel.ClienteViewModel
 import java.io.File
@@ -87,8 +90,17 @@ fun PerfilClienteScreen(
     viewModel: ClienteViewModel = hiltViewModel()
 ) {
 
-    LaunchedEffect(idCliente) {
+    /**
+     * LifecycleResumeEffect(idCliente)
+     * --------------------------------
+     * ✔ TIPO: efecto de ciclo de vida (LifecycleResumeEffect)
+     * Se ejecuta al entrar en la pantalla y cada vez que se vuelve a ella.
+     * Sirve para cargar el cliente por su id y para refrescar los datos
+     * cuando el usuario vuelve del formulario de modificar cliente.
+     */
+    LifecycleResumeEffect(idCliente) {
         viewModel.obtenerClientePorId(idCliente)
+        onPauseOrDispose { }
     }
 
     val cliente by viewModel.clienteSeleccionado.collectAsState()
@@ -439,6 +451,30 @@ fun PerfilClienteScreen(
                 nombreServicio = "CrossFit",
                 iconoServicio = Icons.Default.Bolt
             )
+
+            /**
+             * Button de Modificar cliente
+             * ---------------------------
+             * ✔ TIPO: función @Composable (androidx.compose.material3.Button)
+             * Es el botón que abre el formulario de edición del cliente.
+             * Sirve para navegar a la pantalla de modificar con los datos precargados,
+             * con el mismo estilo azul que el botón de guardar del formulario.
+             */
+            Button(
+                onClick = {
+                    navController.navigate(Routes.modificarCliente(idCliente))
+                },
+                modifier = Modifier
+                    .fillMaxWidth(0.7f)
+                    .align(Alignment.CenterHorizontally)
+                    .padding(top = 16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF1E88E5),
+                    contentColor = Color.White
+                )
+            ) {
+                Text("Modificar cliente")
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
         }

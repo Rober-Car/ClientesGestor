@@ -80,6 +80,24 @@ class ClienteViewModel @Inject constructor(
     val clienteSeleccionado = _clienteSeleccionado.asStateFlow()
 
     /**
+     * _clienteEditando
+     * ----------------
+     * ✔ TIPO: propiedad privada (val) → MutableStateFlow<ClienteEntity?>
+     * Es el flujo que guarda el cliente que se está editando en el formulario.
+     * Sirve para conservar en memoria los datos originales del cliente mientras se editan.
+     */
+    private val _clienteEditando = MutableStateFlow<ClienteEntity?>(null)
+
+    /**
+     * clienteEditando
+     * ---------------
+     * ✔ TIPO: propiedad (val) → StateFlow<ClienteEntity?>
+     * Es la versión pública e inmutable de _clienteEditando.
+     * Sirve para que la pantalla de modificar cliente observe y precargue los datos del cliente.
+     */
+    val clienteEditando = _clienteEditando.asStateFlow()
+
+    /**
      * clientes
      * --------
      * ✔ TIPO: propiedad (val) → StateFlow<List<Cliente>>
@@ -137,10 +155,11 @@ class ClienteViewModel @Inject constructor(
      * -----------------
      * ✔ TIPO: método (fun) de ClienteViewModel
      * Es la función que actualiza los datos de un cliente ya existente.
-     * Sirve para que la interfaz modifique un cliente sin bloquear la UI,
-     * lanzando la operación de Room en segundo plano.
+     * Sirve para que la interfaz modifique un cliente sin bloquear la UI, lanzando la
+     * operación de Room en segundo plano; limpia el error anterior, comprueba que el nuevo
+     * DNI no pertenezca a otro cliente y ejecuta onExito() al terminar correctamente.
      */
-    fun actualizarCliente(cliente: ClienteEntity) {
+    fun actualizarCliente(cliente: ClienteEntity, onExito: () -> Unit = {}) {
 
         /**
          * viewModelScope.launch
@@ -150,7 +169,22 @@ class ClienteViewModel @Inject constructor(
          * Sirve para no bloquear el hilo principal de la UI.
          */
         viewModelScope.launch {
-            clienteRepository.actualizarClienteRepo(cliente)
+
+            _error.value = null
+
+            val existente = clienteRepository.obtenerClientePorDniRepo(cliente.dni)
+
+            if (existente != null && existente.idCliente != cliente.idCliente) {
+                _error.value = "El DNI ya está registrado"
+                return@launch
+            }
+
+            try {
+                clienteRepository.actualizarClienteRepo(cliente)
+                onExito()
+            } catch (e: SQLiteConstraintException) {
+                _error.value = "El DNI ya está registrado"
+            }
         }
     }
 
@@ -181,6 +215,20 @@ class ClienteViewModel @Inject constructor(
             val clienteEntity = clienteRepository.obtenerClientePorIdRepo(id)
 
             _clienteSeleccionado.value = clienteEntity?.toCliente()
+        }
+    }
+
+    /**
+     * obtenerClienteParaEditar
+     * ------------------------
+     * ✔ TIPO: método (fun) de ClienteViewModel
+     * Es la función que carga de la base de datos el cliente que se va a editar.
+     * Sirve para que la pantalla de modificar cliente obtenga los datos originales
+     * y pueda rellenar el formulario antes de guardar los cambios.
+     */
+    fun obtenerClienteParaEditar(id: Int) {
+        viewModelScope.launch {
+            _clienteEditando.value = clienteRepository.obtenerClientePorIdRepo(id)
         }
     }
 

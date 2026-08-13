@@ -54,6 +54,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -110,6 +111,15 @@ fun AñadirClienteScreen(
 
 
     navController: NavHostController,
+    /**
+     * idCliente
+     * ---------
+     * ✔ TIPO: parámetro (param) → Int?
+     * Es el identificador del cliente que se está editando.
+     * Sirve para que esta pantalla funcione en dos modos: si vale null se añade un
+     * cliente nuevo, y si trae un id se precargan los datos y se actualiza ese cliente.
+     */
+    idCliente: Int? = null,
     /**
      * viewModel
      * ---------
@@ -280,7 +290,36 @@ fun AñadirClienteScreen(
      */
     var errorFoto by remember { mutableStateOf(false) }
 
+    /**
+     * error
+     * -----
+     * ✔ TIPO: variable con estado (val) → String?
+     * Es el mensaje de error que llega desde el ClienteViewModel (p.ej. DNI duplicado).
+     * Sirve para mostrarlo al usuario cuando el guardado no se puede completar.
+     */
     val error by viewModel.error.collectAsState()
+
+    /**
+     * clienteEditando
+     * ---------------
+     * ✔ TIPO: variable con estado (val) → ClienteEntity?
+     * Es el cliente que se está editando, cargado desde la base de datos.
+     * Sirve para precargar el formulario con sus datos en modo edición.
+     */
+    val clienteEditando by viewModel.clienteEditando.collectAsState()
+
+    /**
+     * LaunchedEffect(idCliente)
+     * -------------------------
+     * ✔ TIPO: efecto de composición (LaunchedEffect)
+     * Se lanza cuando la pantalla se muestra por primera vez.
+     * Sirve para cargar en modo edición el cliente cuyo id llega en el argumento de navegación.
+     */
+    LaunchedEffect(idCliente) {
+        if (idCliente != null) {
+            viewModel.obtenerClienteParaEditar(idCliente)
+        }
+    }
 
 
     /* ============================================================
@@ -340,6 +379,27 @@ fun AñadirClienteScreen(
             if (ruta != null) {
                 foto = ruta
             }
+        }
+    }
+
+    /**
+     * LaunchedEffect(clienteEditando)
+     * -------------------------------
+     * ✔ TIPO: efecto de composición (LaunchedEffect)
+     * Se ejecuta cada vez que clienteEditando cambia (cuando se carga el cliente).
+     * Sirve para rellenar los campos del formulario con los datos del cliente en modo edición.
+     */
+    LaunchedEffect(clienteEditando) {
+        clienteEditando?.let { clienteCargado ->
+            nombre = clienteCargado.nombre
+            apellidos = clienteCargado.apellidos
+            dni = clienteCargado.dni
+            telefono = clienteCargado.telefono
+            email = clienteCargado.email ?: ""
+            foto = clienteCargado.foto
+            fechaNacimiento = clienteCargado.fechaNacimiento
+            tieneLlave = clienteCargado.tieneLlave
+            observaciones = clienteCargado.observaciones ?: ""
         }
     }
 
@@ -414,7 +474,7 @@ fun AñadirClienteScreen(
              * Sirve para indicar al usuario en qué sección se encuentra.
              */
             Text(
-                text = "Añadir cliente",
+                text = if (idCliente != null) "Modificar cliente" else "Añadir cliente",
                 style = MaterialTheme.typography.titleLarge
             )
         }
@@ -739,21 +799,51 @@ fun AñadirClienteScreen(
                         errorFoto
 
                 if (!hayErrores) {
-                    val cliente = ClienteEntity(
-                        nombre = nombre,
-                        apellidos = apellidos,
-                        dni = dni,
-                        telefono = telefono,
-                        email = email,
-                        foto = foto,
-                        fechaNacimiento = fechaNacimiento!!,
-                        estado = EstadoCliente.REGISTRADO,
-                        tieneLlave = tieneLlave,
-                        observaciones = observaciones.ifBlank { null }
-                    )
+                    if (idCliente != null) {
+                        // MODO EDICIÓN: se conservan los datos que no se pueden cambiar
+                        // en este formulario (fecha de registro, estado, llave de alta/baja
+                        // y el uid de Firebase) tomándolos del cliente original.
+                        val original = clienteEditando
+                        val cliente = ClienteEntity(
+                            idCliente = idCliente,
+                            nombre = nombre,
+                            apellidos = apellidos,
+                            dni = dni,
+                            telefono = telefono,
+                            email = email,
+                            foto = foto,
+                            fechaNacimiento = fechaNacimiento!!,
+                            fechaRegistro = original?.fechaRegistro ?: System.currentTimeMillis(),
+                            fechaAlta = original?.fechaAlta,
+                            fechaBaja = original?.fechaBaja,
+                            estado = original?.estado ?: EstadoCliente.REGISTRADO,
+                            tieneLlave = tieneLlave,
+                            observaciones = observaciones.ifBlank { null },
+                            firebaseUid = original?.firebaseUid
+                        )
 
-                    viewModel.insertarCliente(cliente) {
-                        navController.popBackStack()
+                        viewModel.actualizarCliente(cliente) {
+                            navController.popBackStack()
+                        }
+                    } else {
+                        // MODO ALTA: el cliente nuevo empieza con estado REGISTRADO
+                        // y sin fecha de registro propia (la pone la base de datos).
+                        val cliente = ClienteEntity(
+                            nombre = nombre,
+                            apellidos = apellidos,
+                            dni = dni,
+                            telefono = telefono,
+                            email = email,
+                            foto = foto,
+                            fechaNacimiento = fechaNacimiento!!,
+                            estado = EstadoCliente.REGISTRADO,
+                            tieneLlave = tieneLlave,
+                            observaciones = observaciones.ifBlank { null }
+                        )
+
+                        viewModel.insertarCliente(cliente) {
+                            navController.popBackStack()
+                        }
                     }
                 }
             },
@@ -766,7 +856,7 @@ fun AñadirClienteScreen(
                 contentColor = Color.White
             )
         ) {
-            Text("Guardar cliente")
+            Text(if (idCliente != null) "Guardar cambios" else "Guardar cliente")
         }
 
         /**

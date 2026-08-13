@@ -114,5 +114,21 @@ fun AppNavigation() {
 
             AñadirClienteScreen(navController)
         }
+
+        composable(
+            route = "${Routes.MODIFICARCLIENTE}/{idCliente}"
+        ) { backStackEntry ->
+
+            val idCliente = backStackEntry.arguments
+                ?.getString("idCliente")
+                ?.toIntOrNull()
+
+            if (idCliente != null) {
+                AñadirClienteScreen(
+                    navController = navController,
+                    idCliente = idCliente
+                )
+            }
+        }
     }
 }

@@ -59,4 +59,10 @@ object Routes {
 
     const val AÑADIRCLIENTE = "añadir_cliente"
 
+    const val MODIFICARCLIENTE = "modificar_cliente"
+
+    fun modificarCliente(idCliente: Int): String {
+        return "$MODIFICARCLIENTE/$idCliente"
+    }
+
 }
