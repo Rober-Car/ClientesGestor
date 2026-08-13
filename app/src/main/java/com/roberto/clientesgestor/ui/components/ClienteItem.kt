@@ -146,7 +146,7 @@ fun ClienteItem(
          * -----------------
          * ✔ TIPO: función @Composable (androidx.compose.foundation.layout.Row)
          * Es la fila horizontal de la tarjeta.
-         * Sirve para alinear la barra de estado, el icono y los textos del cliente.
+         * Sirve para alinear la barra de estado, la foto y los textos del cliente.
          */
         Row(
             modifier = Modifier.height(IntrinsicSize.Min),
@@ -168,11 +168,12 @@ fun ClienteItem(
             )
 
             /**
-             * Icon de persona
-             * ---------------
-             * ✔ TIPO: función @Composable (androidx.compose.material3.Icon)
-             * Es el icono de avatar del cliente.
-             * Sirve como imagen representativa del cliente en la lista.
+             * Foto del cliente
+             * ----------------
+             * ✔ TIPO: bloque condicional (if/else) + AsyncImage o Box con icono
+             * Es la foto del cliente en formato cuadrado con esquinas redondeadas y borde azul.
+             * Sirve como imagen representativa del cliente en la lista; si no hay foto,
+             * se muestra un cuadrado de relleno con el icono de persona.
              */
                 if (foto.isNotEmpty()) {
                     AsyncImage(

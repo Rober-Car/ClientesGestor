@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.roberto.clientesgestor.data.entity.ClienteEntity
 import com.roberto.clientesgestor.data.entity.toCliente
 import com.roberto.clientesgestor.data.repository.ClienteRepository
+import com.roberto.clientesgestor.model.Cliente
 import dagger.hilt.android.lifecycle.HiltViewModel
 import jakarta.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -74,6 +75,10 @@ class ClienteViewModel @Inject constructor(
      */
     val error = _error.asStateFlow()
 
+    private val _clienteSeleccionado = MutableStateFlow<Cliente?>(null)
+
+    val clienteSeleccionado = _clienteSeleccionado.asStateFlow()
+
     /**
      * clientes
      * --------
@@ -101,8 +106,10 @@ class ClienteViewModel @Inject constructor(
      * ---------------
      * ✔ TIPO: método (fun) de ClienteViewModel
      * Es la función que guarda un nuevo cliente en la base de datos.
-     * Sirve para que la interfaz inserte un cliente sin bloquear la UI,
-     * lanzando la operación de Room en segundo plano.
+     * Sirve para que la interfaz inserte un cliente sin bloquear la UI, lanzando la
+     * operación de Room en segundo plano; limpia el error anterior, comprueba que el DNI
+     * no esté ya registrado y ejecuta onExito() al terminar correctamente (por ejemplo,
+     * para volver a la lista de clientes).
      */
     fun insertarCliente(cliente: ClienteEntity, onExito: () -> Unit = {}) {
         viewModelScope.launch {
@@ -166,6 +173,14 @@ class ClienteViewModel @Inject constructor(
          */
         viewModelScope.launch {
             clienteRepository.eliminarClienteRepo(cliente)
+        }
+    }
+
+    fun obtenerClientePorId(id: Int) {
+        viewModelScope.launch {
+            val clienteEntity = clienteRepository.obtenerClientePorIdRepo(id)
+
+            _clienteSeleccionado.value = clienteEntity?.toCliente()
         }
     }
 

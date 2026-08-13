@@ -356,8 +356,8 @@ fun AñadirClienteScreen(
      * ---------------------
      * ✔ TIPO: función @Composable (androidx.compose.foundation.layout.Column)
      * Es el contenedor vertical del formulario de alta.
-     * Sirve para apilar todos los campos uno debajo de otro,
-     * ocupando toda la pantalla y permitiendo hacer scroll si no caben.
+     * Sirve para apilar todos los campos uno debajo de otro con un margen lateral,
+     * permitir hacer scroll si no caben y subir el contenido cuando se abre el teclado.
      */
     Column(
         modifier = Modifier
@@ -621,6 +621,13 @@ fun AñadirClienteScreen(
                         .border(2.dp, Color(0xFF64B5F6), CircleShape)
                 )
             } else {
+                /**
+                 * Box del placeholder de la foto
+                 * ------------------------------
+                 * ✔ TIPO: bloque condicional (else) + función @Composable (androidx.compose.foundation.layout.Box)
+                 * Es el círculo con el icono de persona que se muestra mientras no hay foto elegida.
+                 * Sirve para mantener la sección visualmente completa aunque el cliente aún no tenga foto.
+                 */
                 Box(
                     modifier = Modifier
                         .size(140.dp)
@@ -710,7 +717,7 @@ fun AñadirClienteScreen(
          * ✔ TIPO: función @Composable (androidx.compose.material3.Button)
          * Es el botón que valida el formulario y guarda el cliente.
          * Sirve para comprobar todos los campos obligatorios a la vez, marcar los incorrectos
-         * y, si no hay errores, crear el ClienteEntity.
+         * y, si no hay errores, crear el ClienteEntity y volver a la lista de clientes.
          */
         Button(
             onClick = {
@@ -762,6 +769,14 @@ fun AñadirClienteScreen(
             Text("Guardar cliente")
         }
 
+        /**
+         * Card de error
+         * -------------
+         * ✔ TIPO: bloque condicional (let) + función @Composable (androidx.compose.material3.Card)
+         * Es la tarjeta de aviso que se muestra cuando el guardado falla.
+         * Sirve para mostrar el mensaje del ViewModel (por ejemplo "El DNI ya está registrado")
+         * con un icono de aviso debajo del botón Guardar.
+         */
         error?.let {
             Card(
                 modifier = Modifier
