@@ -52,7 +52,8 @@ fun PerfilClienteScreen(
      * Es el controlador de navegación que recibe la pantalla de perfil.
      * Sirve para poder volver atrás hacia la lista de clientes.
      */
-    navController: NavHostController
+    navController: NavHostController,
+    idCliente: Int
 ) {
 
     /**

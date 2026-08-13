@@ -104,8 +104,10 @@ class ClienteViewModel @Inject constructor(
      * Sirve para que la interfaz inserte un cliente sin bloquear la UI,
      * lanzando la operación de Room en segundo plano.
      */
-    fun insertarCliente(cliente: ClienteEntity) {
+    fun insertarCliente(cliente: ClienteEntity, onExito: () -> Unit = {}) {
         viewModelScope.launch {
+
+            _error.value = null
 
             val existe = clienteRepository.obtenerClientePorDniRepo(cliente.dni) != null
 
@@ -116,6 +118,7 @@ class ClienteViewModel @Inject constructor(
 
             try {
                 clienteRepository.insertarClienteRepo(cliente)
+                onExito()
             } catch (e: SQLiteConstraintException) {
                 _error.value = "El DNI ya está registrado"
             }
@@ -166,14 +169,4 @@ class ClienteViewModel @Inject constructor(
         }
     }
 
-    /**
-     * obtenerClientePorDni
-     * --------------------
-     * ✔ TIPO: método (fun) suspend de ClienteViewModel → Boolean
-     * Es la función que comprueba si ya existe un cliente con ese DNI.
-     * Sirve para saber si un DNI está registrado antes de insertar un cliente.
-     */
-    suspend fun obtenerClientePorDni(dni: String): Boolean {
-        return clienteRepository.obtenerClientePorDniRepo(dni) != null
-    }
 }

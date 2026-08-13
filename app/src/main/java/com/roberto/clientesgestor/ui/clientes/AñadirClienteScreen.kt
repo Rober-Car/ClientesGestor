@@ -10,31 +10,51 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,10 +62,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
 import com.roberto.clientesgestor.data.entity.ClienteEntity
 import com.roberto.clientesgestor.model.EstadoCliente
@@ -82,6 +107,9 @@ import java.time.format.DateTimeFormatter
  */
 @Composable
 fun AñadirClienteScreen(
+
+
+    navController: NavHostController,
     /**
      * viewModel
      * ---------
@@ -90,6 +118,8 @@ fun AñadirClienteScreen(
      * Sirve para guardar el nuevo cliente en la base de datos cuando se complete el formulario.
      */
     viewModel: ClienteViewModel = hiltViewModel()
+
+
 ) {
 
     /* ============================================================
@@ -250,6 +280,9 @@ fun AñadirClienteScreen(
      */
     var errorFoto by remember { mutableStateOf(false) }
 
+    val error by viewModel.error.collectAsState()
+
+
     /* ============================================================
      * ============ BLOQUE 5: LÓGICA DE FECHA Y GALERÍA ===========
      * ============================================================ */
@@ -310,9 +343,14 @@ fun AñadirClienteScreen(
         }
     }
 
+
     /* ============================================================
      * ============ BLOQUE 6: UI - FORMULARIO DE DATOS ============
      * ============================================================ */
+
+    Scaffold(
+        contentWindowInsets = WindowInsets.safeDrawing
+    ) { innerPadding ->
     /**
      * Column del formulario
      * ---------------------
@@ -325,104 +363,160 @@ fun AñadirClienteScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
+            .padding(innerPadding)
+            .padding(horizontal = 16.dp)
+            .imePadding(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
 
-        /**
-         * TextField de Nombre
-         * -------------------
-         * ✔ TIPO: función @Composable (androidx.compose.material3.TextField)
-         * Es el campo de texto donde se escribe el nombre del cliente.
-         * Sirve para capturar el nombre y guardarlo en la variable nombre al teclear.
-         */
-        TextField(
-            value = nombre,
-            onValueChange = {
-                nombre = it
-                errorNombre = false
-            },
-            label = { Text("Nombre") },
-            isError = errorNombre,
-            supportingText = {
-                if (errorNombre) {
-                    Text("El nombre es obligatorio")
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+
+            /**
+             * IconButton de volver
+             * --------------------
+             * ✔ TIPO: función @Composable (androidx.compose.material3.IconButton)
+             * Es el botón con forma de icono que permite retroceder.
+             * Sirve para volver a la pantalla anterior pulsando la flecha.
+             */
+            IconButton(
+                onClick = {
+                    navController.popBackStack()
                 }
+            ) {
+
+                /**
+                 * Icon de flecha
+                 * --------------
+                 * ✔ TIPO: función @Composable (androidx.compose.material3.Icon)
+                 * Es el icono de flecha hacia atrás del botón.
+                 * Sirve para indicar visualmente la acción de volver.
+                 */
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Volver",
+                    modifier = Modifier.size(30.dp)
+                )
             }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            /**
+             * Text del título
+             * ---------------
+             * ✔ TIPO: función @Composable (androidx.compose.material3.Text)
+             * Es el título de la pantalla de clientes.
+             * Sirve para indicar al usuario en qué sección se encuentra.
+             */
+            Text(
+                text = "Añadir cliente",
+                style = MaterialTheme.typography.titleLarge
+            )
+        }
+
+
+        Text(
+            text = "Datos personales",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(top = 16.dp)
         )
 
-        /**
-         * TextField de Apellidos
-         * ----------------------
-         * ✔ TIPO: función @Composable (androidx.compose.material3.TextField)
-         * Es el campo de texto donde se escriben los apellidos del cliente.
-         * Sirve para capturar los apellidos y guardarlos en la variable apellidos al teclear.
-         */
-        TextField(
-            value = apellidos,
-            onValueChange = {
-                apellidos = it
-                errorApellidos = false
-            },
-            label = { Text("Apellidos") },
-            isError = errorApellidos,
-            supportingText = {
-                if (errorApellidos) {
-                    Text("Los apellidos son obligatorios")
-                }
-            }
-        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = nombre,
+                onValueChange = {
+                    nombre = it
+                    errorNombre = false
+                },
+                label = { Text("Nombre") },
+                isError = errorNombre,
+                supportingText = {
+                    if (errorNombre) {
+                        Text("El nombre es obligatorio")
+                    }
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Words,
+                    imeAction = ImeAction.Next
+                ),
+                modifier = Modifier.weight(1f)
+            )
 
-        /**
-         * TextField de DNI
-         * ----------------
-         * ✔ TIPO: función @Composable (androidx.compose.material3.TextField)
-         * Es el campo de texto donde se escribe el DNI del cliente.
-         * Sirve para capturar el DNI y guardarlo en la variable dni al teclear.
-         */
-        TextField(
-            value = dni,
-            onValueChange = {
-                dni = it
-                errorDni = false
-            },
-            label = { Text("DNI") },
-            isError = errorDni,
-            supportingText = {
-                if (errorDni) {
-                    Text("Introduce un DNI válido")
-                }
-            }
-        )
+            OutlinedTextField(
+                value = apellidos,
+                onValueChange = {
+                    apellidos = it
+                    errorApellidos = false
+                },
+                label = { Text("Apellidos") },
+                isError = errorApellidos,
+                supportingText = {
+                    if (errorApellidos) {
+                        Text("Los apellidos son obligatorios")
+                    }
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Words,
+                    imeAction = ImeAction.Next
+                ),
+                modifier = Modifier.weight(1f)
+            )
+        }
 
-        /**
-         * TextField de Teléfono
-         * ---------------------
-         * ✔ TIPO: función @Composable (androidx.compose.material3.TextField)
-         * Es el campo de texto donde se escribe el teléfono del cliente.
-         * Sirve para capturar el teléfono y guardarlo en la variable telefono al teclear.
-         */
-        TextField(
-            value = telefono,
-            onValueChange = {
-                telefono = it
-                errorTelefono = false
-            },
-            label = { Text("Teléfono") },
-            isError = errorTelefono,
-            supportingText = {
-                if (errorTelefono) {
-                    Text("Introduce un teléfono válido")
-                }
-            }
-        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = dni,
+                onValueChange = {
+                    dni = it
+                    errorDni = false
+                },
+                label = { Text("DNI") },
+                isError = errorDni,
+                supportingText = {
+                    if (errorDni) {
+                        Text("Introduce un DNI válido")
+                    }
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                modifier = Modifier.weight(1f)
+            )
 
-        /**
-         * TextField de Email
-         * ------------------
-         * ✔ TIPO: función @Composable (androidx.compose.material3.TextField)
-         * Es el campo de texto donde se escribe el email del cliente.
-         * Sirve para capturar el email y guardarlo en la variable email al teclear.
-         */
-        TextField(
+            OutlinedTextField(
+                value = telefono,
+                onValueChange = {
+                    telefono = it
+                    errorTelefono = false
+                },
+                label = { Text("Teléfono") },
+                isError = errorTelefono,
+                supportingText = {
+                    if (errorTelefono) {
+                        Text("Introduce un teléfono válido")
+                    }
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Phone,
+                    imeAction = ImeAction.Next
+                ),
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        OutlinedTextField(
             value = email,
             onValueChange = {
                 email = it
@@ -434,7 +528,13 @@ fun AñadirClienteScreen(
                 if (errorEmail) {
                     Text("Introduce un email válido")
                 }
-            }
+            },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Email,
+                imeAction = ImeAction.Next
+            ),
+            modifier = Modifier.fillMaxWidth()
         )
 
         /**
@@ -448,6 +548,7 @@ fun AñadirClienteScreen(
             value = fechaNacimientoFormateada,
             onValueChange = { },
             readOnly = true,
+            enabled = false,
             label = { Text("Fecha de nacimiento") },
             placeholder = { Text("dd/MM/aaaa") },
             isError = errorFechaNacimiento,
@@ -456,6 +557,14 @@ fun AñadirClienteScreen(
                     Text("La fecha de nacimiento es obligatoria")
                 }
             },
+            colors = OutlinedTextFieldDefaults.colors(
+                disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                disabledContainerColor = Color.Transparent,
+                disabledBorderColor = MaterialTheme.colorScheme.outline,
+                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
             trailingIcon = {
                 Icon(
                     imageVector = Icons.Default.DateRange,
@@ -480,6 +589,13 @@ fun AñadirClienteScreen(
          * Es la sección que muestra la foto del cliente y el botón para elegirla.
          * Sirve para centrar la vista previa de la foto y abrir el selector de imágenes.
          */
+        Text(
+            text = "Foto",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(top = 16.dp)
+        )
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -500,9 +616,26 @@ fun AñadirClienteScreen(
                     contentDescription = "Foto del cliente",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
-                        .size(120.dp)
+                        .size(140.dp)
                         .clip(CircleShape)
+                        .border(2.dp, Color(0xFF64B5F6), CircleShape)
                 )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(140.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .border(2.dp, Color(0xFF64B5F6), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        tint = Color(0xFF64B5F6),
+                        modifier = Modifier.size(64.dp)
+                    )
+                }
             }
 
             /**
@@ -524,6 +657,15 @@ fun AñadirClienteScreen(
             ) {
                 Text(if (foto.isEmpty()) "Seleccionar foto" else "Cambiar foto")
             }
+
+            if (errorFoto) {
+                Text(
+                    text = "La foto es obligatoria",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
         }
 
         /* ============================================================
@@ -536,6 +678,13 @@ fun AñadirClienteScreen(
          * Es la fila que junta el texto "Tiene llave" con el interruptor.
          * Sirve para activar o desactivar la opción de que el cliente tenga llave.
          */
+        Text(
+            text = "Otros datos",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(top = 16.dp)
+        )
+
         Row(
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -547,18 +696,12 @@ fun AñadirClienteScreen(
             )
         }
 
-        /**
-         * TextField de Observaciones
-         * --------------------------
-         * ✔ TIPO: función @Composable (androidx.compose.material3.TextField)
-         * Es el campo de texto de varias líneas donde se escriben las observaciones.
-         * Sirve para capturar las notas opcionales sobre el cliente.
-         */
-        TextField(
+        OutlinedTextField(
             value = observaciones,
             onValueChange = { observaciones = it },
             label = { Text("Observaciones") },
-            minLines = 3
+            minLines = 3,
+            modifier = Modifier.fillMaxWidth()
         )
 
         /**
@@ -575,7 +718,7 @@ fun AñadirClienteScreen(
                 errorApellidos = apellidos.isBlank()
                 errorDni = !esDniValido(dni)
                 errorTelefono = !esTelefonoValido(telefono)
-                errorEmail = !esEmailValido(email)
+                errorEmail = email.isNotBlank() && !esEmailValido(email)
                 errorFechaNacimiento = fechaNacimiento == null
                 errorFoto = foto.isBlank()
 
@@ -602,13 +745,51 @@ fun AñadirClienteScreen(
                         observaciones = observaciones.ifBlank { null }
                     )
 
+                    viewModel.insertarCliente(cliente) {
+                        navController.popBackStack()
+                    }
                 }
-            }
+            },
+            modifier = Modifier
+                .fillMaxWidth(0.7f)
+                .align(Alignment.CenterHorizontally)
+                .padding(top = 8.dp, bottom = 16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF1E88E5),
+                contentColor = Color.White
+            )
         ) {
             Text("Guardar cliente")
         }
-    }
 
+        error?.let {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ErrorOutline,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
+        }
+    }
+}
     /* ============================================================
      * ============ BLOQUE 9: UI - SELECTOR DE FECHA ==============
      * ============================================================ */

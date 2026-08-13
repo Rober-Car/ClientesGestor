@@ -98,4 +98,8 @@ class ClienteRepository(
     fun obtenerClientePorEstadoRepo(estado: EstadoCliente): Flow<List<ClienteEntity>> {
         return clienteDao.obtenerClientesPorEstadoDao(estado)
     }
+
+    suspend fun obtenerClientePorIdRepo(id: Int): ClienteEntity? {
+        return clienteDao.obtenerClientePorIdDao(id)
+    }
 }

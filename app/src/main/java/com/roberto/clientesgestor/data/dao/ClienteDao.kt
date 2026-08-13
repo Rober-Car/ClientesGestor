@@ -101,4 +101,7 @@ interface ClienteDao {
     @Query("SELECT * FROM cliente WHERE estado = :estado" )
     fun obtenerClientesPorEstadoDao(estado: EstadoCliente): Flow<List<ClienteEntity>>
 
+    @Query("SELECT * FROM cliente WHERE idCliente = :idCliente")
+    suspend fun obtenerClientePorIdDao(idCliente: Int): ClienteEntity?
+
 }

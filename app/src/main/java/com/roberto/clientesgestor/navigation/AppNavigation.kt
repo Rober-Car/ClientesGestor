@@ -5,6 +5,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.roberto.clientesgestor.ui.auth.LoginScreen
+import com.roberto.clientesgestor.ui.clientes.AñadirClienteScreen
 import com.roberto.clientesgestor.ui.clientes.ClientesScreen
 import com.roberto.clientesgestor.ui.clientes.PerfilClienteScreen
 import com.roberto.clientesgestor.ui.home.HomeScreen
@@ -92,8 +93,26 @@ fun AppNavigation() {
          * Sirve para que desde la lista de clientes se acceda a los detalles
          * y se pase el navController para poder volver atrás.
          */
-        composable(Routes.PERFILCLIENTE) {
-            PerfilClienteScreen(navController)
+        composable(
+            route = "${Routes.PERFILCLIENTE}/{idCliente}"
+        ) { backStackEntry ->
+
+            val idCliente = backStackEntry.arguments
+                ?.getString("idCliente")
+                ?.toIntOrNull()
+
+            if (idCliente != null) {
+                PerfilClienteScreen(
+                    navController = navController,
+                    idCliente = idCliente
+                )
+            }
+        }
+
+
+        composable(Routes.AÑADIRCLIENTE){
+
+            AñadirClienteScreen(navController)
         }
     }
 }

@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -103,58 +104,6 @@ fun ClientesScreen(
      */
     val error by viewModel.error.collectAsStateWithLifecycle()
 
-    /**
-     * listaClientes
-     * -------------
-     * ✔ TIPO: variable inmutable (val) → List<Cliente>
-     * Es una lista de prueba con datos mockeados de clientes.
-     * Sirve para mostrar la pantalla de clientes con datos de ejemplo.
-     */
-    /*val listaClientes = listOf(
-        Cliente(
-            idCliente = 1,
-            nombre = "Roberto Pérez",
-            telefono = "600123123",
-            estado = EstadoCliente.ACTIVO
-        ),
-        Cliente(
-            idCliente = 2,
-            nombre = "Ana García",
-            telefono = "611456789",
-            estado = EstadoCliente.MOROSO
-        ),
-        Cliente(
-            idCliente = 3,
-            nombre = "Juan López",
-            telefono = "622987654",
-            estado = EstadoCliente.BAJA
-        ),
-        Cliente(
-            idCliente = 4,
-            nombre = "María Fernández",
-            telefono = "633112233",
-            estado = EstadoCliente.ACTIVO
-        ),
-        Cliente(
-            idCliente = 5,
-            nombre = "Luis Ramírez",
-            telefono = "644998877",
-            estado = EstadoCliente.MOROSO
-        ),
-        Cliente(
-            idCliente = 6,
-            nombre = "Carmen Soto",
-            telefono = "655443322",
-            estado = EstadoCliente.BAJA
-        ),
-        Cliente(
-            idCliente = 7,
-            nombre = "Pedro Martín",
-            telefono = "677221100",
-            estado = EstadoCliente.ACTIVO
-        )
-    )
-*/
     /**
      * clientesFiltrados
      * -----------------
@@ -324,6 +273,23 @@ fun ClientesScreen(
                     text = "Clientes",
                     style = MaterialTheme.typography.titleLarge
                 )
+
+
+                Spacer(modifier = Modifier.weight(1f))
+
+
+                Button(
+                    onClick = {
+                        navController.navigate(Routes.AÑADIRCLIENTE)
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White,
+                        contentColor = Color.Black
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp)
+                ) {
+                    Text("Añadir cliente")
+                }
             }
 
             /**
@@ -454,8 +420,11 @@ fun ClientesScreen(
                         nombre = cliente.nombre,
                         telefono = cliente.telefono,
                         estado = cliente.estado,
+                        foto = cliente.foto,
                         onClick = {
-                            navController.navigate(Routes.PERFILCLIENTE)
+                            navController.navigate(
+                                Routes.perfilCliente(cliente.idCliente)
+                            )
                         }
                     )
                 }

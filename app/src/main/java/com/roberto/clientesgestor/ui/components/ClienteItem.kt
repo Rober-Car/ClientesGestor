@@ -1,6 +1,7 @@
 package com.roberto.clientesgestor.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -21,10 +22,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.roberto.clientesgestor.model.EstadoCliente
+import coil3.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import java.io.File
 
 /**
  * ClienteItem.kt
@@ -70,6 +76,8 @@ fun ClienteItem(
      */
     estado: EstadoCliente,
 
+    foto: String,
+
     /**
      * onClick
      * -------
@@ -100,6 +108,7 @@ fun ClienteItem(
         EstadoCliente.ACTIVO -> "Activo"
         EstadoCliente.MOROSO -> "Moroso"
         EstadoCliente.BAJA -> "Baja"
+        EstadoCliente.REGISTRADO -> "Registrado"
     }
 
     /**
@@ -113,6 +122,7 @@ fun ClienteItem(
         EstadoCliente.ACTIVO -> Color(0xFF4CAF50)
         EstadoCliente.MOROSO -> Color.Red
         EstadoCliente.BAJA -> Color.Gray
+        EstadoCliente.REGISTRADO -> Color.White
     }
 
     /**
@@ -139,7 +149,8 @@ fun ClienteItem(
          * Sirve para alinear la barra de estado, el icono y los textos del cliente.
          */
         Row(
-            modifier = Modifier.height(IntrinsicSize.Min)
+            modifier = Modifier.height(IntrinsicSize.Min),
+            verticalAlignment = Alignment.CenterVertically
         ) {
 
             /**
@@ -163,14 +174,35 @@ fun ClienteItem(
              * Es el icono de avatar del cliente.
              * Sirve como imagen representativa del cliente en la lista.
              */
-            Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = "Icono de persona",
-                tint = Color(0xFF64B5F6),
-                modifier = Modifier
-                    .padding(horizontal = 8.dp)
-                    .size(50.dp)
-            )
+                if (foto.isNotEmpty()) {
+                    AsyncImage(
+                        model = File(foto),
+                        contentDescription = "Foto del cliente",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp)
+                            .size(72.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(2.dp, Color(0xFF64B5F6), RoundedCornerShape(12.dp))
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp)
+                            .size(72.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .border(2.dp, Color(0xFF64B5F6), RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Icono de persona",
+                            tint = Color(0xFF64B5F6),
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
+                }
 
             /**
              * Column de textos

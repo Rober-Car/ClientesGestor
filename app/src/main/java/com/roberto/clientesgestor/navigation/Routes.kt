@@ -52,4 +52,11 @@ object Routes {
      * Sirve para que NavHost y las pantallas naveguen hasta el perfil con la misma ruta.
      */
     const val PERFILCLIENTE = "perfil_cliente"
+
+    fun perfilCliente(idCliente: Int): String {
+        return "$PERFILCLIENTE/$idCliente"
+    }
+
+    const val AÑADIRCLIENTE = "añadir_cliente"
+
 }

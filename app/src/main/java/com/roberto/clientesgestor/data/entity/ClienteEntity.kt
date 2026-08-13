@@ -47,7 +47,6 @@ data class ClienteEntity(
      */
     @PrimaryKey(autoGenerate = true)
     val idCliente: Int = 0,
-
     val nombre: String,
     val apellidos: String,
     val dni: String,
@@ -65,11 +64,21 @@ data class ClienteEntity(
 )
 
 
+//significa:
+//
+//Crear una función que pertenece a ClienteEntity y que convierte un ClienteEntity en un Cliente.
+
 fun ClienteEntity.toCliente(): Cliente {
     return Cliente(
         idCliente = idCliente,
         nombre = "$nombre $apellidos",
         telefono = telefono,
-        estado = estado
+        email = email,
+        dni = dni,
+        foto = foto,
+        fechaNacimiento = fechaNacimiento,
+        estado = estado,
+        tieneLlave = tieneLlave,
+        observaciones = observaciones
     )
 }
