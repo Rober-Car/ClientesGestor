@@ -25,6 +25,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,8 +71,15 @@ fun ClientesScreen(
      * ✔ TIPO: variable con estado (var) mediante delegación `by`
      * Es el filtro que está activo en la pantalla de clientes.
      * Sirve para decidir qué clientes se muestran al pulsar cada tarjeta de resumen.
+     * Usa rememberSaveable con un Saver propio porque los enum no se guardan solos
+     * en el Bundle: se guarda el nombre (String) y se restaura el valor del enum.
      */
-    var filtroSeleccionado by remember {
+    var filtroSeleccionado by rememberSaveable(
+        stateSaver = Saver<FiltroClientes, String>(
+            save = { it.name },
+            restore = { FiltroClientes.valueOf(it) }
+        )
+    ) {
         mutableStateOf(FiltroClientes.TODOS)
     }
 

@@ -33,11 +33,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -49,6 +46,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SelectableDates
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -59,6 +58,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -142,7 +142,7 @@ fun AñadirClienteScreen(
      * Es el nombre del cliente que se escribe en el campo.
      * Sirve para guardar el texto del campo "Nombre" mientras se rellena el formulario.
      */
-    var nombre by remember { mutableStateOf("") }
+    var nombre by rememberSaveable { mutableStateOf("") }
 
     /**
      * apellidos
@@ -151,7 +151,7 @@ fun AñadirClienteScreen(
      * Es el apellido o apellidos del cliente que se escriben en el campo.
      * Sirve para guardar el texto del campo "Apellidos" mientras se rellena el formulario.
      */
-    var apellidos by remember { mutableStateOf("") }
+    var apellidos by rememberSaveable { mutableStateOf("") }
 
     /**
      * dni
@@ -160,7 +160,7 @@ fun AñadirClienteScreen(
      * Es el DNI del cliente que se escribe en el campo.
      * Sirve para guardar el texto del campo "DNI" mientras se rellena el formulario.
      */
-    var dni by remember { mutableStateOf("") }
+    var dni by rememberSaveable { mutableStateOf("") }
 
     /**
      * telefono
@@ -169,7 +169,7 @@ fun AñadirClienteScreen(
      * Es el teléfono del cliente que se escribe en el campo.
      * Sirve para guardar el texto del campo "Teléfono" mientras se rellena el formulario.
      */
-    var telefono by remember { mutableStateOf("") }
+    var telefono by rememberSaveable { mutableStateOf("") }
 
     /**
      * email
@@ -178,7 +178,7 @@ fun AñadirClienteScreen(
      * Es el email del cliente que se escribe en el campo.
      * Sirve para guardar el texto del campo "Email" mientras se rellena el formulario.
      */
-    var email by remember { mutableStateOf("") }
+    var email by rememberSaveable { mutableStateOf("") }
 
     /**
      * fechaNacimiento
@@ -187,7 +187,7 @@ fun AñadirClienteScreen(
      * Es la fecha de nacimiento del cliente convertida a timestamp.
      * Sirve para guardar la fecha en milisegundos; es null mientras no se escriba una fecha válida.
      */
-    var fechaNacimiento by remember { mutableStateOf<Long?>(null) }
+    var fechaNacimiento by rememberSaveable { mutableStateOf<Long?>(null) }
 
     /**
      * mostrarDatePicker
@@ -196,7 +196,7 @@ fun AñadirClienteScreen(
      * Es la variable que controla si el selector de fecha está visible.
      * Sirve para abrir y cerrar el DatePickerDialog al tocar el campo de fecha.
      */
-    var mostrarDatePicker by remember { mutableStateOf(false) }
+    var mostrarDatePicker by rememberSaveable { mutableStateOf(false) }
 
     /**
      * fechaNacimientoFormateada
@@ -216,7 +216,7 @@ fun AñadirClienteScreen(
      * Es el interruptor que indica si el cliente tiene llave del centro.
      * Sirve para guardar la opción "Tiene llave" marcada en el formulario.
      */
-    var tieneLlave by remember { mutableStateOf(false) }
+    var tieneLlave by rememberSaveable { mutableStateOf(false) }
 
     /**
      * observaciones
@@ -225,7 +225,7 @@ fun AñadirClienteScreen(
      * Es el texto de observaciones que se escribe en el campo.
      * Sirve para guardar las notas opcionales sobre el cliente.
      */
-    var observaciones by remember { mutableStateOf("") }
+    var observaciones by rememberSaveable { mutableStateOf("") }
 
     /**
      * errorNombre
@@ -234,7 +234,7 @@ fun AñadirClienteScreen(
      * Es el indicador de error del campo Nombre.
      * Sirve para resaltar el campo y mostrar "El nombre es obligatorio" si está vacío al pulsar Guardar.
      */
-    var errorNombre by remember { mutableStateOf(false) }
+    var errorNombre by rememberSaveable { mutableStateOf(false) }
 
     /**
      * errorApellidos
@@ -243,7 +243,7 @@ fun AñadirClienteScreen(
      * Es el indicador de error del campo Apellidos.
      * Sirve para resaltar el campo y mostrar "Los apellidos son obligatorios" si está vacío al pulsar Guardar.
      */
-    var errorApellidos by remember { mutableStateOf(false) }
+    var errorApellidos by rememberSaveable { mutableStateOf(false) }
 
     /**
      * errorDni
@@ -252,7 +252,7 @@ fun AñadirClienteScreen(
      * Es el indicador de error del campo DNI.
      * Sirve para resaltar el campo y mostrar "Introduce un DNI válido" si el DNI no es correcto.
      */
-    var errorDni by remember { mutableStateOf(false) }
+    var errorDni by rememberSaveable { mutableStateOf(false) }
 
     /**
      * errorTelefono
@@ -261,7 +261,7 @@ fun AñadirClienteScreen(
      * Es el indicador de error del campo Teléfono.
      * Sirve para resaltar el campo y mostrar "Introduce un teléfono válido" si el teléfono no es correcto.
      */
-    var errorTelefono by remember { mutableStateOf(false) }
+    var errorTelefono by rememberSaveable { mutableStateOf(false) }
 
     /**
      * errorEmail
@@ -270,7 +270,7 @@ fun AñadirClienteScreen(
      * Es el indicador de error del campo Email.
      * Sirve para resaltar el campo y mostrar "Introduce un email válido" si el email no es correcto.
      */
-    var errorEmail by remember { mutableStateOf(false) }
+    var errorEmail by rememberSaveable { mutableStateOf(false) }
 
     /**
      * errorFechaNacimiento
@@ -279,7 +279,7 @@ fun AñadirClienteScreen(
      * Es el indicador de error del campo Fecha de nacimiento.
      * Sirve para resaltar el campo y mostrar "La fecha de nacimiento es obligatoria" si no se elige ninguna.
      */
-    var errorFechaNacimiento by remember { mutableStateOf(false) }
+    var errorFechaNacimiento by rememberSaveable { mutableStateOf(false) }
 
     /**
      * errorFoto
@@ -288,7 +288,26 @@ fun AñadirClienteScreen(
      * Es el indicador de error de la foto del cliente.
      * Sirve para avisar de que la foto es obligatoria si no se selecciona ninguna al pulsar Guardar.
      */
-    var errorFoto by remember { mutableStateOf(false) }
+    var errorFoto by rememberSaveable { mutableStateOf(false) }
+
+    /**
+     * errorCargaEdicion
+     * -----------------
+     * ✔ TIPO: variable con estado (var) → Boolean
+     * Es el indicador de que en modo edición aún no se ha cargado el cliente.
+     * Sirve para bloquear el guardado si el formulario no ha podido precargar los datos
+     * y avisar al usuario en lugar de sobrescribir el cliente con valores vacíos.
+     */
+    var errorCargaEdicion by rememberSaveable { mutableStateOf(false) }
+
+    /**
+     * mensajeErrorDni
+     * ---------------
+     * ✔ TIPO: variable con estado (var) → String?
+     * Es el mensaje de error mostrado debajo del campo DNI (p.ej. "El DNI ya está registrado").
+     * Sirve para avisar al usuario justo donde está el problema, además de la snackbar.
+     */
+    var mensajeErrorDni by rememberSaveable { mutableStateOf<String?>(null) }
 
     /**
      * error
@@ -298,6 +317,48 @@ fun AñadirClienteScreen(
      * Sirve para mostrarlo al usuario cuando el guardado no se puede completar.
      */
     val error by viewModel.error.collectAsState()
+
+    /**
+     * snackbarHostState
+     * -----------------
+     * ✔ TIPO: variable con estado (val) → SnackbarHostState
+     * Es el estado del host de snackbars de la pantalla.
+     * Sirve para mostrar los avisos flotantes sin que queden ocultos bajo el scroll.
+     */
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    /**
+     * LaunchedEffect(error)
+     * ---------------------
+     * ✔ TIPO: efecto de composición (LaunchedEffect)
+     * Se lanza cada vez que el mensaje de error del ViewModel cambia.
+     * Sirve para mostrar el aviso en una snackbar flotante y, si el error es de DNI,
+     * marcarlo además bajo el propio campo DNI para que siempre sea visible.
+     */
+    LaunchedEffect(error) {
+        error?.let { mensaje ->
+            snackbarHostState.showSnackbar(mensaje)
+            if (mensaje == "El DNI ya está registrado") {
+                errorDni = true
+                mensajeErrorDni = mensaje
+            }
+        }
+    }
+
+    /**
+     * LaunchedEffect(errorCargaEdicion)
+     * ---------------------------------
+     * ✔ TIPO: efecto de composición (LaunchedEffect)
+     * Se lanza cuando se intenta guardar en edición sin haber cargado los datos.
+     * Sirve para avisar con una snackbar en lugar de una tarjeta oculta al final del scroll.
+     */
+    LaunchedEffect(errorCargaEdicion) {
+        if (errorCargaEdicion) {
+            snackbarHostState.showSnackbar(
+                "No se han cargado los datos del cliente. Vuelve atrás y entra de nuevo."
+            )
+        }
+    }
 
     /**
      * clienteEditando
@@ -316,6 +377,7 @@ fun AñadirClienteScreen(
      * Sirve para cargar en modo edición el cliente cuyo id llega en el argumento de navegación.
      */
     LaunchedEffect(idCliente) {
+        viewModel.limpiarError()
         if (idCliente != null) {
             viewModel.obtenerClienteParaEditar(idCliente)
         }
@@ -361,7 +423,7 @@ fun AñadirClienteScreen(
      * Es la ruta del archivo de la foto elegida por el usuario.
      * Sirve para guardar en el formulario la foto seleccionada y mostrarla en la vista previa.
      */
-    var foto by remember { mutableStateOf("") }
+    var foto by rememberSaveable { mutableStateOf("") }
 
     /**
      * launcherGaleria
@@ -390,6 +452,7 @@ fun AñadirClienteScreen(
      * Sirve para rellenar los campos del formulario con los datos del cliente en modo edición.
      */
     LaunchedEffect(clienteEditando) {
+        errorCargaEdicion = false
         clienteEditando?.let { clienteCargado ->
             nombre = clienteCargado.nombre
             apellidos = clienteCargado.apellidos
@@ -409,7 +472,16 @@ fun AñadirClienteScreen(
      * ============================================================ */
 
     Scaffold(
-        contentWindowInsets = WindowInsets.safeDrawing
+        contentWindowInsets = WindowInsets.safeDrawing,
+        snackbarHost = {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .imePadding()
+            ) {
+                SnackbarHost(hostState = snackbarHostState)
+            }
+        }
     ) { innerPadding ->
     /**
      * Column del formulario
@@ -495,6 +567,7 @@ fun AñadirClienteScreen(
                 onValueChange = {
                     nombre = it
                     errorNombre = false
+                    viewModel.limpiarError()
                 },
                 label = { Text("Nombre") },
                 isError = errorNombre,
@@ -516,6 +589,7 @@ fun AñadirClienteScreen(
                 onValueChange = {
                     apellidos = it
                     errorApellidos = false
+                    viewModel.limpiarError()
                 },
                 label = { Text("Apellidos") },
                 isError = errorApellidos,
@@ -541,12 +615,14 @@ fun AñadirClienteScreen(
                 onValueChange = {
                     dni = it
                     errorDni = false
+                    mensajeErrorDni = null
+                    viewModel.limpiarError()
                 },
                 label = { Text("DNI") },
                 isError = errorDni,
                 supportingText = {
                     if (errorDni) {
-                        Text("Introduce un DNI válido")
+                        Text(mensajeErrorDni ?: "Introduce un DNI válido")
                     }
                 },
                 singleLine = true,
@@ -559,6 +635,7 @@ fun AñadirClienteScreen(
                 onValueChange = {
                     telefono = it
                     errorTelefono = false
+                    viewModel.limpiarError()
                 },
                 label = { Text("Teléfono") },
                 isError = errorTelefono,
@@ -581,6 +658,7 @@ fun AñadirClienteScreen(
             onValueChange = {
                 email = it
                 errorEmail = false
+                viewModel.limpiarError()
             },
             label = { Text("Email") },
             isError = errorEmail,
@@ -636,6 +714,7 @@ fun AñadirClienteScreen(
                 .clickable {
                     mostrarDatePicker = true
                     errorFechaNacimiento = false
+                    viewModel.limpiarError()
                 }
         )
 
@@ -759,13 +838,19 @@ fun AñadirClienteScreen(
 
             Switch(
                 checked = tieneLlave,
-                onCheckedChange = { tieneLlave = it }
+                onCheckedChange = {
+                    tieneLlave = it
+                    viewModel.limpiarError()
+                }
             )
         }
 
         OutlinedTextField(
             value = observaciones,
-            onValueChange = { observaciones = it },
+            onValueChange = {
+                observaciones = it
+                viewModel.limpiarError()
+            },
             label = { Text("Observaciones") },
             minLines = 3,
             modifier = Modifier.fillMaxWidth()
@@ -781,6 +866,7 @@ fun AñadirClienteScreen(
          */
         Button(
             onClick = {
+                viewModel.limpiarError()
                 errorNombre = nombre.isBlank()
                 errorApellidos = apellidos.isBlank()
                 errorDni = !esDniValido(dni)
@@ -798,51 +884,60 @@ fun AñadirClienteScreen(
                         errorFechaNacimiento ||
                         errorFoto
 
-                if (!hayErrores) {
-                    if (idCliente != null) {
-                        // MODO EDICIÓN: se conservan los datos que no se pueden cambiar
-                        // en este formulario (fecha de registro, estado, llave de alta/baja
-                        // y el uid de Firebase) tomándolos del cliente original.
-                        val original = clienteEditando
-                        val cliente = ClienteEntity(
-                            idCliente = idCliente,
-                            nombre = nombre,
-                            apellidos = apellidos,
-                            dni = dni,
-                            telefono = telefono,
-                            email = email,
-                            foto = foto,
-                            fechaNacimiento = fechaNacimiento!!,
-                            fechaRegistro = original?.fechaRegistro ?: System.currentTimeMillis(),
-                            fechaAlta = original?.fechaAlta,
-                            fechaBaja = original?.fechaBaja,
-                            estado = original?.estado ?: EstadoCliente.REGISTRADO,
-                            tieneLlave = tieneLlave,
-                            observaciones = observaciones.ifBlank { null },
-                            firebaseUid = original?.firebaseUid
-                        )
+                if (idCliente != null && clienteEditando == null) {
+                    errorCargaEdicion = true
+                } else {
+                    errorCargaEdicion = false
 
-                        viewModel.actualizarCliente(cliente) {
-                            navController.popBackStack()
-                        }
-                    } else {
-                        // MODO ALTA: el cliente nuevo empieza con estado REGISTRADO
-                        // y sin fecha de registro propia (la pone la base de datos).
-                        val cliente = ClienteEntity(
-                            nombre = nombre,
-                            apellidos = apellidos,
-                            dni = dni,
-                            telefono = telefono,
-                            email = email,
-                            foto = foto,
-                            fechaNacimiento = fechaNacimiento!!,
-                            estado = EstadoCliente.REGISTRADO,
-                            tieneLlave = tieneLlave,
-                            observaciones = observaciones.ifBlank { null }
-                        )
+                    if (!hayErrores) {
+                        if (idCliente != null) {
+                            // MODO EDICIÓN: se conservan los datos que no se pueden cambiar
+                            // en este formulario (fecha de registro, estado, llave de alta/baja
+                            // y el uid de Firebase) tomándolos del cliente original.
+                            val original = clienteEditando!!
+                            val cliente = ClienteEntity(
+                                idCliente = idCliente,
+                                nombre = nombre,
+                                apellidos = apellidos,
+                                dni = dni.uppercase(),
+                                telefono = telefono,
+                                email = email,
+                                foto = foto,
+                                fechaNacimiento = fechaNacimiento!!,
+                                fechaRegistro = original.fechaRegistro,
+                                fechaAlta = original.fechaAlta,
+                                fechaBaja = original.fechaBaja,
+                                estado = original.estado,
+                                tieneLlave = tieneLlave,
+                                observaciones = observaciones.ifBlank { null },
+                                firebaseUid = original.firebaseUid
+                            )
 
-                        viewModel.insertarCliente(cliente) {
-                            navController.popBackStack()
+                            viewModel.actualizarCliente(cliente) {
+                                if (foto.isNotBlank() && original.foto.isNotBlank() && foto != original.foto) {
+                                    File(original.foto).delete()
+                                }
+                                navController.popBackStack()
+                            }
+                        } else {
+                            // MODO ALTA: el cliente nuevo empieza con estado REGISTRADO
+                            // y sin fecha de registro propia (la pone la base de datos).
+                            val cliente = ClienteEntity(
+                                nombre = nombre,
+                                apellidos = apellidos,
+                                dni = dni.uppercase(),
+                                telefono = telefono,
+                                email = email,
+                                foto = foto,
+                                fechaNacimiento = fechaNacimiento!!,
+                                estado = EstadoCliente.REGISTRADO,
+                                tieneLlave = tieneLlave,
+                                observaciones = observaciones.ifBlank { null }
+                            )
+
+                            viewModel.insertarCliente(cliente) {
+                                navController.popBackStack()
+                            }
                         }
                     }
                 }
@@ -860,39 +955,9 @@ fun AñadirClienteScreen(
         }
 
         /**
-         * Card de error
-         * -------------
-         * ✔ TIPO: bloque condicional (let) + función @Composable (androidx.compose.material3.Card)
-         * Es la tarjeta de aviso que se muestra cuando el guardado falla.
-         * Sirve para mostrar el mensaje del ViewModel (por ejemplo "El DNI ya está registrado")
-         * con un icono de aviso debajo del botón Guardar.
+         * Botón de Guardar terminado: los avisos de error se muestran ahora con la snackbar
+         * flotante (SnackbarHost) y, si el error es del DNI, también bajo el propio campo DNI.
          */
-        error?.let {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer
-                )
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ErrorOutline,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                }
-            }
-        }
     }
 }
     /* ============================================================
@@ -1097,21 +1162,12 @@ private fun guardarFotoEnInterna(context: Context, uri: Uri): String? {
  * esDniValido
  * -----------
  * ✔ TIPO: función privada (private fun) → Boolean
- * Es la función que valida el formato y la letra de control de un DNI español.
- * Sirve para comprobar que el DNI tenga 8 dígitos y una letra correcta antes de guardarlo.
+ * Es la función que valida el formato de un DNI español.
+ * Sirve para comprobar que el DNI tenga 8 dígitos y una letra (sin verificar la letra
+ * de control) antes de guardarlo, permitiendo DNIs de prueba inventados.
  */
 private fun esDniValido(dni: String): Boolean {
-
-    if (!dni.matches(Regex("\\d{8}[A-Za-z]"))) {
-        return false
-    }
-
-    val numeros = dni.substring(0, 8).toInt()
-    val letra = dni.last().uppercaseChar()
-
-    val letras = "TRWAGMYFPDXBNJZSQVHLCKE"
-
-    return letras[numeros % 23] == letra
+    return dni.matches(Regex("\\d{8}[A-Za-z]"))
 }
 
 /**

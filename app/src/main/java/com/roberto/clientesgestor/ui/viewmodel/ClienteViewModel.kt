@@ -120,6 +120,18 @@ class ClienteViewModel @Inject constructor(
      * ============ BLOQUE 5: OPERACIONES DEL VIEWMODEL ===========
      * ============================================================ */
     /**
+     * limpiarError
+     * ------------
+     * ✔ TIPO: método (fun) de ClienteViewModel
+     * Es la función que borra el mensaje de error del ViewModel.
+     * Sirve para que la interfaz elimine la tarjeta de aviso al entrar en el formulario
+     * o cuando el usuario vuelve a editar un campo, evitando errores obsoletos.
+     */
+    fun limpiarError() {
+        _error.value = null
+    }
+
+    /**
      * insertarCliente
      * ---------------
      * ✔ TIPO: método (fun) de ClienteViewModel

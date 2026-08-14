@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,7 +55,7 @@ fun LoginScreen(
      * Es el texto de bienvenida que se muestra en la pantalla.
      * Sirve para guardar el saludo inicial y cambiarlo a "Bienvenido" al pulsar Entrar.
      */
-    var mensaje by remember { mutableStateOf("ClientesGestor") }
+    var mensaje by rememberSaveable { mutableStateOf("ClientesGestor") }
 
     /**
      * email
@@ -63,7 +64,7 @@ fun LoginScreen(
      * Es el texto que escribe el usuario en el campo de Email.
      * Sirve para guardar el email introducido y validar el formulario.
      */
-    var email by remember { mutableStateOf("") }
+    var email by rememberSaveable { mutableStateOf("") }
 
     /**
      * password
@@ -72,7 +73,7 @@ fun LoginScreen(
      * Es el texto que escribe el usuario en el campo de Contraseña.
      * Sirve para guardar la contraseña introducida y validar el formulario.
      */
-    var password by remember { mutableStateOf("") }
+    var password by rememberSaveable { mutableStateOf("") }
 
     /**
      * formularioValido
