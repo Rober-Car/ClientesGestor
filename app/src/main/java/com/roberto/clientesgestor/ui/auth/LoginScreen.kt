@@ -54,6 +54,7 @@ fun LoginScreen(
      * ✔ TIPO: variable (var) → String
      * Es el texto de bienvenida que se muestra en la pantalla.
      * Sirve para guardar el saludo inicial y cambiarlo a "Bienvenido" al pulsar Entrar.
+     * Usa rememberSaveable para sobrevivir a la rotación de pantalla.
      */
     var mensaje by rememberSaveable { mutableStateOf("ClientesGestor") }
 
@@ -63,6 +64,7 @@ fun LoginScreen(
      * ✔ TIPO: variable (var) → String
      * Es el texto que escribe el usuario en el campo de Email.
      * Sirve para guardar el email introducido y validar el formulario.
+     * Usa rememberSaveable para que el email no se borre si el usuario gira la pantalla.
      */
     var email by rememberSaveable { mutableStateOf("") }
 
@@ -72,6 +74,7 @@ fun LoginScreen(
      * ✔ TIPO: variable (var) → String
      * Es el texto que escribe el usuario en el campo de Contraseña.
      * Sirve para guardar la contraseña introducida y validar el formulario.
+     * Usa rememberSaveable para que la contraseña no se borre si el usuario gira la pantalla.
      */
     var password by rememberSaveable { mutableStateOf("") }
 

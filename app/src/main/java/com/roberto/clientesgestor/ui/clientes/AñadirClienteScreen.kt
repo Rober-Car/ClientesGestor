@@ -141,6 +141,8 @@ fun AñadirClienteScreen(
      * ✔ TIPO: variable con estado (var) → String
      * Es el nombre del cliente que se escribe en el campo.
      * Sirve para guardar el texto del campo "Nombre" mientras se rellena el formulario.
+     * Usa rememberSaveable para que el texto no se pierda al girar la pantalla
+     * ni al pasar la app a segundo plano (se guarda en el Bundle del sistema).
      */
     var nombre by rememberSaveable { mutableStateOf("") }
 
@@ -150,6 +152,7 @@ fun AñadirClienteScreen(
      * ✔ TIPO: variable con estado (var) → String
      * Es el apellido o apellidos del cliente que se escriben en el campo.
      * Sirve para guardar el texto del campo "Apellidos" mientras se rellena el formulario.
+     * Usa rememberSaveable para sobrevivir a la rotación de pantalla.
      */
     var apellidos by rememberSaveable { mutableStateOf("") }
 
@@ -159,6 +162,7 @@ fun AñadirClienteScreen(
      * ✔ TIPO: variable con estado (var) → String
      * Es el DNI del cliente que se escribe en el campo.
      * Sirve para guardar el texto del campo "DNI" mientras se rellena el formulario.
+     * Usa rememberSaveable para sobrevivir a la rotación de pantalla.
      */
     var dni by rememberSaveable { mutableStateOf("") }
 
@@ -168,6 +172,7 @@ fun AñadirClienteScreen(
      * ✔ TIPO: variable con estado (var) → String
      * Es el teléfono del cliente que se escribe en el campo.
      * Sirve para guardar el texto del campo "Teléfono" mientras se rellena el formulario.
+     * Usa rememberSaveable para sobrevivir a la rotación de pantalla.
      */
     var telefono by rememberSaveable { mutableStateOf("") }
 
@@ -177,6 +182,7 @@ fun AñadirClienteScreen(
      * ✔ TIPO: variable con estado (var) → String
      * Es el email del cliente que se escribe en el campo.
      * Sirve para guardar el texto del campo "Email" mientras se rellena el formulario.
+     * Usa rememberSaveable para sobrevivir a la rotación de pantalla.
      */
     var email by rememberSaveable { mutableStateOf("") }
 
@@ -186,6 +192,7 @@ fun AñadirClienteScreen(
      * ✔ TIPO: variable con estado (var) → Long?
      * Es la fecha de nacimiento del cliente convertida a timestamp.
      * Sirve para guardar la fecha en milisegundos; es null mientras no se escriba una fecha válida.
+     * Usa rememberSaveable para sobrevivir a la rotación de pantalla (Long? admite el valor null).
      */
     var fechaNacimiento by rememberSaveable { mutableStateOf<Long?>(null) }
 
@@ -195,6 +202,7 @@ fun AñadirClienteScreen(
      * ✔ TIPO: variable con estado (var) → Boolean
      * Es la variable que controla si el selector de fecha está visible.
      * Sirve para abrir y cerrar el DatePickerDialog al tocar el campo de fecha.
+     * Usa rememberSaveable para sobrevivir a la rotación de pantalla.
      */
     var mostrarDatePicker by rememberSaveable { mutableStateOf(false) }
 
@@ -215,6 +223,7 @@ fun AñadirClienteScreen(
      * ✔ TIPO: variable con estado (var) → Boolean
      * Es el interruptor que indica si el cliente tiene llave del centro.
      * Sirve para guardar la opción "Tiene llave" marcada en el formulario.
+     * Usa rememberSaveable para sobrevivir a la rotación de pantalla.
      */
     var tieneLlave by rememberSaveable { mutableStateOf(false) }
 
@@ -224,6 +233,7 @@ fun AñadirClienteScreen(
      * ✔ TIPO: variable con estado (var) → String
      * Es el texto de observaciones que se escribe en el campo.
      * Sirve para guardar las notas opcionales sobre el cliente.
+     * Usa rememberSaveable para sobrevivir a la rotación de pantalla.
      */
     var observaciones by rememberSaveable { mutableStateOf("") }
 
@@ -233,6 +243,7 @@ fun AñadirClienteScreen(
      * ✔ TIPO: variable con estado (var) → Boolean
      * Es el indicador de error del campo Nombre.
      * Sirve para resaltar el campo y mostrar "El nombre es obligatorio" si está vacío al pulsar Guardar.
+     * Usa rememberSaveable para sobrevivir a la rotación de pantalla.
      */
     var errorNombre by rememberSaveable { mutableStateOf(false) }
 
@@ -242,6 +253,7 @@ fun AñadirClienteScreen(
      * ✔ TIPO: variable con estado (var) → Boolean
      * Es el indicador de error del campo Apellidos.
      * Sirve para resaltar el campo y mostrar "Los apellidos son obligatorios" si está vacío al pulsar Guardar.
+     * Usa rememberSaveable para sobrevivir a la rotación de pantalla.
      */
     var errorApellidos by rememberSaveable { mutableStateOf(false) }
 
@@ -251,6 +263,7 @@ fun AñadirClienteScreen(
      * ✔ TIPO: variable con estado (var) → Boolean
      * Es el indicador de error del campo DNI.
      * Sirve para resaltar el campo y mostrar "Introduce un DNI válido" si el DNI no es correcto.
+     * Usa rememberSaveable para sobrevivir a la rotación de pantalla.
      */
     var errorDni by rememberSaveable { mutableStateOf(false) }
 
@@ -260,6 +273,7 @@ fun AñadirClienteScreen(
      * ✔ TIPO: variable con estado (var) → Boolean
      * Es el indicador de error del campo Teléfono.
      * Sirve para resaltar el campo y mostrar "Introduce un teléfono válido" si el teléfono no es correcto.
+     * Usa rememberSaveable para sobrevivir a la rotación de pantalla.
      */
     var errorTelefono by rememberSaveable { mutableStateOf(false) }
 
@@ -269,6 +283,7 @@ fun AñadirClienteScreen(
      * ✔ TIPO: variable con estado (var) → Boolean
      * Es el indicador de error del campo Email.
      * Sirve para resaltar el campo y mostrar "Introduce un email válido" si el email no es correcto.
+     * Usa rememberSaveable para sobrevivir a la rotación de pantalla.
      */
     var errorEmail by rememberSaveable { mutableStateOf(false) }
 
@@ -278,6 +293,7 @@ fun AñadirClienteScreen(
      * ✔ TIPO: variable con estado (var) → Boolean
      * Es el indicador de error del campo Fecha de nacimiento.
      * Sirve para resaltar el campo y mostrar "La fecha de nacimiento es obligatoria" si no se elige ninguna.
+     * Usa rememberSaveable para sobrevivir a la rotación de pantalla.
      */
     var errorFechaNacimiento by rememberSaveable { mutableStateOf(false) }
 
@@ -287,6 +303,7 @@ fun AñadirClienteScreen(
      * ✔ TIPO: variable con estado (var) → Boolean
      * Es el indicador de error de la foto del cliente.
      * Sirve para avisar de que la foto es obligatoria si no se selecciona ninguna al pulsar Guardar.
+     * Usa rememberSaveable para sobrevivir a la rotación de pantalla.
      */
     var errorFoto by rememberSaveable { mutableStateOf(false) }
 
@@ -297,6 +314,7 @@ fun AñadirClienteScreen(
      * Es el indicador de que en modo edición aún no se ha cargado el cliente.
      * Sirve para bloquear el guardado si el formulario no ha podido precargar los datos
      * y avisar al usuario en lugar de sobrescribir el cliente con valores vacíos.
+     * Usa rememberSaveable para sobrevivir a la rotación de pantalla.
      */
     var errorCargaEdicion by rememberSaveable { mutableStateOf(false) }
 
@@ -306,6 +324,7 @@ fun AñadirClienteScreen(
      * ✔ TIPO: variable con estado (var) → String?
      * Es el mensaje de error mostrado debajo del campo DNI (p.ej. "El DNI ya está registrado").
      * Sirve para avisar al usuario justo donde está el problema, además de la snackbar.
+     * Usa rememberSaveable para sobrevivir a la rotación de pantalla.
      */
     var mensajeErrorDni by rememberSaveable { mutableStateOf<String?>(null) }
 
@@ -375,6 +394,8 @@ fun AñadirClienteScreen(
      * ✔ TIPO: efecto de composición (LaunchedEffect)
      * Se lanza cuando la pantalla se muestra por primera vez.
      * Sirve para cargar en modo edición el cliente cuyo id llega en el argumento de navegación.
+     * Además limpia el mensaje de error al entrar, para que no aparezca un aviso obsoleto
+     * de una visita anterior a esta pantalla.
      */
     LaunchedEffect(idCliente) {
         viewModel.limpiarError()
@@ -422,6 +443,8 @@ fun AñadirClienteScreen(
      * ✔ TIPO: variable con estado (var) → String
      * Es la ruta del archivo de la foto elegida por el usuario.
      * Sirve para guardar en el formulario la foto seleccionada y mostrarla en la vista previa.
+     * Usa rememberSaveable para conservar la ruta al girar la pantalla (el archivo ya está
+     * copiado en el almacenamiento interno, así que solo se guarda la ruta, no la imagen).
      */
     var foto by rememberSaveable { mutableStateOf("") }
 
@@ -450,6 +473,8 @@ fun AñadirClienteScreen(
      * ✔ TIPO: efecto de composición (LaunchedEffect)
      * Se ejecuta cada vez que clienteEditando cambia (cuando se carga el cliente).
      * Sirve para rellenar los campos del formulario con los datos del cliente en modo edición.
+     * Además reinicia errorCargaEdicion: si la carga ya se completó, el guardado vuelve a
+     * estar permitido y desaparece el aviso de que faltaban los datos.
      */
     LaunchedEffect(clienteEditando) {
         errorCargaEdicion = false
@@ -473,6 +498,15 @@ fun AñadirClienteScreen(
 
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing,
+        /**
+         * snackbarHost del Scaffold
+         * -------------------------
+         * ✔ TIPO: parámetro del Scaffold (snackbarHost)
+         * Es el contenedor donde aparecen las snackbars de la pantalla.
+         * Sirve para mostrar los avisos flotantes por encima del contenido y sin
+         * necesidad de hacer scroll; el Box con imePadding coloca la snackbar por
+         * encima del teclado para que el aviso nunca quede oculto.
+         */
         snackbarHost = {
             Box(
                 modifier = Modifier
@@ -567,6 +601,8 @@ fun AñadirClienteScreen(
                 onValueChange = {
                     nombre = it
                     errorNombre = false
+                    // Al editar un campo se limpia el error del ViewModel (p.ej. DNI duplicado)
+                    // para que la snackbar y el aviso desaparezcan en cuanto el usuario corrige.
                     viewModel.limpiarError()
                 },
                 label = { Text("Nombre") },
@@ -621,6 +657,15 @@ fun AñadirClienteScreen(
                 label = { Text("DNI") },
                 isError = errorDni,
                 supportingText = {
+                    /**
+                     * supportingText del DNI
+                     * ----------------------
+                     * ✔ TIPO: bloque condicional (if) + Text de ayuda del campo
+                     * Es el texto de ayuda que aparece bajo el campo DNI cuando hay error.
+                     * Sirve para mostrar "El DNI ya está registrado" (error devuelto por la base
+                     * de datos) justo en el campo, o "Introduce un DNI válido" si el formato es
+                     * incorrecto; así el aviso nunca queda oculto al final del formulario.
+                     */
                     if (errorDni) {
                         Text(mensajeErrorDni ?: "Introduce un DNI válido")
                     }
@@ -884,6 +929,9 @@ fun AñadirClienteScreen(
                         errorFechaNacimiento ||
                         errorFoto
 
+                // GUARD DE CARGA EN EDICIÓN: si estamos modificando un cliente pero los datos
+                // originales aún no se han cargado (clienteEditando == null), se bloquea el
+                // guardado para no sobrescribir el cliente con campos vacíos o valores por defecto.
                 if (idCliente != null && clienteEditando == null) {
                     errorCargaEdicion = true
                 } else {
@@ -899,6 +947,8 @@ fun AñadirClienteScreen(
                                 idCliente = idCliente,
                                 nombre = nombre,
                                 apellidos = apellidos,
+                                // El DNI se normaliza a mayúsculas para que la comprobación
+                                // de duplicados (WHERE dni = :dni) sea fiable en la base de datos.
                                 dni = dni.uppercase(),
                                 telefono = telefono,
                                 email = email,
@@ -914,6 +964,10 @@ fun AñadirClienteScreen(
                             )
 
                             viewModel.actualizarCliente(cliente) {
+                                // Si se cambió la foto en edición, se borra el archivo de la foto
+                                // antigua para no dejar archivos huérfanos en el almacenamiento;
+                                // se elimina solo al guardar con éxito para no romper la imagen
+                                // en caso de que la actualización falle.
                                 if (foto.isNotBlank() && original.foto.isNotBlank() && foto != original.foto) {
                                     File(original.foto).delete()
                                 }
@@ -925,6 +979,7 @@ fun AñadirClienteScreen(
                             val cliente = ClienteEntity(
                                 nombre = nombre,
                                 apellidos = apellidos,
+                                // El DNI también se guarda en mayúsculas en el alta por coherencia.
                                 dni = dni.uppercase(),
                                 telefono = telefono,
                                 email = email,
