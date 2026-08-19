@@ -84,6 +84,10 @@ object Routes {
     const val MODIFICARCLIENTE = "modificar_cliente"
 
     const val ECONOMIA = "economia"
+    const val CONFIGURACION = "configuracion"
+    const val PREFERENCIAS = "preferencias"
+    const val DATOS = "datos"
+    const val CUENTA = "cuenta"
 
     /**
      * modificarCliente

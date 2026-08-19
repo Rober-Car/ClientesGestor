@@ -179,8 +179,9 @@ fun LoginScreen(
          */
         Button(
             onClick = {
-                mensaje = "Bienvenido"
-                navController.navigate(Routes.HOME)
+                navController.navigate(Routes.HOME) {
+                    popUpTo(Routes.LOGIN) { inclusive = true }
+                }
             },
             enabled = formularioValido
         ) {

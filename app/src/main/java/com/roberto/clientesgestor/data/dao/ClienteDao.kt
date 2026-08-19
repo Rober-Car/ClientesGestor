@@ -78,6 +78,9 @@ interface ClienteDao {
     @Query("SELECT * FROM cliente")
     fun obtenerClientesDao(): Flow<List<ClienteEntity>>
 
+    @Query("SELECT * FROM cliente")
+    suspend fun obtenerTodosLosClientesSync(): List<ClienteEntity>
+
     /**
      * obtenerClientePorDniDao
      * -----------------------

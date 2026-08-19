@@ -8,6 +8,10 @@ import com.roberto.clientesgestor.ui.auth.LoginScreen
 import com.roberto.clientesgestor.ui.clientes.AñadirClienteScreen
 import com.roberto.clientesgestor.ui.clientes.ClientesScreen
 import com.roberto.clientesgestor.ui.clientes.PerfilClienteScreen
+import com.roberto.clientesgestor.ui.configuracion.ConfiguracionScreen
+import com.roberto.clientesgestor.ui.configuracion.CuentaScreen
+import com.roberto.clientesgestor.ui.configuracion.DatosScreen
+import com.roberto.clientesgestor.ui.configuracion.PreferenciasScreen
 import com.roberto.clientesgestor.ui.economia.EconomiaScreen
 import com.roberto.clientesgestor.ui.home.HomeScreen
 
@@ -158,6 +162,22 @@ fun AppNavigation() {
 
         composable(Routes.ECONOMIA) {
             EconomiaScreen(navController)
+        }
+
+        composable(Routes.CONFIGURACION) {
+            ConfiguracionScreen(navController)
+        }
+
+        composable(Routes.PREFERENCIAS) {
+            PreferenciasScreen(navController)
+        }
+
+        composable(Routes.DATOS) {
+            DatosScreen(navController)
+        }
+
+        composable(Routes.CUENTA) {
+            CuentaScreen(navController)
         }
 
     }

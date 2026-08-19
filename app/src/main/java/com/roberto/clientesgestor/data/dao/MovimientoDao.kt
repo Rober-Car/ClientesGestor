@@ -130,4 +130,7 @@ interface MovimientoDao {
         ORDER BY fechaInicio DESC
     """)
     fun obtenerTodosLosMovimientos(): Flow<List<MovimientoEntity>>
+
+    @Query("SELECT * FROM movimiento")
+    suspend fun obtenerTodosLosMovimientosSync(): List<MovimientoEntity>
 }
