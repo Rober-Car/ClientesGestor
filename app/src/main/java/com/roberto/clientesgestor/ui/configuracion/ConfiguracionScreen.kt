@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -63,6 +64,7 @@ fun ConfiguracionScreen(
                 titulo = "Preferencias",
                 descripcion = "Ajustes de la aplicación",
                 icono = Icons.Default.Settings,
+                iconColor = Color(0xFF1E88E5),
                 onClick = { navController.navigate(Routes.PREFERENCIAS) }
             )
 
@@ -70,6 +72,7 @@ fun ConfiguracionScreen(
                 titulo = "Datos",
                 descripcion = "Gestión de los datos",
                 icono = Icons.Default.Info,
+                iconColor = Color(0xFF1E88E5),
                 onClick = { navController.navigate(Routes.DATOS) }
             )
 
@@ -77,6 +80,7 @@ fun ConfiguracionScreen(
                 titulo = "Cuenta",
                 descripcion = "Seguridad y sesión",
                 icono = Icons.Default.Lock,
+                iconColor = Color(0xFF1E88E5),
                 onClick = { navController.navigate(Routes.CUENTA) }
             )
         }
@@ -88,6 +92,7 @@ private fun ConfiguracionItem(
     titulo: String,
     descripcion: String,
     icono: ImageVector,
+    iconColor: Color = MaterialTheme.colorScheme.primary,
     onClick: () -> Unit
 ) {
     Card(
@@ -109,7 +114,7 @@ private fun ConfiguracionItem(
             Icon(
                 imageVector = icono,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = iconColor,
                 modifier = Modifier.size(32.dp)
             )
             Spacer(modifier = Modifier.width(16.dp))
