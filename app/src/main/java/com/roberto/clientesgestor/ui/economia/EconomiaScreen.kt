@@ -147,6 +147,7 @@ fun EconomiaScreen(
 
     var mostrarDialogNuevoGasto by remember { mutableStateOf(false) }
     var gastoSeleccionado by remember { mutableStateOf<GastoEntity?>(null) }
+    var movimientoSeleccionado by remember { mutableStateOf<MovimientoEntity?>(null) }
     var mostrarConfirmarEliminar by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -253,7 +254,10 @@ fun EconomiaScreen(
             ) {
                 items(itemsFiltrados) { item ->
                     when (item) {
-                        is ItemEconomia.Ingreso -> ItemMovimiento(movimiento = item.movimiento)
+                        is ItemEconomia.Ingreso -> ItemMovimiento(
+                            movimiento = item.movimiento,
+                            onClick = { movimientoSeleccionado = item.movimiento }
+                        )
                         is ItemEconomia.Gasto -> ItemGasto(
                             gasto = item.gasto,
                             onClick = {
@@ -294,6 +298,13 @@ fun EconomiaScreen(
             onEliminar = {
                 mostrarConfirmarEliminar = true
             }
+        )
+    }
+
+    if (movimientoSeleccionado != null) {
+        DialogDetalleMovimiento(
+            movimiento = movimientoSeleccionado!!,
+            onDismiss = { movimientoSeleccionado = null }
         )
     }
 
@@ -403,7 +414,10 @@ fun FilterChipEconomia(
  * ============ COMPONENTE: Fila de movimiento ==============
  * ============================================================ */
 @Composable
-fun ItemMovimiento(movimiento: MovimientoEntity) {
+fun ItemMovimiento(
+    movimiento: MovimientoEntity,
+    onClick: () -> Unit = {}
+) {
     val formatter = remember { NumberFormat.getCurrencyInstance(Locale("es", "ES")) }
     val fechaFormateada = remember(movimiento.fechaInicio) {
         Instant.ofEpochMilli(movimiento.fechaInicio)
@@ -413,7 +427,9 @@ fun ItemMovimiento(movimiento: MovimientoEntity) {
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF4CAF50).copy(alpha = 0.08f))
     ) {
@@ -741,7 +757,7 @@ fun DialogDetalleGasto(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = if (editando) "Editar gasto" else "Detalle del gasto",
+                    text = if (editando) "Editar gasto" else "Detalle",
                     style = MaterialTheme.typography.headlineSmall,
                     color = Color(0xFF1E88E5),
                     modifier = Modifier.fillMaxWidth(),
@@ -929,5 +945,84 @@ fun DetalleCampo(etiqueta: String, valor: String) {
             text = valor,
             style = MaterialTheme.typography.bodyLarge
         )
+    }
+}
+
+/* ============================================================
+ * ============ DIALOG: Detalle movimiento ===================
+ * ============================================================ */
+@Composable
+fun DialogDetalleMovimiento(
+    movimiento: MovimientoEntity,
+    onDismiss: () -> Unit
+) {
+    val formatter = remember { NumberFormat.getCurrencyInstance(Locale("es", "ES")) }
+    val fechaInicioFormateada = remember(movimiento.fechaInicio) {
+        Instant.ofEpochMilli(movimiento.fechaInicio)
+            .atZone(ZoneId.systemDefault())
+            .toLocalDate()
+            .format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+    }
+    val fechaFinFormateada = remember(movimiento.fechaFin) {
+        Instant.ofEpochMilli(movimiento.fechaFin)
+            .atZone(ZoneId.systemDefault())
+            .toLocalDate()
+            .format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+    }
+    val fechaPagoFormateada = remember(movimiento.fechaPago) {
+        movimiento.fechaPago?.let {
+            Instant.ofEpochMilli(it)
+                .atZone(ZoneId.systemDefault())
+                .toLocalDate()
+                .format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White,
+            shadowElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Detalle",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = Color(0xFF1E88E5),
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+
+                DetalleCampo("Servicio", movimiento.servicio)
+                DetalleCampo("Precio", formatter.format(movimiento.precio))
+                DetalleCampo("Fecha inicio", fechaInicioFormateada)
+                DetalleCampo("Fecha fin", fechaFinFormateada)
+                DetalleCampo("Estado", movimiento.estado.name)
+                if (fechaPagoFormateada != null) {
+                    DetalleCampo("Fecha pago", fechaPagoFormateada)
+                }
+                if (!movimiento.observaciones.isNullOrBlank()) {
+                    DetalleCampo("Observaciones", movimiento.observaciones)
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cerrar")
+                    }
+                }
+            }
+        }
     }
 }

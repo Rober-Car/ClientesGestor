@@ -16,6 +16,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.roberto.clientesgestor.navigation.Routes
@@ -49,6 +50,7 @@ fun HomeScreen(
                 titulo = "Clientes",
                 descripcion = "Gestión de clientes",
                 icono = Icons.Default.Person,
+                iconColor = Color(0xFF1E88E5),
                 onClick = { navController.navigate(Routes.CLIENTES) }
             )
 
@@ -56,6 +58,7 @@ fun HomeScreen(
                 titulo = "Economia",
                 descripcion = "Datos económicos",
                 icono = Icons.Default.AccountBalance,
+                iconColor = Color(0xFF1E88E5),
                 onClick = { navController.navigate(Routes.ECONOMIA) }
             )
 
@@ -63,6 +66,7 @@ fun HomeScreen(
                 titulo = "Configuración",
                 descripcion = "Ajustes de la aplicación",
                 icono = Icons.Default.Settings,
+                iconColor = Color(0xFF1E88E5),
                 onClick = { navController.navigate(Routes.CONFIGURACION) }
             )
         }

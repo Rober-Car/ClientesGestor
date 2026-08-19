@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 
@@ -30,6 +31,7 @@ fun MenuCard(
     titulo: String,
     descripcion: String,
     icono: ImageVector,
+    iconColor: Color = MaterialTheme.colorScheme.primary,
     onClick: () -> Unit
 ) {
     Card(
@@ -62,7 +64,7 @@ fun MenuCard(
                     Icon(
                         imageVector = icono,
                         contentDescription = titulo,
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = iconColor,
                         modifier = Modifier.size(40.dp)
                     )
                 }
