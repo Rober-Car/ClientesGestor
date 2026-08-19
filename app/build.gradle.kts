@@ -3,10 +3,11 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt.android)
+    id("com.google.gms.google-services")
 }
 
 android {
-    namespace = "com.roberto.clientesgestor"
+    namespace = "com.roberto.gestorpro"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -14,7 +15,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.roberto.clientesgestor"
+        applicationId = "com.roberto.gestorpro"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
@@ -69,5 +70,9 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.gson)
+
+    // Firebase
+    implementation(platform("com.google.firebase:firebase-bom:34.16.0"))
+    implementation("com.google.firebase:firebase-auth")
 
 }
