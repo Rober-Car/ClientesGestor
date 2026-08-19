@@ -116,6 +116,22 @@ class ClienteViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
+    /**
+     * morososIds
+     * ----------
+     * ✔ TIPO: propiedad (val) → StateFlow<Set<Int>>
+     * Es el flujo que contiene los IDs de los clientes que son morosos.
+     * Sirve para que la lista de clientes pueda filtrar y marcar visualmente
+     * a los clientes morosos calculando su estado desde los movimientos.
+     */
+    val morososIds = clienteRepository.obtenerIdsMorososRepo(System.currentTimeMillis())
+        .map { it.toSet() }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptySet()
+        )
+
     /* ============================================================
      * ============ BLOQUE 5: OPERACIONES DEL VIEWMODEL ===========
      * ============================================================ */

@@ -4,8 +4,13 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.roberto.clientesgestor.data.converter.EstadoClienteConverter
+import com.roberto.clientesgestor.data.converter.EstadoMovimientoConverter
 import com.roberto.clientesgestor.data.dao.ClienteDao
+import com.roberto.clientesgestor.data.dao.GastoDao
+import com.roberto.clientesgestor.data.dao.MovimientoDao
 import com.roberto.clientesgestor.data.entity.ClienteEntity
+import com.roberto.clientesgestor.data.entity.GastoEntity
+import com.roberto.clientesgestor.data.entity.MovimientoEntity
 
 /**
  * ClientesDatabase.kt
@@ -25,8 +30,8 @@ import com.roberto.clientesgestor.data.entity.ClienteEntity
  * - version: número de versión del esquema; se sube cuando cambian las tablas para migrar los datos.
  */
 @Database(
-    entities = [ClienteEntity::class],
-    version = 1
+    entities = [ClienteEntity::class, MovimientoEntity::class, GastoEntity::class],
+    version = 4
 )
 
 /**
@@ -35,9 +40,9 @@ import com.roberto.clientesgestor.data.entity.ClienteEntity
  * ✔ TIPO: anotación (androidx.room.TypeConverters)
  * Es la anotación que registra los conversores de tipos de toda la base de datos.
  * Sirve para que Room sepa cómo guardar tipos que no soporta por defecto
- * (en este caso el enum EstadoCliente) convirtiéndolos a String y viceversa.
+ * (en este caso los enums EstadoCliente y EstadoMovimiento) convirtiéndolos a String y viceversa.
  */
-@TypeConverters(EstadoClienteConverter::class)
+@TypeConverters(EstadoClienteConverter::class, EstadoMovimientoConverter::class)
 
 /**
  * ClientesDatabase
@@ -58,5 +63,17 @@ abstract class ClientesDatabase : RoomDatabase() {
      * Room genera automáticamente la implementación de este método.
      */
     abstract fun clienteDao(): ClienteDao
+
+    /**
+     * movimientoDao
+     * -------------
+     * ✔ TIPO: método abstracto (fun) → MovimientoDao
+     * Es el método que devuelve el DAO de movimientos de la base de datos.
+     * Sirve para acceder a las operaciones de MovimientoDao (insertar, actualizar, eliminar y consultar movimientos);
+     * Room genera automáticamente la implementación de este método.
+     */
+    abstract fun movimientoDao(): MovimientoDao
+
+    abstract fun gastoDao(): GastoDao
 
 }

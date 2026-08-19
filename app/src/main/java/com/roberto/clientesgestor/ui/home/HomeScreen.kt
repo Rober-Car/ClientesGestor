@@ -111,7 +111,7 @@ fun HomeScreen(
             MenuCard(
                 titulo = "Clientes",
                 descripcion = "Gestión de clientes ",
-                Icons.Default.Person,
+                icono = Icons.Default.Person,
                 onClick = {
                     navController.navigate(Routes.CLIENTES)
                 }
@@ -127,7 +127,7 @@ fun HomeScreen(
             MenuCard(
                 titulo = "Cuotas",
                 descripcion = "Gestiona las cuotas",
-                Icons.Default.CardMembership,
+                icono = Icons.Default.CardMembership,
                 onClick = {
                 }
             )
@@ -142,7 +142,7 @@ fun HomeScreen(
             MenuCard(
                 titulo = "Pagos",
                 descripcion = "Valida los pagos",
-                Icons.Default.AttachMoney,
+                icono = Icons.Default.AttachMoney,
                 onClick = {
                 }
             )
@@ -157,8 +157,9 @@ fun HomeScreen(
             MenuCard(
                 titulo = "Economia",
                 descripcion = "Datos economicos",
-                Icons.Default.AccountBalance,
+                icono = Icons.Default.AccountBalance,
                 onClick = {
+                    navController.navigate(Routes.ECONOMIA)
                 }
             )
 
@@ -172,7 +173,7 @@ fun HomeScreen(
             MenuCard(
                 titulo = "Configuración",
                 descripcion = "Ajustes de la aplicación",
-                Icons.Default.Settings,
+                icono = Icons.Default.Settings,
                 onClick = {
                 }
             )

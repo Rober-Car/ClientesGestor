@@ -60,8 +60,7 @@ fun ServicioItem(
      * Sirve para alinear el icono del servicio y su nombre en la lista.
      */
     Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(bottom = 8.dp)
+        verticalAlignment = Alignment.CenterVertically
     ) {
 
         /**

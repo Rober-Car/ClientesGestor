@@ -8,6 +8,7 @@ import com.roberto.clientesgestor.ui.auth.LoginScreen
 import com.roberto.clientesgestor.ui.clientes.AñadirClienteScreen
 import com.roberto.clientesgestor.ui.clientes.ClientesScreen
 import com.roberto.clientesgestor.ui.clientes.PerfilClienteScreen
+import com.roberto.clientesgestor.ui.economia.EconomiaScreen
 import com.roberto.clientesgestor.ui.home.HomeScreen
 
 /**
@@ -110,11 +111,35 @@ fun AppNavigation() {
         }
 
 
+        /**
+         * Ruta AÑADIRCLIENTE
+         * ------------------
+         * ✔ TIPO: ruta de navegación (composable)
+         * Es la ruta que muestra el formulario para dar de alta un nuevo cliente.
+         * Sirve para que desde la lista de clientes se acceda al formulario de creación
+         * y se pase el navController para poder volver atrás al guardar.
+         */
         composable(Routes.AÑADIRCLIENTE){
 
             AñadirClienteScreen(navController)
         }
 
+        /**
+         * Ruta MODIFICARCLIENTE
+         * ---------------------
+         * ✔ TIPO: ruta de navegación (composable) con parámetro dinámico
+         * Es la ruta que muestra el formulario para modificar un cliente ya existente.
+         * Sirve para que desde el perfil de un cliente se acceda al formulario de edición,
+         * recibiendo el id del cliente a modificar a través de la URL.
+         *
+         * CÓMO FUNCIONA:
+         * 1. La ruta contiene "{idCliente}" como parte dinámica de la URL.
+         * 2. backStackEntry.arguments extrae los argumentos de la URL.
+         * 3. Se obtiene el "idCliente" de los argumentos y se convierte a Int.
+         * 4. Si el id es válido, se muestra AñadirClienteScreen pasándole el id
+         *    para que precargue los datos del cliente en el formulario.
+         * 5. Si el id no es válido (null), no se muestra nada.
+         */
         composable(
             route = "${Routes.MODIFICARCLIENTE}/{idCliente}"
         ) { backStackEntry ->
@@ -130,5 +155,10 @@ fun AppNavigation() {
                 )
             }
         }
+
+        composable(Routes.ECONOMIA) {
+            EconomiaScreen(navController)
+        }
+
     }
 }

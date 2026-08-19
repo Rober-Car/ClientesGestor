@@ -228,6 +228,17 @@ fun AñadirClienteScreen(
     var tieneLlave by rememberSaveable { mutableStateOf(false) }
 
     /**
+     * esActivo
+     * --------
+     * ✔ TIPO: variable con estado (var) → Boolean
+     * Es el interruptor que indica si el cliente está activo o de baja.
+     * Sirve para elegir el estado del cliente al darlo de alta o al modificarlo.
+     * true = ACTIVO, false = BAJA.
+     * Usa rememberSaveable para sobrevivir a la rotación de pantalla.
+     */
+    var esActivo by rememberSaveable { mutableStateOf(true) }
+
+    /**
      * observaciones
      * -------------
      * ✔ TIPO: variable con estado (var) → String
@@ -487,6 +498,7 @@ fun AñadirClienteScreen(
             foto = clienteCargado.foto
             fechaNacimiento = clienteCargado.fechaNacimiento
             tieneLlave = clienteCargado.tieneLlave
+            esActivo = clienteCargado.estado != EstadoCliente.BAJA
             observaciones = clienteCargado.observaciones ?: ""
         }
     }
@@ -601,8 +613,7 @@ fun AñadirClienteScreen(
                 onValueChange = {
                     nombre = it
                     errorNombre = false
-                    // Al editar un campo se limpia el error del ViewModel (p.ej. DNI duplicado)
-                    // para que la snackbar y el aviso desaparezcan en cuanto el usuario corrige.
+
                     viewModel.limpiarError()
                 },
                 label = { Text("Nombre") },
@@ -877,17 +888,34 @@ fun AñadirClienteScreen(
         )
 
         Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Tiene llave")
-
-            Switch(
-                checked = tieneLlave,
-                onCheckedChange = {
-                    tieneLlave = it
-                    viewModel.limpiarError()
-                }
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Tiene llave")
+                Switch(
+                    checked = tieneLlave,
+                    onCheckedChange = {
+                        tieneLlave = it
+                        viewModel.limpiarError()
+                    }
+                )
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(if (esActivo) "Activo" else "Baja")
+                Switch(
+                    checked = esActivo,
+                    onCheckedChange = {
+                        esActivo = it
+                        viewModel.limpiarError()
+                    }
+                )
+            }
         }
 
         OutlinedTextField(
@@ -940,8 +968,9 @@ fun AñadirClienteScreen(
                     if (!hayErrores) {
                         if (idCliente != null) {
                             // MODO EDICIÓN: se conservan los datos que no se pueden cambiar
-                            // en este formulario (fecha de registro, estado, llave de alta/baja
+                            // en este formulario (fecha de registro, llave de alta/baja
                             // y el uid de Firebase) tomándolos del cliente original.
+                            // El estado se controla desde el switch de la UI.
                             val original = clienteEditando!!
                             val cliente = ClienteEntity(
                                 idCliente = idCliente,
@@ -957,7 +986,7 @@ fun AñadirClienteScreen(
                                 fechaRegistro = original.fechaRegistro,
                                 fechaAlta = original.fechaAlta,
                                 fechaBaja = original.fechaBaja,
-                                estado = original.estado,
+                                estado = if (esActivo) EstadoCliente.ACTIVO else EstadoCliente.BAJA,
                                 tieneLlave = tieneLlave,
                                 observaciones = observaciones.ifBlank { null },
                                 firebaseUid = original.firebaseUid
@@ -974,8 +1003,8 @@ fun AñadirClienteScreen(
                                 navController.popBackStack()
                             }
                         } else {
-                            // MODO ALTA: el cliente nuevo empieza con estado REGISTRADO
-                            // y sin fecha de registro propia (la pone la base de datos).
+                            // MODO ALTA: el cliente nuevo empieza con el estado elegido
+                            // en el switch (ACTIVO o BAJA) y sin fecha de registro propia.
                             val cliente = ClienteEntity(
                                 nombre = nombre,
                                 apellidos = apellidos,
@@ -985,7 +1014,7 @@ fun AñadirClienteScreen(
                                 email = email,
                                 foto = foto,
                                 fechaNacimiento = fechaNacimiento!!,
-                                estado = EstadoCliente.REGISTRADO,
+                                estado = if (esActivo) EstadoCliente.ACTIVO else EstadoCliente.BAJA,
                                 tieneLlave = tieneLlave,
                                 observaciones = observaciones.ifBlank { null }
                             )

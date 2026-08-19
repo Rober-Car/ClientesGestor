@@ -99,7 +99,20 @@ class ClienteRepository(
         return clienteDao.obtenerClientesPorEstadoDao(estado)
     }
 
+    /**
+     * obtenerClientePorIdRepo
+     * -----------------------
+     * ✔ TIPO: método (fun) suspend de Kotlin → ClienteEntity?
+     * Es la operación que recupera un cliente buscándolo por su ID.
+     * Sirve para obtener un ClienteEntity concreto (o null si no existe)
+     * a través del DAO desde la capa de repositorio.
+     */
     suspend fun obtenerClientePorIdRepo(id: Int): ClienteEntity? {
         return clienteDao.obtenerClientePorIdDao(id)
     }
+
+    fun obtenerIdsMorososRepo(ahora: Long): Flow<List<Int>> {
+        return clienteDao.obtenerIdsMorosos(ahora)
+    }
+
 }

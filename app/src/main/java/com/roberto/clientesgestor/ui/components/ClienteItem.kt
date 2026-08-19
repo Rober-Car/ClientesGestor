@@ -79,6 +79,15 @@ fun ClienteItem(
     foto: String,
 
     /**
+     * esMoroso
+     * --------
+     * ✔ TIPO: parámetro (param) → Boolean
+     * Indica si el cliente es moroso (calculado desde movimientos).
+     * Sirve para mostrar un borde rojo en la foto cuando el cliente tiene pagos vencidos.
+     */
+    esMoroso: Boolean = false,
+
+    /**
      * onClick
      * -------
      * ✔ TIPO: parámetro (param) → () -> Unit (lambda)
@@ -118,7 +127,9 @@ fun ClienteItem(
      * Es el color asociado al estado del cliente.
      * Sirve para pintar la barra lateral de la tarjeta según el estado.
      */
-    val colorEstado = when (estado) {
+    val colorEstado = if (esMoroso) {
+        Color.Red
+    } else when (estado) {
         EstadoCliente.ACTIVO -> Color(0xFF4CAF50)
         EstadoCliente.MOROSO -> Color.Red
         EstadoCliente.BAJA -> Color.Gray
@@ -231,7 +242,7 @@ fun ClienteItem(
                     modifier = Modifier.weight(1f)
                 )
 
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 /**
                  * Row del teléfono

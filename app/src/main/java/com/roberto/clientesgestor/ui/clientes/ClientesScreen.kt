@@ -35,7 +35,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
-import com.roberto.clientesgestor.data.entity.ClienteEntity
 import com.roberto.clientesgestor.model.Cliente
 import com.roberto.clientesgestor.model.EstadoCliente
 import com.roberto.clientesgestor.model.FiltroClientes
@@ -43,7 +42,6 @@ import com.roberto.clientesgestor.navigation.Routes
 import com.roberto.clientesgestor.ui.components.ClienteItem
 import com.roberto.clientesgestor.ui.components.ResumenCard
 import com.roberto.clientesgestor.ui.viewmodel.ClienteViewModel
-import kotlin.random.Random
 
 /**
  * ClientesScreen.kt
@@ -114,6 +112,15 @@ fun ClientesScreen(
     val error by viewModel.error.collectAsStateWithLifecycle()
 
     /**
+     * morososIds
+     * ----------
+     * ✔ TIPO: variable inmutable (val) → Set<Int>
+     * Es el conjunto de IDs de clientes que son morosos (calculado desde movimientos).
+     * Sirve para filtrar la lista de morosos y para marcar visualmente a estos clientes.
+     */
+    val morososIds by viewModel.morososIds.collectAsStateWithLifecycle()
+
+    /**
      * clientesFiltrados
      * -----------------
      * ✔ TIPO: variable inmutable (val) → List<Cliente>
@@ -150,7 +157,7 @@ fun ClientesScreen(
          * Sirve para mostrar solo los clientes cuyo estado es MOROSO.
          */
         FiltroClientes.MOROSO -> clientes.filter { cliente ->
-            cliente.estado == EstadoCliente.MOROSO
+            cliente.idCliente in morososIds
         }
 
         /**
@@ -192,9 +199,7 @@ fun ClientesScreen(
      * Es el número de clientes con estado MOROSO.
      * Sirve para mostrarlo en la tarjeta de resumen "Morosos".
      */
-    val totalMorosos = clientes.count { cliente ->
-        cliente.estado == EstadoCliente.MOROSO
-    }
+    val totalMorosos = morososIds.size
 
     /**
      * totalBajas
@@ -325,7 +330,7 @@ fun ClientesScreen(
                     titulo = "Todos",
                     cantidad = totalClientes,
                     estaSeleccionada = filtroSeleccionado == FiltroClientes.TODOS,
-                    Color.Transparent,
+                    color = Color.Transparent,
                     onClick = {
                         filtroSeleccionado = FiltroClientes.TODOS
                     },
@@ -345,7 +350,7 @@ fun ClientesScreen(
                     titulo = "Activos",
                     cantidad = totalActivos,
                     estaSeleccionada = filtroSeleccionado == FiltroClientes.ACTIVO,
-                    Color(0xFF4CAF50),
+                    color = Color(0xFF4CAF50),
                     onClick = {
                         filtroSeleccionado = FiltroClientes.ACTIVO
                     },
@@ -430,6 +435,7 @@ fun ClientesScreen(
                         telefono = cliente.telefono,
                         estado = cliente.estado,
                         foto = cliente.foto,
+                        esMoroso = cliente.idCliente in morososIds,
                         onClick = {
                             navController.navigate(
                                 Routes.perfilCliente(cliente.idCliente)

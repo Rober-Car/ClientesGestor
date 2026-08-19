@@ -2,6 +2,7 @@ package com.roberto.clientesgestor.ui.clientes
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -29,18 +31,34 @@ import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.SelectableDates
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,18 +66,31 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
 import com.roberto.clientesgestor.model.EstadoCliente
 import com.roberto.clientesgestor.navigation.Routes
+import com.roberto.clientesgestor.ui.components.MovimientoItem
 import com.roberto.clientesgestor.ui.components.ServicioItem
 import com.roberto.clientesgestor.ui.viewmodel.ClienteViewModel
+import com.roberto.clientesgestor.ui.viewmodel.MovimientoViewModel
 import java.io.File
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.text.input.KeyboardType
+import com.roberto.clientesgestor.data.entity.MovimientoEntity
+import com.roberto.clientesgestor.model.EstadoMovimiento
+
 
 /**
  * PerfilClienteAdministradorScreen.kt
@@ -86,8 +117,30 @@ fun PerfilClienteScreen(
      * Sirve para poder volver atrás hacia la lista de clientes.
      */
     navController: NavHostController,
+    /**
+     * idCliente
+     * ---------
+     * ✔ TIPO: parámetro (param) → Int
+     * Es el identificador del cliente que se quiere ver en el perfil.
+     * Sirve para cargar sus datos y movimientos desde la base de datos.
+     */
     idCliente: Int,
-    viewModel: ClienteViewModel = hiltViewModel()
+    /**
+     * viewModel
+     * ---------
+     * ✔ TIPO: parámetro (param) → ClienteViewModel (inyectado por Hilt)
+     * Es el ViewModel de clientes que recibe la pantalla.
+     * Sirve para obtener el cliente seleccionado y gestionar sus datos.
+     */
+    viewModel: ClienteViewModel = hiltViewModel(),
+    /**
+     * movimientoViewModel
+     * -------------------
+     * ✔ TIPO: parámetro (param) → MovimientoViewModel (inyectado por Hilt)
+     * Es el ViewModel de movimientos que recibe la pantalla.
+     * Sirve para cargar y gestionar los movimientos (servicios) del cliente.
+     */
+    movimientoViewModel: MovimientoViewModel = hiltViewModel()
 ) {
 
     /**
@@ -103,6 +156,33 @@ fun PerfilClienteScreen(
         onPauseOrDispose { }
     }
 
+    /**
+     * LaunchedEffect(idCliente)
+     * -------------------------
+     * ✔ TIPO: efecto de composición (LaunchedEffect)
+     * Se lanza cuando la pantalla se muestra por primera vez o cambia el id.
+     * Sirve para cargar los movimientos del cliente cuyo id llega en el argumento de navegación.
+     */
+    LaunchedEffect(idCliente) {
+        movimientoViewModel.cargarMovimientosPorCliente(idCliente)
+    }
+
+    /**
+     * movimientos
+     * -----------
+     * ✔ TIPO: variable inmutable (val) → List<MovimientoEntity>
+     * Es la lista de movimientos (servicios) del cliente observada desde el ViewModel.
+     * Sirve para que la pestaña de Economía se actualice automáticamente cuando cambian los datos.
+     */
+    val movimientos by movimientoViewModel.movimientos.collectAsState()
+
+    /**
+     * cliente
+     * -------
+     * ✔ TIPO: variable inmutable (val) → ClienteEntity?
+     * Es el cliente seleccionado observado desde el ViewModel.
+     * Sirve para mostrar sus datos en la cabecera y en la pestaña de información.
+     */
     val cliente by viewModel.clienteSeleccionado.collectAsState()
 
     /**
@@ -131,6 +211,220 @@ fun PerfilClienteScreen(
         EstadoCliente.MOROSO -> Color.Red
         EstadoCliente.BAJA -> Color.Gray
         else -> Color(0xFF64B5F6)
+    }
+
+    /**
+     * esMoroso
+     * --------
+     * ✔ TIPO: variable inmutable (val) → Boolean
+     * Indica si el cliente es moroso calculándolo desde sus movimientos.
+     * Un cliente ACTIVO es moroso si tiene algún movimiento con fechaFin < ahora.
+     * Un cliente de BAJA es moroso si tiene algún movimiento con estado PENDIENTE.
+     * Sirve para mostrar el borde rojo en la foto del perfil.
+     */
+    val esMoroso = when (cliente?.estado) {
+        EstadoCliente.ACTIVO -> movimientos.any { it.fechaFin < System.currentTimeMillis() }
+        EstadoCliente.BAJA -> movimientos.any { it.estado == EstadoMovimiento.PENDIENTE }
+        else -> false
+    }
+
+    /**
+     * pestañaSeleccionada
+     * -------------------
+     * ✔ TIPO: variable con estado (var) → Int
+     * Es el índice de la pestaña activa en la pantalla de perfil.
+     * Sirve para alternar entre la pestaña de Datos (0) y la de Economía (1).
+     */
+    var pestañaSeleccionada by remember {
+        mutableStateOf(0)
+    }
+
+    /**
+     * mostrarFormularioMovimiento
+     * ---------------------------
+     * ✔ TIPO: variable con estado (var) → Boolean
+     * Es la variable que controla si se muestra el formulario de nuevo movimiento.
+     * Sirve para abrir y cerrar el diálogo o pantalla de añadir movimiento.
+     */
+    var mostrarFormularioMovimiento by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+    var servicioMovimiento by rememberSaveable { mutableStateOf("") }
+    var precioMovimiento by rememberSaveable { mutableStateOf("") }
+    var observacionesMovimiento by rememberSaveable { mutableStateOf("") }
+    var fechaInicioMovimiento by rememberSaveable { mutableStateOf<Long?>(null) }
+    var fechaFinMovimiento by rememberSaveable { mutableStateOf<Long?>(null) }
+
+    var mostrarDatePickerInicio by rememberSaveable { mutableStateOf(false) }
+    var mostrarDatePickerFin by rememberSaveable { mutableStateOf(false) }
+
+    val fechaInicioFormateada =
+        fechaInicioMovimiento?.let { formatearFecha(it) } ?: ""
+
+    val fechaFinFormateada =
+        fechaFinMovimiento?.let { formatearFecha(it) } ?: ""
+
+    var movimientoPagado by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+
+    var errorServicioMovimiento by rememberSaveable { mutableStateOf(false) }
+    var errorPrecioMovimiento by rememberSaveable { mutableStateOf(false) }
+    var errorFechaInicioMovimiento by rememberSaveable { mutableStateOf(false) }
+    var errorFechaFinMovimiento by rememberSaveable { mutableStateOf(false) }
+
+    /* ============================================================
+     * ============ ESTADO DEL DIÁLOGO DETALLE MOVIMIENTO =========
+     * ============================================================ */
+    /**
+     * movimientoSeleccionado
+     * ---------------------
+     * ✔ TIPO: variable con estado (var) → MovimientoEntity?
+     * Es el movimiento que el administrador ha pulsado para ver su detalle.
+     * Sirve para abrir el diálogo con los datos de ese movimiento y poder editarlos o eliminarlos.
+     * Es null cuando no hay ningún movimiento seleccionado (diálogo cerrado).
+     */
+    var movimientoSeleccionado by rememberSaveable { mutableStateOf<MovimientoEntity?>(null) }
+
+    /**
+     * servicioEditado
+     * ---------------
+     * ✔ TIPO: variable con estado (var) → String
+     * Es el campo "Servicio" editable dentro del diálogo de detalle.
+     * Sirve para que el administrador pueda modificar el nombre del servicio.
+     */
+    var servicioEditado by rememberSaveable { mutableStateOf("") }
+
+    /**
+     * precioEditado
+     * -------------
+     * ✔ TIPO: variable con estado (var) → String
+     * Es el campo "Precio" editable dentro del diálogo de detalle.
+     * Sirve para que el administrador pueda modificar el precio del servicio.
+     */
+    var precioEditado by rememberSaveable { mutableStateOf("") }
+
+    /**
+     * fechaInicioEditada
+     * ------------------
+     * ✔ TIPO: variable con estado (var) → Long?
+     * Es la fecha de inicio editable dentro del diálogo de detalle.
+     * Sirve para que el administrador pueda modificar la fecha de inicio del servicio.
+     */
+    var fechaInicioEditada by rememberSaveable { mutableStateOf<Long?>(null) }
+
+    /**
+     * fechaFinEditada
+     * ---------------
+     * ✔ TIPO: variable con estado (var) → Long?
+     * Es la fecha de fin editable dentro del diálogo de detalle.
+     * Sirve para que el administrador pueda modificar la fecha de fin del servicio.
+     */
+    var fechaFinEditada by rememberSaveable { mutableStateOf<Long?>(null) }
+
+    /**
+     * pagadoEditado
+     * -------------
+     * ✔ TIPO: variable con estado (var) → Boolean
+     * Es el interruptor "Pago realizado" editable dentro del diálogo de detalle.
+     * Sirve para que el administrador pueda cambiar el estado de pago del servicio.
+     */
+    var pagadoEditado by rememberSaveable { mutableStateOf(false) }
+
+    /**
+     * observacionesEditadas
+     * ---------------------
+     * ✔ TIPO: variable con estado (var) → String
+     * Es el campo "Observaciones" editable dentro del diálogo de detalle.
+     * Sirve para que el administrador pueda modificar las notas del servicio.
+     */
+    var observacionesEditadas by rememberSaveable { mutableStateOf("") }
+
+    /**
+     * mostrarDatePickerInicioDetalle
+     * -----------------------------
+     * ✔ TIPO: variable con estado (var) → Boolean
+     * Es la variable que controla si el selector de fecha de inicio está visible en el diálogo.
+     * Sirve para abrir y cerrar el DatePickerDialog de inicio dentro del detalle.
+     */
+    var mostrarDatePickerInicioDetalle by rememberSaveable { mutableStateOf(false) }
+
+    /**
+     * mostrarDatePickerFinDetalle
+     * ---------------------------
+     * ✔ TIPO: variable con estado (var) → Boolean
+     * Es la variable que controla si el selector de fecha de fin está visible en el diálogo.
+     * Sirve para abrir y cerrar el DatePickerDialog de fin dentro del detalle.
+     */
+    var mostrarDatePickerFinDetalle by rememberSaveable { mutableStateOf(false) }
+
+    /**
+     * errorServicioEditado
+     * --------------------
+     * ✔ TIPO: variable con estado (var) → Boolean
+     * Es el indicador de error del campo Servicio en el diálogo de detalle.
+     * Sirve para resaltar el campo si está vacío al pulsar Guardar cambios.
+     */
+    var errorServicioEditado by rememberSaveable { mutableStateOf(false) }
+
+    /**
+     * errorPrecioEditado
+     * ------------------
+     * ✔ TIPO: variable con estado (var) → Boolean
+     * Es el indicador de error del campo Precio en el diálogo de detalle.
+     * Sirve para resaltar el campo si el precio no es válido al pulsar Guardar cambios.
+     */
+    var errorPrecioEditado by rememberSaveable { mutableStateOf(false) }
+
+    /**
+     * errorFechaInicioEditada
+     * -----------------------
+     * ✔ TIPO: variable con estado (var) → Boolean
+     * Es el indicador de error del campo Fecha de inicio en el diálogo de detalle.
+     * Sirve para resaltar el campo si no se ha seleccionado fecha al pulsar Guardar cambios.
+     */
+    var errorFechaInicioEditada by rememberSaveable { mutableStateOf(false) }
+
+    /**
+     * errorFechaFinEditada
+     * --------------------
+     * ✔ TIPO: variable con estado (var) → Boolean
+     * Es el indicador de error del campo Fecha de fin en el diálogo de detalle.
+     * Sirve para resaltar el campo si no se ha seleccionado fecha o si es anterior a la de inicio.
+     */
+    var errorFechaFinEditada by rememberSaveable { mutableStateOf(false) }
+
+    /**
+     * mostrarConfirmarEliminar
+     * -----------------------
+     * ✔ TIPO: variable con estado (var) → Boolean
+     * Es la variable que controla si se muestra el diálogo de confirmación de eliminación.
+     * Sirve para pedir confirmación al administrador antes de borrar un movimiento definitivamente.
+     */
+    var mostrarConfirmarEliminar by rememberSaveable { mutableStateOf(false) }
+
+    /**
+     * LaunchedEffect(movimientoSeleccionado)
+     * --------------------------------------
+     * ✔ TIPO: efecto de composición (LaunchedEffect)
+     * Se lanza cada vez que se selecciona un movimiento para ver su detalle.
+     * Sirve para precargar los campos editables con los datos actuales del movimiento.
+     */
+    LaunchedEffect(movimientoSeleccionado) {
+        movimientoSeleccionado?.let { mov ->
+            servicioEditado = mov.servicio
+            precioEditado = mov.precio.toString()
+            fechaInicioEditada = mov.fechaInicio
+            fechaFinEditada = mov.fechaFin
+            pagadoEditado = mov.estado == EstadoMovimiento.PAGADO
+            observacionesEditadas = mov.observaciones ?: ""
+            errorServicioEditado = false
+            errorPrecioEditado = false
+            errorFechaInicioEditada = false
+            errorFechaFinEditada = false
+        }
     }
 
     /**
@@ -222,7 +516,7 @@ fun PerfilClienteScreen(
                             .size(140.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .border(2.dp, Color(0xFF64B5F6), CircleShape),
+                            .border(2.dp, if (esMoroso) Color.Red else Color(0xFF64B5F6), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -240,7 +534,7 @@ fun PerfilClienteScreen(
                         modifier = Modifier
                             .size(140.dp)
                             .clip(CircleShape)
-                            .border(2.dp, Color(0xFF64B5F6), CircleShape)
+                            .border(2.dp, if (esMoroso) Color.Red else Color(0xFF64B5F6), CircleShape)
                     )
                 }
 
@@ -282,213 +576,1072 @@ fun PerfilClienteScreen(
             }
 
             /**
-             * Título de la sección de contacto
-             * ---------------------------------
-             * ✔ TIPO: función @Composable (androidx.compose.material3.Text)
-             * Es el encabezado de la sección de datos de contacto del cliente.
-             * Sirve para ordenar el perfil por secciones con el mismo estilo del formulario.
+             * TabRow de pestañas
+             * ------------------
+             * ✔ TIPO: función @Composable (androidx.compose.material3.TabRow)
+             * Es la barra de pestañas que alterna entre "Datos" y "Economía".
+             * Sirve para organizar la información del cliente en dos secciones separadas.
              */
-            Text(
-                text = "Datos de contacto",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(top = 16.dp)
-            )
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically
+            TabRow(
+                selectedTabIndex = pestañaSeleccionada,
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = Color(0xFF1E88E5),
+                indicator = { tabPositions ->
+                    TabRowDefaults.SecondaryIndicator(
+                        modifier = Modifier.tabIndicatorOffset(tabPositions[pestañaSeleccionada]),
+                        height = 3.dp,
+                        color = Color(0xFF1E88E5)
+                    )
+                },
+                divider = {}
             ) {
-                Icon(
-                    imageVector = Icons.Default.Phone,
-                    contentDescription = "Icono de teléfono",
-                    tint = Color(0xFF64B5F6),
-                    modifier = Modifier.size(20.dp)
+                Tab(
+                    selected = pestañaSeleccionada == 0,
+                    onClick = { pestañaSeleccionada = 0 },
+                    text = {
+                        Text(
+                            text = "Datos",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = if (pestañaSeleccionada == 0) Color(0xFF1E88E5) else Color.Gray
+                        )
+                    },
+                    modifier = Modifier.padding(vertical = 4.dp)
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = cliente?.telefono ?: "No disponible",
-                    style = MaterialTheme.typography.bodyLarge
+
+                Tab(
+                    selected = pestañaSeleccionada == 1,
+                    onClick = { pestañaSeleccionada = 1 },
+                    text = {
+                        Text(
+                            text = "Economía",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = if (pestañaSeleccionada == 1) Color(0xFF1E88E5) else Color.Gray
+                        )
+                    },
+                    modifier = Modifier.padding(vertical = 4.dp)
                 )
             }
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Email,
-                    contentDescription = "Icono de email",
-                    tint = Color(0xFF64B5F6),
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = cliente?.email ?: "Sin email",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
+            Spacer(modifier = Modifier.height(12.dp))
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Badge,
-                    contentDescription = "Icono de DNI",
-                    tint = Color(0xFF64B5F6),
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = cliente?.dni ?: "Cargando...",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
 
-            /**
-             * Título de la sección de otros datos
-             * ------------------------------------
-             * ✔ TIPO: función @Composable (androidx.compose.material3.Text)
-             * Es el encabezado de la sección de otros datos del cliente.
-             * Sirve para mostrar fecha de nacimiento, llave y observaciones con el mismo estilo.
-             */
-            Text(
-                text = "Otros datos",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(top = 16.dp)
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.DateRange,
-                    contentDescription = "Icono de fecha de nacimiento",
-                    tint = Color(0xFF64B5F6),
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Fecha de nacimiento",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                Text(
-                    text = cliente?.let { formatearFechaPerfil(it.fechaNacimiento) } ?: "No disponible",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Key,
-                    contentDescription = "Icono de llave",
-                    tint = Color(0xFF64B5F6),
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Tiene llave",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                Text(
-                    text = if (cliente?.tieneLlave == true) "Sí" else "No",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            cliente?.observaciones?.takeIf { it.isNotBlank() }?.let { observaciones ->
+            if (pestañaSeleccionada == 0) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Notes,
-                        contentDescription = "Icono de observaciones",
+                        imageVector = Icons.Default.Phone,
+                        contentDescription = "Icono de teléfono",
                         tint = Color(0xFF64B5F6),
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Observaciones",
+                        text = cliente?.telefono ?: "No disponible",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Icon(
+                        imageVector = Icons.Default.Badge,
+                        contentDescription = "Icono de DNI",
+                        tint = Color(0xFF64B5F6),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = cliente?.dni ?: "Cargando...",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Email,
+                        contentDescription = "Icono de email",
+                        tint = Color(0xFF64B5F6),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = cliente?.email ?: "Sin email",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DateRange,
+                        contentDescription = "Icono de fecha de nacimiento",
+                        tint = Color(0xFF64B5F6),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Fecha de nacimiento",
                         style = MaterialTheme.typography.bodyLarge
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     Text(
-                        text = observaciones,
+                        text = cliente?.let { formatearFecha(it.fechaNacimiento) } ?: "No disponible",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            }
 
-            /**
-             * Título de la sección de servicios
-             * ---------------------------------
-             * ✔ TIPO: función @Composable (androidx.compose.material3.Text)
-             * Es el encabezado de la sección de servicios contratados del cliente.
-             * Sirve para encabezar la lista de servicios con el mismo estilo del formulario.
-             */
-            Text(
-                text = "Servicios contratados",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(top = 16.dp)
-            )
+                /**
+                 * Sección de observaciones
+                 * ------------------------
+                 * ✔ TIPO: bloque condicional (let) + fila de observaciones
+                 * Es la sección que muestra las notas adicionales del cliente si existen.
+                 * Sirve para anotar detalles relevantes que no encajan en los demás campos.
+                 */
+                cliente?.observaciones?.takeIf { it.isNotBlank() }?.let { observaciones ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Notes,
+                            contentDescription = "Icono de observaciones",
+                            tint = Color(0xFF64B5F6),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Observaciones",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        Text(
+                            text = observaciones,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
 
-            ServicioItem(
-                nombreServicio = "Sala de máquinas",
-                iconoServicio = Icons.Default.FitnessCenter
-            )
-
-            ServicioItem(
-                nombreServicio = "CrossFit",
-                iconoServicio = Icons.Default.Bolt
-            )
-
-            /**
-             * Button de Modificar cliente
-             * ---------------------------
-             * ✔ TIPO: función @Composable (androidx.compose.material3.Button)
-             * Es el botón que abre el formulario de edición del cliente.
-             * Sirve para navegar a la pantalla de modificar con los datos precargados,
-             * con el mismo estilo azul que el botón de guardar del formulario.
-             */
-            Button(
-                onClick = {
-                    navController.navigate(Routes.modificarCliente(idCliente))
-                },
-                modifier = Modifier
-                    .fillMaxWidth(0.7f)
-                    .align(Alignment.CenterHorizontally)
-                    .padding(top = 16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF1E88E5),
-                    contentColor = Color.White
+                /**
+                 * Título de la sección de servicios
+                 * ---------------------------------
+                 * ✔ TIPO: función @Composable (androidx.compose.material3.Text)
+                 * Es el encabezado de la sección de servicios contratados del cliente.
+                 * Sirve para encabezar la lista de servicios con el mismo estilo del formulario.
+                 */
+                Text(
+                    text = "Servicios contratados",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 16.dp)
                 )
-            ) {
-                Text("Modificar cliente")
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Key,
+                        contentDescription = "Icono de llave",
+                        tint = Color(0xFF64B5F6),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Tiene llave",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text(
+                        text = if (cliente?.tieneLlave == true) "Sí" else "No",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                /**
+                 * ServicioItem de Sala de máquinas
+                 * --------------------------------
+                 * ✔ TIPO: componente @Composable (ServicioItem)
+                 * Es el elemento que muestra el servicio de Sala de máquinas.
+                 * Sirve para indicar que el cliente tiene contratado este servicio.
+                 */
+                ServicioItem(
+                    nombreServicio = "Sala de máquinas",
+                    iconoServicio = Icons.Default.FitnessCenter
+                )
+
+                /**
+                 * ServicioItem de CrossFit
+                 * -----------------------
+                 * ✔ TIPO: componente @Composable (ServicioItem)
+                 * Es el elemento que muestra el servicio de CrossFit.
+                 * Sirve para indicar que el cliente tiene contratado este servicio.
+                 */
+                ServicioItem(
+                    nombreServicio = "CrossFit",
+                    iconoServicio = Icons.Default.Bolt
+                )
+
+                /**
+                 * Button de Modificar cliente
+                 * ---------------------------
+                 * ✔ TIPO: función @Composable (androidx.compose.material3.Button)
+                 * Es el botón que abre el formulario de edición del cliente.
+                 * Sirve para navegar a la pantalla de modificar con los datos precargados,
+                 * con el mismo estilo azul que el botón de guardar del formulario.
+                 */
+                Button(
+                    onClick = {
+                        navController.navigate(Routes.modificarCliente(idCliente))
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth(0.7f)
+                        .align(Alignment.CenterHorizontally)
+                        .padding(top = 16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF1E88E5),
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text("Modificar cliente")
+                }
+            }else {
+                /**
+                 * Sección de Economía
+                 * -------------------
+                 * ✔ TIPO: bloque else de la pestaña de Economía
+                 * Es la sección que muestra los movimientos económicos del cliente.
+                 * Sirve para listar servicios contratados, su estado de pago y añadir nuevos movimientos.
+                 */
+
+                /**
+                 * Button de Nuevo movimiento
+                 * -------------------------
+                 * ✔ TIPO: función @Composable (androidx.compose.material3.Button)
+                 * Es el botón que abre el formulario para añadir un nuevo movimiento.
+                 * Sirve para registrar un nuevo servicio contratado por el cliente.
+                 */
+                Button(
+                    onClick = {
+                        mostrarFormularioMovimiento = true
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF1E88E5),
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text("Nuevo movimiento")
+                }
+
+                /**
+                 * Contenido de movimientos
+                 * ------------------------
+                 * ✔ TIPO: bloque condicional (if/else) que muestra la lista o un aviso vacío.
+                 * Sirve para mostrar los movimientos del cliente o indicar que no hay ninguno registrado.
+                 */
+                if (movimientos.isEmpty()) {
+
+                    /**
+                     * Texto de lista vacía
+                     * --------------------
+                     * ✔ TIPO: función @Composable (androidx.compose.material3.Text)
+                     * Es el mensaje que se muestra cuando el cliente no tiene movimientos.
+                     * Sirve para informar al usuario de que aún no se ha registrado ningún servicio.
+                     */
+                    Text(
+                        text = "No hay movimientos registrados",
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        textAlign = TextAlign.Center
+                    )
+
+                } else {
+
+                    /**
+                     * Lista de movimientos
+                     * --------------------
+                     * ✔ TIPO: bloque forEach que recorre la lista de movimientos.
+                     * Sirve para crear un MovimientoItem por cada servicio contratado por el cliente.
+                     */
+                    movimientos.forEach { movimiento ->
+                        MovimientoItem(
+                            movimiento = movimiento,
+                            onClick = {
+                                movimientoSeleccionado = movimiento
+                            }
+                        )
+                    }
+                }
+
+                /**
+                 * Diálogo de nuevo movimiento
+                 * ---------------------------
+                 * ✔ TIPO: bloque condicional (if) + @Composable (Dialog)
+                 * Es el diálogo que se muestra para añadir un nuevo movimiento.
+                 * Sirve para capturar los datos del servicio antes de guardarlo en la base de datos.
+                 */
+                if (mostrarFormularioMovimiento) {
+                    Dialog(
+                        onDismissRequest = {
+                            mostrarFormularioMovimiento = false
+                        }
+                    ) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            shape = RoundedCornerShape(20.dp),
+                            color = Color.White,
+                            shadowElevation = 8.dp
+                        ) {
+
+                            Column(
+                                modifier = Modifier.padding(20.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+
+                                Text(
+                                    text = "Nuevo movimiento",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    color = Color(0xFF1E88E5),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = TextAlign.Center
+                                )
+
+                                OutlinedTextField(
+                                    value = servicioMovimiento,
+                                    onValueChange = {
+                                        servicioMovimiento = it
+                                        errorServicioMovimiento = false
+                                    },
+                                    label = {
+                                        Text("Servicio")
+                                    },
+                                    isError = errorServicioMovimiento,
+                                    supportingText = {
+                                        if (errorServicioMovimiento) {
+                                            Text("El servicio es obligatorio")
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                OutlinedTextField(
+                                    value = precioMovimiento,
+                                    onValueChange = {
+                                        precioMovimiento = it
+                                        errorPrecioMovimiento = false
+                                    },
+                                    label = {
+                                        Text("Precio")
+                                    },
+                                    isError = errorPrecioMovimiento,
+                                    supportingText = {
+                                        if (errorPrecioMovimiento) {
+                                            Text("Introduce un precio válido")
+                                        }
+                                    },
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.Decimal
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                OutlinedTextField(
+                                    value = fechaInicioFormateada,
+                                    onValueChange = { },
+                                    readOnly = true,
+                                    enabled = false,
+                                    label = { Text("Fecha de inicio") },
+                                    placeholder = { Text("dd/MM/aaaa") },
+                                    isError = errorFechaInicioMovimiento,
+                                    supportingText = {
+                                        if (errorFechaInicioMovimiento) {
+                                            Text("La fecha de inicio es obligatoria")
+                                        }
+                                    },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                        disabledContainerColor = Color.Transparent,
+                                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    trailingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.DateRange,
+                                            contentDescription = "Seleccionar fecha de inicio"
+                                        )
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            mostrarDatePickerInicio = true
+                                        }
+                                )
+
+                                OutlinedTextField(
+                                    value = fechaFinFormateada,
+                                    onValueChange = { },
+                                    readOnly = true,
+                                    enabled = false,
+                                    label = { Text("Fecha de fin") },
+                                    placeholder = { Text("dd/MM/aaaa") },
+                                    isError = errorFechaFinMovimiento,
+                                    supportingText = {
+                                        if (errorFechaFinMovimiento) {
+                                            Text("La fecha de fin es obligatoria")
+                                        }
+                                    },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                        disabledContainerColor = Color.Transparent,
+                                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    trailingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.DateRange,
+                                            contentDescription = "Seleccionar fecha de fin"
+                                        )
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            mostrarDatePickerFin = true
+                                        }
+                                )
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Pago realizado"
+                                    )
+
+                                    Spacer(modifier = Modifier.weight(1f))
+
+                                    Switch(
+                                        checked = movimientoPagado,
+                                        onCheckedChange = {
+                                            movimientoPagado = it
+                                        }
+                                    )
+                                }
+
+                                OutlinedTextField(
+                                    value = observacionesMovimiento,
+                                    onValueChange = {
+                                        observacionesMovimiento = it
+                                    },
+                                    label = {
+                                        Text("Observaciones")
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+
+                                )
+
+                                Button(
+                                    onClick = {
+
+                                        errorServicioMovimiento = servicioMovimiento.isBlank()
+
+                                        val precioValido = precioMovimiento
+                                            .replace(",", ".")
+                                            .toDoubleOrNull()
+
+                                        errorPrecioMovimiento =
+                                            precioValido == null || precioValido < 0
+
+                                        errorFechaInicioMovimiento =
+                                            fechaInicioMovimiento == null
+
+                                        errorFechaFinMovimiento =
+                                            fechaFinMovimiento == null
+
+                                        val fechasValidas =
+                                            fechaInicioMovimiento != null &&
+                                                    fechaFinMovimiento != null &&
+                                                    fechaFinMovimiento!! >= fechaInicioMovimiento!!
+
+                                        if (!fechasValidas) {
+                                            errorFechaFinMovimiento = true
+                                        }
+
+                                        if (
+                                            !errorServicioMovimiento &&
+                                            !errorPrecioMovimiento &&
+                                            !errorFechaInicioMovimiento &&
+                                            !errorFechaFinMovimiento &&
+                                            fechasValidas
+                                        ) {
+
+                                            val movimiento = MovimientoEntity(
+                                                idCliente = idCliente,
+                                                servicio = servicioMovimiento,
+                                                fechaInicio = fechaInicioMovimiento!!,
+                                                fechaFin = fechaFinMovimiento!!,
+                                                precio = precioValido!!,
+                                                estado = if (movimientoPagado) {
+                                                    EstadoMovimiento.PAGADO
+                                                } else {
+                                                    EstadoMovimiento.PENDIENTE
+                                                },
+                                                observaciones = observacionesMovimiento.ifBlank {
+                                                    null
+                                                }
+                                            )
+
+                                            movimientoViewModel.insertarMovimiento(movimiento)
+
+                                            mostrarFormularioMovimiento = false
+
+                                            servicioMovimiento = ""
+                                            precioMovimiento = ""
+                                            fechaInicioMovimiento = null
+                                            fechaFinMovimiento = null
+                                            movimientoPagado = false
+                                            observacionesMovimiento = ""
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF1E88E5),
+                                        contentColor = Color.White
+                                    )
+                                ) {
+                                    Text("Guardar movimiento")
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (mostrarDatePickerInicio) {
+
+                    val selectableDatesInicio = remember {
+                        val hoy = LocalDate.now()
+                        val fechaMinimaUtc = hoy.minusYears(120).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+                        object : SelectableDates {
+                            override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+                                utcTimeMillis >= fechaMinimaUtc
+
+                            override fun isSelectableYear(year: Int): Boolean =
+                                year >= hoy.minusYears(120).year
+                        }
+                    }
+
+                    val datePickerState = rememberDatePickerState(
+                        selectableDates = selectableDatesInicio
+                    )
+
+                    DatePickerDialog(
+                        onDismissRequest = {
+                            mostrarDatePickerInicio = false
+                        },
+                        confirmButton = {
+                            TextButton(
+                                enabled = datePickerState.selectedDateMillis != null,
+                                onClick = {
+                                    fechaInicioMovimiento =
+                                        datePickerState.selectedDateMillis
+
+                                    mostrarDatePickerInicio = false
+                                }
+                            ) {
+                                Text("Aceptar")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(
+                                onClick = {
+                                    mostrarDatePickerInicio = false
+                                }
+                            ) {
+                                Text("Cancelar")
+                            }
+                        }
+                    ) {
+                        DatePicker(
+                            state = datePickerState
+                        )
+                    }
+                }
+
+                if (mostrarDatePickerFin) {
+
+                    val selectableDatesFin = remember {
+                        val hoy = LocalDate.now()
+                        val fechaInicioUtc = fechaInicioMovimiento
+                            ?: hoy.minusYears(120).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+                        object : SelectableDates {
+                            override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+                                utcTimeMillis >= fechaInicioUtc
+
+                            override fun isSelectableYear(year: Int): Boolean =
+                                year >= hoy.minusYears(120).year
+                        }
+                    }
+
+                    val datePickerState = rememberDatePickerState(
+                        selectableDates = selectableDatesFin
+                    )
+
+                    DatePickerDialog(
+                        onDismissRequest = {
+                            mostrarDatePickerFin = false
+                        },
+                        confirmButton = {
+                            TextButton(
+                                enabled = datePickerState.selectedDateMillis != null,
+                                onClick = {
+                                    fechaFinMovimiento =
+                                        datePickerState.selectedDateMillis
+
+                                    mostrarDatePickerFin = false
+                                }
+                            ) {
+                                Text("Aceptar")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(
+                                onClick = {
+                                    mostrarDatePickerFin = false
+                                }
+                            ) {
+                                Text("Cancelar")
+                            }
+                        }
+                    ) {
+                        DatePicker(
+                            state = datePickerState
+                        )
+                    }
+                }
+
+                /* ============================================================
+                 * ============ DIÁLOGO DETALLE DEL MOVIMIENTO ================
+                 * ============================================================ */
+                if (movimientoSeleccionado != null) {
+
+                    val fechaInicioFormateadaDetalle =
+                        fechaInicioEditada?.let { formatearFecha(it) } ?: ""
+
+                    val fechaFinFormateadaDetalle =
+                        fechaFinEditada?.let { formatearFecha(it) } ?: ""
+
+                    Dialog(
+                        onDismissRequest = {
+                            movimientoSeleccionado = null
+                        }
+                    ) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            shape = RoundedCornerShape(20.dp),
+                            color = Color.White,
+                            shadowElevation = 8.dp
+                        ) {
+
+                            Column(
+                                modifier = Modifier
+                                    .padding(20.dp)
+                                    .verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+
+                                Text(
+                                    text = "Detalle",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    color = Color(0xFF1E88E5),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = TextAlign.Center
+                                )
+
+                                OutlinedTextField(
+                                    value = servicioEditado,
+                                    onValueChange = {
+                                        servicioEditado = it
+                                        errorServicioEditado = false
+                                    },
+                                    label = { Text("Servicio") },
+                                    isError = errorServicioEditado,
+                                    supportingText = {
+                                        if (errorServicioEditado) {
+                                            Text("El servicio es obligatorio")
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                OutlinedTextField(
+                                    value = precioEditado,
+                                    onValueChange = {
+                                        precioEditado = it
+                                        errorPrecioEditado = false
+                                    },
+                                    label = { Text("Precio") },
+                                    isError = errorPrecioEditado,
+                                    supportingText = {
+                                        if (errorPrecioEditado) {
+                                            Text("Introduce un precio válido")
+                                        }
+                                    },
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.Decimal
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                OutlinedTextField(
+                                    value = fechaInicioFormateadaDetalle,
+                                    onValueChange = { },
+                                    readOnly = true,
+                                    enabled = false,
+                                    label = { Text("Fecha de inicio") },
+                                    placeholder = { Text("dd/MM/aaaa") },
+                                    isError = errorFechaInicioEditada,
+                                    supportingText = {
+                                        if (errorFechaInicioEditada) {
+                                            Text("La fecha de inicio es obligatoria")
+                                        }
+                                    },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                        disabledContainerColor = Color.Transparent,
+                                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    trailingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.DateRange,
+                                            contentDescription = "Seleccionar fecha de inicio"
+                                        )
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            mostrarDatePickerInicioDetalle = true
+                                        }
+                                )
+
+                                OutlinedTextField(
+                                    value = fechaFinFormateadaDetalle,
+                                    onValueChange = { },
+                                    readOnly = true,
+                                    enabled = false,
+                                    label = { Text("Fecha de fin") },
+                                    placeholder = { Text("dd/MM/aaaa") },
+                                    isError = errorFechaFinEditada,
+                                    supportingText = {
+                                        if (errorFechaFinEditada) {
+                                            Text("La fecha de fin es obligatoria")
+                                        }
+                                    },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                        disabledContainerColor = Color.Transparent,
+                                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    trailingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.DateRange,
+                                            contentDescription = "Seleccionar fecha de fin"
+                                        )
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            mostrarDatePickerFinDetalle = true
+                                        }
+                                )
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(text = "Pago realizado")
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    Switch(
+                                        checked = pagadoEditado,
+                                        onCheckedChange = {
+                                            pagadoEditado = it
+                                        }
+                                    )
+                                }
+
+                                OutlinedTextField(
+                                    value = observacionesEditadas,
+                                    onValueChange = {
+                                        observacionesEditadas = it
+                                    },
+                                    label = { Text("Observaciones") },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                Button(
+                                    onClick = {
+                                        errorServicioEditado = servicioEditado.isBlank()
+
+                                        val precioValido = precioEditado
+                                            .replace(",", ".")
+                                            .toDoubleOrNull()
+
+                                        errorPrecioEditado =
+                                            precioValido == null || precioValido < 0
+
+                                        errorFechaInicioEditada =
+                                            fechaInicioEditada == null
+
+                                        errorFechaFinEditada =
+                                            fechaFinEditada == null
+
+                                        val fechasValidas =
+                                            fechaInicioEditada != null &&
+                                                    fechaFinEditada != null &&
+                                                    fechaFinEditada!! >= fechaInicioEditada!!
+
+                                        if (!fechasValidas) {
+                                            errorFechaFinEditada = true
+                                        }
+
+                                        if (
+                                            !errorServicioEditado &&
+                                            !errorPrecioEditado &&
+                                            !errorFechaInicioEditada &&
+                                            !errorFechaFinEditada &&
+                                            fechasValidas
+                                        ) {
+                                            val movimientoActualizado = MovimientoEntity(
+                                                idMovimiento = movimientoSeleccionado!!.idMovimiento,
+                                                idCliente = movimientoSeleccionado!!.idCliente,
+                                                servicio = servicioEditado,
+                                                fechaInicio = fechaInicioEditada!!,
+                                                fechaFin = fechaFinEditada!!,
+                                                precio = precioValido!!,
+                                                estado = if (pagadoEditado) {
+                                                    EstadoMovimiento.PAGADO
+                                                } else {
+                                                    EstadoMovimiento.PENDIENTE
+                                                },
+                                                observaciones = observacionesEditadas.ifBlank {
+                                                    null
+                                                }
+                                            )
+
+                                            movimientoViewModel.actualizarMovimiento(
+                                                movimientoActualizado
+                                            )
+
+                                            movimientoSeleccionado = null
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF1E88E5),
+                                        contentColor = Color.White
+                                    )
+                                ) {
+                                    Text("Guardar cambios")
+                                }
+
+                                OutlinedButton(
+                                    onClick = {
+                                        mostrarConfirmarEliminar = true
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = Color.Red
+                                    )
+                                ) {
+                                    Text("Eliminar movimiento")
+                                }
+                            }
+                        }
+                    }
+
+                    if (mostrarConfirmarEliminar) {
+                        AlertDialog(
+                            onDismissRequest = {
+                                mostrarConfirmarEliminar = false
+                            },
+                            title = {
+                                Text(
+                                    text = "Eliminar movimiento",
+                                    style = MaterialTheme.typography.titleLarge
+                                )
+                            },
+                            text = {
+                                Text("¿Seguro que quieres eliminar este movimiento? Esta acción no se puede deshacer.")
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        movimientoViewModel.eliminarMovimiento(
+                                            movimientoSeleccionado!!
+                                        )
+                                        mostrarConfirmarEliminar = false
+                                        movimientoSeleccionado = null
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color.Red,
+                                        contentColor = Color.White
+                                    )
+                                ) {
+                                    Text("Eliminar")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(
+                                    onClick = {
+                                        mostrarConfirmarEliminar = false
+                                    }
+                                ) {
+                                    Text("Cancelar")
+                                }
+                            }
+                        )
+                    }
+
+                    /* ============================================================
+                     * ============ DATEPICKERS DEL DIÁLOGO DETALLE ==============
+                     * ============================================================ */
+                    if (mostrarDatePickerInicioDetalle) {
+
+                        val selectableDatesInicioDetalle = remember {
+                            val hoy = LocalDate.now()
+                            val fechaMinimaUtc = hoy.minusYears(120)
+                                .atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+                            object : SelectableDates {
+                                override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+                                    utcTimeMillis >= fechaMinimaUtc
+
+                                override fun isSelectableYear(year: Int): Boolean =
+                                    year >= hoy.minusYears(120).year
+                            }
+                        }
+
+                        val datePickerStateInicioDetalle = rememberDatePickerState(
+                            selectableDates = selectableDatesInicioDetalle
+                        )
+
+                        DatePickerDialog(
+                            onDismissRequest = {
+                                mostrarDatePickerInicioDetalle = false
+                            },
+                            confirmButton = {
+                                TextButton(
+                                    enabled = datePickerStateInicioDetalle.selectedDateMillis != null,
+                                    onClick = {
+                                        fechaInicioEditada =
+                                            datePickerStateInicioDetalle.selectedDateMillis
+                                        mostrarDatePickerInicioDetalle = false
+                                    }
+                                ) {
+                                    Text("Aceptar")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(
+                                    onClick = {
+                                        mostrarDatePickerInicioDetalle = false
+                                    }
+                                ) {
+                                    Text("Cancelar")
+                                }
+                            }
+                        ) {
+                            DatePicker(
+                                state = datePickerStateInicioDetalle
+                            )
+                        }
+                    }
+
+                    if (mostrarDatePickerFinDetalle) {
+
+                        val selectableDatesFinDetalle = remember {
+                            val hoy = LocalDate.now()
+                            val fechaInicioUtcDetalle = fechaInicioEditada
+                                ?: hoy.minusYears(120).atStartOfDay(ZoneOffset.UTC)
+                                    .toInstant().toEpochMilli()
+                            object : SelectableDates {
+                                override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+                                    utcTimeMillis >= fechaInicioUtcDetalle
+
+                                override fun isSelectableYear(year: Int): Boolean =
+                                    year >= hoy.minusYears(120).year
+                            }
+                        }
+
+                        val datePickerStateFinDetalle = rememberDatePickerState(
+                            selectableDates = selectableDatesFinDetalle
+                        )
+
+                        DatePickerDialog(
+                            onDismissRequest = {
+                                mostrarDatePickerFinDetalle = false
+                            },
+                            confirmButton = {
+                                TextButton(
+                                    enabled = datePickerStateFinDetalle.selectedDateMillis != null,
+                                    onClick = {
+                                        fechaFinEditada =
+                                            datePickerStateFinDetalle.selectedDateMillis
+                                        mostrarDatePickerFinDetalle = false
+                                    }
+                                ) {
+                                    Text("Aceptar")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(
+                                    onClick = {
+                                        mostrarDatePickerFinDetalle = false
+                                    }
+                                ) {
+                                    Text("Cancelar")
+                                }
+                            }
+                        ) {
+                            DatePicker(
+                                state = datePickerStateFinDetalle
+                            )
+                        }
+                    }
+                }
+
+            }
         }
     }
 }
 
 /**
- * formatearFechaPerfil
- * --------------------
+ * formatearFecha
+ * --------------
  * ✔ TIPO: función privada (private fun) → String
  * Es la función que convierte un timestamp en milisegundos a texto legible.
- * Sirve para mostrar la fecha de nacimiento del cliente con formato dd/MM/aaaa.
+ * Sirve para mostrar fechas con formato dd/MM/aaaa (nacimiento del cliente y fechas de movimiento).
  */
-private fun formatearFechaPerfil(millis: Long): String {
+private fun formatearFecha(millis: Long): String {
     return Instant.ofEpochMilli(millis)
         .atZone(ZoneId.systemDefault())
         .toLocalDate()

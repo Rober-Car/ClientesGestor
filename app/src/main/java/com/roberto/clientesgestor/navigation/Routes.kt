@@ -53,14 +53,46 @@ object Routes {
      */
     const val PERFILCLIENTE = "perfil_cliente"
 
+    /**
+     * perfilCliente
+     * -------------
+     * ✔ TIPO: función (fun) → String
+     * Es la función que genera la ruta completa de la pantalla de perfil de un cliente concreto.
+     * Sirve para construir la ruta dinámica concatenando PERFILCLIENTE con el id del cliente.
+     * Ejemplo de uso: perfilCliente(5) → "perfil_cliente/5"
+     */
     fun perfilCliente(idCliente: Int): String {
         return "$PERFILCLIENTE/$idCliente"
     }
 
+    /**
+     * AÑADIRCLIENTE
+     * -------------
+     * ✔ TIPO: constante (const val) → String
+     * Es la ruta de la pantalla de formulario para añadir un nuevo cliente.
+     * Sirve para que NavHost y las pantallas naveguen hasta el formulario de alta con la misma ruta.
+     */
     const val AÑADIRCLIENTE = "añadir_cliente"
 
+    /**
+     * MODIFICARCLIENTE
+     * ----------------
+     * ✔ TIPO: constante (const val) → String
+     * Es la ruta base de la pantalla de formulario para modificar un cliente existente.
+     * Sirve como prefijo de la ruta dinámica que incluye el id del cliente a modificar.
+     */
     const val MODIFICARCLIENTE = "modificar_cliente"
 
+    const val ECONOMIA = "economia"
+
+    /**
+     * modificarCliente
+     * ----------------
+     * ✔ TIPO: función (fun) → String
+     * Es la función que genera la ruta completa de la pantalla de modificación de un cliente concreto.
+     * Sirve para construir la ruta dinámica concatenando MODIFICARCLIENTE con el id del cliente.
+     * Ejemplo de uso: modificarCliente(3) → "modificar_cliente/3"
+     */
     fun modificarCliente(idCliente: Int): String {
         return "$MODIFICARCLIENTE/$idCliente"
     }

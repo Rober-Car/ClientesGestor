@@ -101,7 +101,34 @@ interface ClienteDao {
     @Query("SELECT * FROM cliente WHERE estado = :estado" )
     fun obtenerClientesPorEstadoDao(estado: EstadoCliente): Flow<List<ClienteEntity>>
 
+    /**
+     * obtenerClientePorIdDao
+     * ----------------------
+     * ✔ TIPO: método (fun) de Room con anotación @Query → ClienteEntity?
+     * Es la operación que consulta un cliente buscándolo por su ID en la tabla.
+     * Sirve para recuperar un ClienteEntity concreto (o null si no existe)
+     * mediante la consulta SQL "SELECT * FROM cliente WHERE idCliente = :idCliente".
+     */
     @Query("SELECT * FROM cliente WHERE idCliente = :idCliente")
     suspend fun obtenerClientePorIdDao(idCliente: Int): ClienteEntity?
+
+    /**
+     * obtenerIdsMorosos
+     * -----------------
+     * ✔ TIPO: método (fun) de Room con anotación @Query → Flow<List<Int>>
+     * Es la operación que consulta los IDs de clientes que son morosos.
+     * Un cliente es moroso si:
+     *   - Está ACTIVO y tiene algún movimiento con fechaFin < ahora, o
+     *   - Está de BAJA y tiene algún movimiento con estado PENDIENTE (impago).
+     * Devuelve la lista de IDs de forma reactiva con Flow para que se actualice
+     * automáticamente cuando cambien los movimientos o los estados de los clientes.
+     */
+    @Query("""
+        SELECT DISTINCT m.idCliente FROM movimiento m
+        INNER JOIN cliente c ON m.idCliente = c.idCliente
+        WHERE (c.estado = 'ACTIVO' AND m.fechaFin < :ahora)
+        OR (c.estado = 'BAJA' AND m.estado = 'PENDIENTE')
+    """)
+    fun obtenerIdsMorosos(ahora: Long): Flow<List<Int>>
 
 }

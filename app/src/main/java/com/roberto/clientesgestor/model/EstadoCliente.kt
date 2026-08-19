@@ -45,5 +45,12 @@ enum class EstadoCliente {
     BAJA,
 
 
+    /**
+     * REGISTRADO
+     * ----------
+     * ✔ TIPO: constante (valor del enum EstadoCliente)
+     * Es el estado de los clientes que acaban de ser dados de alta en el sistema.
+     * Sirve para marcar a los clientes que han sido registrados pero que aún no tienen actividad.
+     */
     REGISTRADO
 }
