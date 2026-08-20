@@ -10,7 +10,7 @@ import com.roberto.gestorpro.data.repository.ClienteRepository
 import com.roberto.gestorpro.data.repository.ReservaRepository
 import com.roberto.gestorpro.data.repository.SesionClaseRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import jakarta.inject.Inject
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -102,7 +102,9 @@ class ClaseViewModel @Inject constructor(
             .atZone(ZoneId.systemDefault())
             .toLocalDate()
 
-        val fechaFin = fechaInicio.plusMonths(clase.mesesDuracion.toLong())
+        val fechaFin = Instant.ofEpochMilli(clase.fechaFin)
+            .atZone(ZoneId.systemDefault())
+            .toLocalDate()
         val sesiones = mutableListOf<SesionClaseEntity>()
 
         var fechaActual = fechaInicio

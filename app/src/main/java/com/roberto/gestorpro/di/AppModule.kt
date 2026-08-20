@@ -24,7 +24,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import jakarta.inject.Singleton
+import javax.inject.Singleton
 import java.util.concurrent.TimeUnit
 
 /**
@@ -87,11 +87,6 @@ object AppModule {
             .addCallback(object : RoomDatabase.Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)
-                    insertarDatosPrueba(db)
-                }
-
-                override fun onDestructiveMigration(db: SupportSQLiteDatabase) {
-                    super.onDestructiveMigration(db)
                     insertarDatosPrueba(db)
                 }
             })

@@ -166,7 +166,10 @@ fun DetalleClaseScreen(
                             .atZone(ZoneId.systemDefault())
                             .toLocalDate()
                             .format(formatter))
-                        DetalleCampo("Duración", "${c.mesesDuracion} meses")
+                        DetalleCampo("Fin", Instant.ofEpochMilli(c.fechaFin)
+                            .atZone(ZoneId.systemDefault())
+                            .toLocalDate()
+                            .format(formatter))
                         DetalleCampo("Estado", if (c.activa) "Activa" else "Inactiva")
                     }
                 }
@@ -409,11 +412,12 @@ fun DialogEditarClase(
     var duracionMinutos by remember { mutableStateOf(clase.duracionMinutos.toString()) }
     var capacidadMaxima by remember { mutableStateOf(clase.capacidadMaxima.toString()) }
     var reservaDesdeHorasAntes by remember { mutableStateOf(clase.reservaDesdeHorasAntes.toString()) }
-    var mesesDuracion by remember { mutableStateOf(clase.mesesDuracion.toString()) }
+    var fechaFin by remember { mutableStateOf(clase.fechaFin) }
     var diasSeleccionados by remember { mutableStateOf(ClaseViewModel.parseDiasSemana(clase.diasSemana)) }
     var fechaInicio by remember { mutableStateOf(clase.fechaInicio) }
     var activa by remember { mutableStateOf(clase.activa) }
-    var mostrarDatePicker by remember { mutableStateOf(false) }
+    var mostrarDatePickerInicio by remember { mutableStateOf(false) }
+    var mostrarDatePickerFin by remember { mutableStateOf(false) }
 
     val diasSemana = listOf(
         DayOfWeek.MONDAY to "Lun",
@@ -514,22 +518,14 @@ fun DialogEditarClase(
                         modifier = Modifier.weight(1f),
                         singleLine = true
                     )
-                    OutlinedTextField(
-                        value = mesesDuracion,
-                        onValueChange = { mesesDuracion = it },
-                        label = { Text("Meses") },
-                        keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
                 }
 
-                val fechaStr = Instant.ofEpochMilli(fechaInicio)
+                val fechaInicioStr = Instant.ofEpochMilli(fechaInicio)
                     .atZone(ZoneId.systemDefault())
                     .toLocalDate()
                     .format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
                 OutlinedTextField(
-                    value = fechaStr,
+                    value = fechaInicioStr,
                     onValueChange = { },
                     readOnly = true,
                     enabled = false,
@@ -546,7 +542,32 @@ fun DialogEditarClase(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { mostrarDatePicker = true }
+                        .clickable { mostrarDatePickerInicio = true }
+                )
+
+                val fechaFinStr = Instant.ofEpochMilli(fechaFin)
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDate()
+                    .format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                OutlinedTextField(
+                    value = fechaFinStr,
+                    onValueChange = { },
+                    readOnly = true,
+                    enabled = false,
+                    label = { Text("Fin") },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                        disabledContainerColor = Color.Transparent,
+                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    trailingIcon = {
+                        Icon(Icons.Default.DateRange, contentDescription = null)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { mostrarDatePickerFin = true }
                 )
 
                 Row(
@@ -566,7 +587,7 @@ fun DialogEditarClase(
                                     capacidadMaxima = capacidadMaxima.toIntOrNull() ?: clase.capacidadMaxima,
                                     reservaDesdeHorasAntes = reservaDesdeHorasAntes.toIntOrNull() ?: clase.reservaDesdeHorasAntes,
                                     fechaInicio = fechaInicio,
-                                    mesesDuracion = mesesDuracion.toIntOrNull() ?: clase.mesesDuracion,
+                                    fechaFin = fechaFin,
                                     activa = activa
                                 )
                             )
@@ -580,7 +601,7 @@ fun DialogEditarClase(
         }
     }
 
-    if (mostrarDatePicker) {
+    if (mostrarDatePickerInicio) {
         val hoy = java.time.LocalDate.now()
         val selectableDates = remember {
             object : androidx.compose.material3.SelectableDates {
@@ -590,18 +611,46 @@ fun DialogEditarClase(
         }
         val datePickerState = rememberDatePickerState(selectableDates = selectableDates)
         DatePickerDialog(
-            onDismissRequest = { mostrarDatePicker = false },
+            onDismissRequest = { mostrarDatePickerInicio = false },
             confirmButton = {
                 TextButton(
                     enabled = datePickerState.selectedDateMillis != null,
                     onClick = {
                         fechaInicio = datePickerState.selectedDateMillis!!
-                        mostrarDatePicker = false
+                        mostrarDatePickerInicio = false
                     }
                 ) { Text("Aceptar") }
             },
             dismissButton = {
-                TextButton(onClick = { mostrarDatePicker = false }) { Text("Cancelar") }
+                TextButton(onClick = { mostrarDatePickerInicio = false }) { Text("Cancelar") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    if (mostrarDatePickerFin) {
+        val hoy = java.time.LocalDate.now()
+        val selectableDates = remember {
+            object : androidx.compose.material3.SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean = true
+                override fun isSelectableYear(year: Int): Boolean = year >= hoy.year
+            }
+        }
+        val datePickerState = rememberDatePickerState(selectableDates = selectableDates)
+        DatePickerDialog(
+            onDismissRequest = { mostrarDatePickerFin = false },
+            confirmButton = {
+                TextButton(
+                    enabled = datePickerState.selectedDateMillis != null,
+                    onClick = {
+                        fechaFin = datePickerState.selectedDateMillis!!
+                        mostrarDatePickerFin = false
+                    }
+                ) { Text("Aceptar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarDatePickerFin = false }) { Text("Cancelar") }
             }
         ) {
             DatePicker(state = datePickerState)

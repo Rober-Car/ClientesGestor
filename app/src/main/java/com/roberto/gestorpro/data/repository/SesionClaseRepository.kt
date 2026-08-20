@@ -2,7 +2,7 @@ package com.roberto.gestorpro.data.repository
 
 import com.roberto.gestorpro.data.dao.SesionClaseDao
 import com.roberto.gestorpro.data.entity.SesionClaseEntity
-import jakarta.inject.Inject
+import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 
 class SesionClaseRepository @Inject constructor(

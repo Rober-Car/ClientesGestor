@@ -27,7 +27,7 @@ import com.roberto.gestorpro.data.entity.SesionClaseEntity
         SesionClaseEntity::class,
         ReservaEntity::class
     ],
-    version = 5
+    version = 6
 )
 @TypeConverters(EstadoClienteConverter::class, EstadoMovimientoConverter::class)
 abstract class ClientesDatabase : RoomDatabase() {

@@ -3,7 +3,7 @@ package com.roberto.gestorpro.data.repository
 import com.roberto.gestorpro.data.dao.MovimientoDao
 import com.roberto.gestorpro.data.entity.MovimientoEntity
 import com.roberto.gestorpro.model.EstadoMovimiento
-import jakarta.inject.Inject
+import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 
 /**

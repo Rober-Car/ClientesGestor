@@ -2,7 +2,7 @@ package com.roberto.gestorpro.data.repository
 
 import com.roberto.gestorpro.data.dao.GastoDao
 import com.roberto.gestorpro.data.entity.GastoEntity
-import jakarta.inject.Inject
+import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 
 class GastoRepository @Inject constructor(

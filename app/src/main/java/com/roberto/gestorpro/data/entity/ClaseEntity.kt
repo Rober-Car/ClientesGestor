@@ -14,6 +14,6 @@ data class ClaseEntity(
     val capacidadMaxima: Int,
     val reservaDesdeHorasAntes: Int,
     val fechaInicio: Long,
-    val mesesDuracion: Int,
+    val fechaFin: Long,
     val activa: Boolean = true
 )
