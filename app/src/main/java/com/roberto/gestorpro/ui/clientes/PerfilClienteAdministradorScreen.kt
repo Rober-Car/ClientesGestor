@@ -32,7 +32,18 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Person
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import com.roberto.gestorpro.R
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -227,6 +238,8 @@ fun PerfilClienteScreen(
         EstadoCliente.BAJA -> movimientos.any { it.estado == EstadoMovimiento.PENDIENTE }
         else -> false
     }
+
+    val context = LocalContext.current
 
     /**
      * pestañaSeleccionada
@@ -518,7 +531,7 @@ fun PerfilClienteScreen(
                             .size(140.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .border(2.dp, if (esMoroso) Color.Red else Color(0xFF64B5F6), CircleShape),
+                            .border(3.dp, colorEstado, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -536,7 +549,7 @@ fun PerfilClienteScreen(
                         modifier = Modifier
                             .size(140.dp)
                             .clip(CircleShape)
-                            .border(2.dp, if (esMoroso) Color.Red else Color(0xFF64B5F6), CircleShape)
+                            .border(3.dp, colorEstado, CircleShape)
                     )
                 }
 
@@ -554,27 +567,6 @@ fun PerfilClienteScreen(
                     style = MaterialTheme.typography.headlineMedium,
                     textAlign = TextAlign.Center
                 )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                /**
-                 * Surface del estado
-                 * ------------------
-                 * ✔ TIPO: función @Composable (androidx.compose.material3.Surface)
-                 * Es el chip redondeado que muestra el estado del cliente.
-                 * Sirve para indicar de un vistazo si el cliente está activo, moroso o de baja.
-                 */
-                Surface(
-                    shape = RoundedCornerShape(50),
-                    color = colorEstado.copy(alpha = 0.15f)
-                ) {
-                    Text(
-                        text = textoEstado,
-                        color = colorEstado,
-                        style = MaterialTheme.typography.labelLarge,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                    )
-                }
             }
 
             /**
@@ -632,16 +624,32 @@ fun PerfilClienteScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Phone,
-                        contentDescription = "Icono de teléfono",
-                        tint = Color(0xFF64B5F6),
-                        modifier = Modifier.size(20.dp)
-                    )
+                    IconButton(
+                        onClick = {
+                            val telefono = cliente?.telefono ?: return@IconButton
+                            val uri = Uri.parse("https://wa.me/34$telefono")
+                            context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                        }
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.ic_whatsapp),
+                            contentDescription = "Abrir WhatsApp",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = cliente?.telefono ?: "No disponible",
-                        style = MaterialTheme.typography.bodyLarge
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.combinedClickable(
+                            onClick = {},
+                            onLongClick = {
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                val clip = ClipData.newPlainText("Telefono", cliente?.telefono ?: "")
+                                clipboard.setPrimaryClip(clip)
+                                Toast.makeText(context, "Telefono copiado", Toast.LENGTH_SHORT).show()
+                            }
+                        )
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     Icon(
@@ -669,7 +677,16 @@ fun PerfilClienteScreen(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = cliente?.email ?: "Sin email",
-                        style = MaterialTheme.typography.bodyLarge
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.combinedClickable(
+                            onClick = {},
+                            onLongClick = {
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                val clip = ClipData.newPlainText("Email", cliente?.email ?: "")
+                                clipboard.setPrimaryClip(clip)
+                                Toast.makeText(context, "Email copiado", Toast.LENGTH_SHORT).show()
+                            }
+                        )
                     )
                 }
 
@@ -704,8 +721,12 @@ fun PerfilClienteScreen(
                  * Sirve para anotar detalles relevantes que no encajan en los demás campos.
                  */
                 cliente?.observaciones?.takeIf { it.isNotBlank() }?.let { observaciones ->
+                    var mostrarDialogObservaciones by remember { mutableStateOf(false) }
+
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { mostrarDialogObservaciones = true },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
@@ -717,13 +738,26 @@ fun PerfilClienteScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Observaciones",
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                        Spacer(modifier = Modifier.weight(1f))
-                        Text(
-                            text = observaciones,
                             style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = Color(0xFF1E88E5)
+                        )
+                    }
+
+                    if (mostrarDialogObservaciones) {
+                        AlertDialog(
+                            onDismissRequest = { mostrarDialogObservaciones = false },
+                            title = { Text("Observaciones") },
+                            text = {
+                                Text(
+                                    text = observaciones,
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            confirmButton = {
+                                TextButton(onClick = { mostrarDialogObservaciones = false }) {
+                                    Text("Cerrar")
+                                }
+                            }
                         )
                     }
                 }

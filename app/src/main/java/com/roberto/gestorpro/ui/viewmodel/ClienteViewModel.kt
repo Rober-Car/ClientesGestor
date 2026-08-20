@@ -254,6 +254,15 @@ class ClienteViewModel @Inject constructor(
         }
     }
 
+    fun archivarCliente(cliente: Cliente) {
+        viewModelScope.launch {
+            val entity = clienteRepository.obtenerClientePorIdRepo(cliente.idCliente) ?: return@launch
+            clienteRepository.actualizarClienteRepo(
+                entity.copy(estado = EstadoCliente.ARCHIVADO)
+            )
+        }
+    }
+
     /**
      * restaurarCliente
      * ----------------
@@ -265,6 +274,15 @@ class ClienteViewModel @Inject constructor(
         viewModelScope.launch {
             clienteRepository.actualizarClienteRepo(
                 cliente.copy(estado = EstadoCliente.ACTIVO)
+            )
+        }
+    }
+
+    fun restaurarCliente(cliente: Cliente) {
+        viewModelScope.launch {
+            val entity = clienteRepository.obtenerClientePorIdRepo(cliente.idCliente) ?: return@launch
+            clienteRepository.actualizarClienteRepo(
+                entity.copy(estado = EstadoCliente.ACTIVO)
             )
         }
     }
