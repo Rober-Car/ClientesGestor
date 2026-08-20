@@ -24,6 +24,10 @@ import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -116,6 +120,7 @@ fun EconomiaScreen(
 
     val movimientos by viewModel.movimientos.collectAsStateWithLifecycle()
     val gastos by viewModel.gastos.collectAsStateWithLifecycle()
+    val clientesMap by viewModel.clientesMap.collectAsStateWithLifecycle()
 
     var filtroSeleccionado by rememberSaveable(
         stateSaver = Saver<FiltroEconomia, String>(
@@ -125,6 +130,9 @@ fun EconomiaScreen(
     ) {
         mutableStateOf(FiltroEconomia.TODOS)
     }
+
+    var textoBusqueda by rememberSaveable { mutableStateOf("") }
+    var ordenarDescendente by rememberSaveable { mutableStateOf(true) }
 
     val totalIngresos = movimientos.sumOf { it.precio }
     val totalGastos = gastos.sumOf { it.importe }
@@ -136,13 +144,40 @@ fun EconomiaScreen(
         val lista = mutableListOf<ItemEconomia>()
         movimientos.forEach { lista.add(ItemEconomia.Ingreso(it)) }
         gastos.forEach { lista.add(ItemEconomia.Gasto(it)) }
-        lista.sortedByDescending { it.fecha() }
+        lista
     }
 
-    val itemsFiltrados = when (filtroSeleccionado) {
-        FiltroEconomia.TODOS -> items
-        FiltroEconomia.INGRESOS -> items.filterIsInstance<ItemEconomia.Ingreso>()
-        FiltroEconomia.GASTOS -> items.filterIsInstance<ItemEconomia.Gasto>()
+    val itemsFiltrados = remember(items, filtroSeleccionado, textoBusqueda, ordenarDescendente, clientesMap) {
+        val filtrados = when (filtroSeleccionado) {
+            FiltroEconomia.TODOS -> items
+            FiltroEconomia.INGRESOS -> items.filterIsInstance<ItemEconomia.Ingreso>()
+            FiltroEconomia.GASTOS -> items.filterIsInstance<ItemEconomia.Gasto>()
+        }
+
+        val busqueda = textoBusqueda.trim().lowercase()
+        val resultados = if (busqueda.isBlank()) {
+            filtrados
+        } else {
+            filtrados.filter { item ->
+                when (item) {
+                    is ItemEconomia.Ingreso -> {
+                        val nombreCliente = clientesMap[item.movimiento.idCliente].orEmpty().lowercase()
+                        nombreCliente.contains(busqueda) ||
+                                item.movimiento.servicio.lowercase().contains(busqueda)
+                    }
+                    is ItemEconomia.Gasto -> {
+                        item.gasto.concepto.lowercase().contains(busqueda) ||
+                                item.gasto.observaciones.orEmpty().lowercase().contains(busqueda)
+                    }
+                }
+            }
+        }
+
+        if (ordenarDescendente) {
+            resultados.sortedByDescending { it.fecha() }
+        } else {
+            resultados.sortedBy { it.fecha() }
+        }
     }
 
     var mostrarDialogNuevoGasto by remember { mutableStateOf(false) }
@@ -248,6 +283,53 @@ fun EconomiaScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = textoBusqueda,
+                    onValueChange = { textoBusqueda = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Buscar por nombre, servicio...") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = null,
+                            tint = Color.Gray
+                        )
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedContainerColor = Color(0xFFF5F5F5),
+                        focusedContainerColor = Color(0xFFF5F5F5),
+                        unfocusedBorderColor = Color.Transparent,
+                        focusedBorderColor = Color(0xFF1E88E5)
+                    )
+                )
+                Surface(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { ordenarDescendente = !ordenarDescendente },
+                    color = Color(0xFF1E88E5).copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(
+                        imageVector = if (ordenarDescendente) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward,
+                        contentDescription = if (ordenarDescendente) "Más recientes primero" else "Más antiguos primero",
+                        tint = Color(0xFF1E88E5),
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)
@@ -256,6 +338,7 @@ fun EconomiaScreen(
                     when (item) {
                         is ItemEconomia.Ingreso -> ItemMovimiento(
                             movimiento = item.movimiento,
+                            nombreCliente = clientesMap[item.movimiento.idCliente].orEmpty(),
                             onClick = { movimientoSeleccionado = item.movimiento }
                         )
                         is ItemEconomia.Gasto -> ItemGasto(
@@ -416,11 +499,12 @@ fun FilterChipEconomia(
 @Composable
 fun ItemMovimiento(
     movimiento: MovimientoEntity,
+    nombreCliente: String,
     onClick: () -> Unit = {}
 ) {
     val formatter = remember { NumberFormat.getCurrencyInstance(Locale("es", "ES")) }
-    val fechaFormateada = remember(movimiento.fechaInicio) {
-        Instant.ofEpochMilli(movimiento.fechaInicio)
+    val fechaFinFormateada = remember(movimiento.fechaFin) {
+        Instant.ofEpochMilli(movimiento.fechaFin)
             .atZone(ZoneId.systemDefault())
             .toLocalDate()
             .format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
@@ -448,15 +532,17 @@ fun ItemMovimiento(
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = movimiento.servicio,
+                    text = nombreCliente,
                     style = MaterialTheme.typography.bodyLarge,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = fechaFormateada,
+                    text = "${movimiento.servicio} · $fechaFinFormateada",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
+                    color = Color.Gray,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
             Text(
@@ -498,7 +584,7 @@ fun ItemGasto(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.Default.Delete,
+                imageVector = Icons.Default.Receipt,
                 contentDescription = null,
                 tint = Color(0xFFF44336),
                 modifier = Modifier.size(32.dp)
