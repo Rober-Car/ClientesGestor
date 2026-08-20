@@ -9,6 +9,8 @@ import com.roberto.gestorpro.data.repository.ClaseRepository
 import com.roberto.gestorpro.data.repository.ClienteRepository
 import com.roberto.gestorpro.data.repository.ReservaRepository
 import com.roberto.gestorpro.data.repository.SesionClaseRepository
+import com.roberto.gestorpro.model.ReservaConCliente
+import com.roberto.gestorpro.model.SesionConClase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,6 +20,7 @@ import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.temporal.TemporalAdjusters
 
 @HiltViewModel
@@ -43,6 +46,15 @@ class ClaseViewModel @Inject constructor(
     private val _clientesMap = MutableStateFlow<Map<Int, String>>(emptyMap())
     val clientesMap = _clientesMap.asStateFlow()
 
+    private val _sesionesActivas = MutableStateFlow<List<SesionConClase>>(emptyList())
+    val sesionesActivas = _sesionesActivas.asStateFlow()
+
+    private val _reservasDetalle = MutableStateFlow<List<ReservaConCliente>>(emptyList())
+    val reservasDetalle = _reservasDetalle.asStateFlow()
+
+    private val _sesionDetalleSeleccionada = MutableStateFlow<SesionConClase?>(null)
+    val sesionDetalleSeleccionada = _sesionDetalleSeleccionada.asStateFlow()
+
     fun cargarClases() {
         viewModelScope.launch {
             clienteRepository.obtenerClientesRepo().collect { clientes ->
@@ -54,6 +66,30 @@ class ClaseViewModel @Inject constructor(
                 _clases.value = lista
             }
         }
+    }
+
+    fun cargarSesionesActivas() {
+        val hoyMillis = LocalDate.now()
+            .atStartOfDay(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+        viewModelScope.launch {
+            sesionClaseRepository.obtenerSesionesActivasConClase(hoyMillis).collect { lista ->
+                _sesionesActivas.value = lista
+            }
+        }
+    }
+
+    fun cargarReservasSesion(sesion: SesionConClase) {
+        _sesionDetalleSeleccionada.value = sesion
+        viewModelScope.launch {
+            _reservasDetalle.value = reservaRepository.obtenerReservasConCliente(sesion.idSesion)
+        }
+    }
+
+    fun limpiarDetalleSesion() {
+        _sesionDetalleSeleccionada.value = null
+        _reservasDetalle.value = emptyList()
     }
 
     fun cargarDetalleClase(idClase: Int) {

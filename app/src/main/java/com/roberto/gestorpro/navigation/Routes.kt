@@ -97,6 +97,12 @@ object Routes {
 
     const val DETALLE_CLASE = "detalle_clase"
 
+    const val DETALLE_SESION_RESERVAS = "detalle_sesion_reservas"
+
+    fun detalleSesionReservas(idSesion: Int): String {
+        return "detalle_sesion_reservas/$idSesion"
+    }
+
     /**
      * modificarCliente
      * ----------------

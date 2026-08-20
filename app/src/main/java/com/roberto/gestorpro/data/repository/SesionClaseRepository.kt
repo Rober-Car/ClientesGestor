@@ -2,6 +2,7 @@ package com.roberto.gestorpro.data.repository
 
 import com.roberto.gestorpro.data.dao.SesionClaseDao
 import com.roberto.gestorpro.data.entity.SesionClaseEntity
+import com.roberto.gestorpro.model.SesionConClase
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 
@@ -38,5 +39,9 @@ class SesionClaseRepository @Inject constructor(
 
     suspend fun eliminarSesionesPorClase(idClase: Int) {
         sesionClaseDao.eliminarSesionesPorClase(idClase)
+    }
+
+    fun obtenerSesionesActivasConClase(desde: Long): Flow<List<SesionConClase>> {
+        return sesionClaseDao.obtenerSesionesActivasConClase(desde)
     }
 }

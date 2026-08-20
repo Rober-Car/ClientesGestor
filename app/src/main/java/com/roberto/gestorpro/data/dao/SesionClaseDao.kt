@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.roberto.gestorpro.data.entity.SesionClaseEntity
+import com.roberto.gestorpro.model.SesionConClase
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -33,6 +34,14 @@ interface SesionClaseDao {
 
     @Query("DELETE FROM sesion_clase WHERE idClase = :idClase")
     suspend fun eliminarSesionesPorClase(idClase: Int)
+
+    @Query("""
+        SELECT s.idSesion, s.idClase, c.nombre, c.horaInicio, c.duracionMinutos, c.capacidadMaxima, s.plazasDisponibles, s.fecha
+        FROM sesion_clase s INNER JOIN clase c ON s.idClase = c.idClase
+        WHERE s.fecha >= :desde AND c.activa = 1
+        ORDER BY s.fecha ASC
+    """)
+    fun obtenerSesionesActivasConClase(desde: Long): Flow<List<SesionConClase>>
 
     @Query("DELETE FROM sesion_clase")
     suspend fun borrarTodasLasSesiones()

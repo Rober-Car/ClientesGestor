@@ -2,6 +2,7 @@ package com.roberto.gestorpro.data.repository
 
 import com.roberto.gestorpro.data.dao.ReservaDao
 import com.roberto.gestorpro.data.entity.ReservaEntity
+import com.roberto.gestorpro.model.ReservaConCliente
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 
@@ -26,5 +27,9 @@ class ReservaRepository @Inject constructor(
 
     suspend fun cancelarReserva(idSesion: Int, idCliente: Int) {
         reservaDao.cancelarReserva(idSesion, idCliente)
+    }
+
+    suspend fun obtenerReservasConCliente(idSesion: Int): List<ReservaConCliente> {
+        return reservaDao.obtenerReservasConCliente(idSesion)
     }
 }

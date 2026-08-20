@@ -8,6 +8,7 @@ import com.roberto.gestorpro.ui.auth.LoginScreen
 import com.roberto.gestorpro.ui.clases.ClasesScreen
 import com.roberto.gestorpro.ui.clases.CrearClaseScreen
 import com.roberto.gestorpro.ui.clases.DetalleClaseScreen
+import com.roberto.gestorpro.ui.clases.DetalleSesionReservasScreen
 import com.roberto.gestorpro.ui.clientes.AñadirClienteScreen
 import com.roberto.gestorpro.ui.clientes.ClientesScreen
 import com.roberto.gestorpro.ui.clientes.PerfilClienteScreen
@@ -201,6 +202,20 @@ fun AppNavigation() {
                 DetalleClaseScreen(
                     navController = navController,
                     idClase = idClase
+                )
+            }
+        }
+
+        composable(
+            route = "${Routes.DETALLE_SESION_RESERVAS}/{idSesion}"
+        ) { backStackEntry ->
+            val idSesion = backStackEntry.arguments
+                ?.getString("idSesion")
+                ?.toIntOrNull()
+            if (idSesion != null) {
+                DetalleSesionReservasScreen(
+                    navController = navController,
+                    idSesion = idSesion
                 )
             }
         }
