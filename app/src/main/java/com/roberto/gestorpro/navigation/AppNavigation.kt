@@ -5,6 +5,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.roberto.gestorpro.ui.auth.LoginScreen
+import com.roberto.gestorpro.ui.clases.ClasesScreen
+import com.roberto.gestorpro.ui.clases.CrearClaseScreen
+import com.roberto.gestorpro.ui.clases.DetalleClaseScreen
 import com.roberto.gestorpro.ui.clientes.AñadirClienteScreen
 import com.roberto.gestorpro.ui.clientes.ClientesScreen
 import com.roberto.gestorpro.ui.clientes.PerfilClienteScreen
@@ -178,6 +181,28 @@ fun AppNavigation() {
 
         composable(Routes.CUENTA) {
             CuentaScreen(navController)
+        }
+
+        composable(Routes.CLASES) {
+            ClasesScreen(navController)
+        }
+
+        composable(Routes.CREAR_CLASE) {
+            CrearClaseScreen(navController)
+        }
+
+        composable(
+            route = "${Routes.DETALLE_CLASE}/{idClase}"
+        ) { backStackEntry ->
+            val idClase = backStackEntry.arguments
+                ?.getString("idClase")
+                ?.toIntOrNull()
+            if (idClase != null) {
+                DetalleClaseScreen(
+                    navController = navController,
+                    idClase = idClase
+                )
+            }
         }
 
     }

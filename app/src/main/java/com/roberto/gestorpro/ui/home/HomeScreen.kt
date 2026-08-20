@@ -9,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.MaterialTheme
@@ -52,6 +53,14 @@ fun HomeScreen(
                 icono = Icons.Default.Person,
                 iconColor = Color(0xFF1E88E5),
                 onClick = { navController.navigate(Routes.CLIENTES) }
+            )
+
+            MenuCard(
+                titulo = "Clases",
+                descripcion = "Gestión de clases y horarios",
+                icono = Icons.Default.Groups,
+                iconColor = Color(0xFF1E88E5),
+                onClick = { navController.navigate(Routes.CLASES) }
             )
 
             MenuCard(

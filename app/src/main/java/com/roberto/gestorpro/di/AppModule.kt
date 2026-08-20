@@ -4,14 +4,20 @@ import android.content.Context
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.roberto.gestorpro.data.dao.ClaseDao
 import com.roberto.gestorpro.data.dao.ClienteDao
 import com.roberto.gestorpro.data.dao.GastoDao
 import com.roberto.gestorpro.data.dao.MovimientoDao
+import com.roberto.gestorpro.data.dao.ReservaDao
+import com.roberto.gestorpro.data.dao.SesionClaseDao
 import com.roberto.gestorpro.data.database.ClientesDatabase
 import com.roberto.gestorpro.data.repository.PreferencesRepository
+import com.roberto.gestorpro.data.repository.ClaseRepository
 import com.roberto.gestorpro.data.repository.ClienteRepository
 import com.roberto.gestorpro.data.repository.GastoRepository
 import com.roberto.gestorpro.data.repository.MovimientoRepository
+import com.roberto.gestorpro.data.repository.ReservaRepository
+import com.roberto.gestorpro.data.repository.SesionClaseRepository
 import com.roberto.gestorpro.model.EstadoCliente
 import dagger.Module
 import dagger.Provides
@@ -243,6 +249,36 @@ object AppModule {
     @Provides
     fun provideGastoRepository(gastoDao: GastoDao): GastoRepository {
         return GastoRepository(gastoDao)
+    }
+
+    @Provides
+    fun provideClaseDao(database: ClientesDatabase): ClaseDao {
+        return database.claseDao()
+    }
+
+    @Provides
+    fun provideClaseRepository(claseDao: ClaseDao): ClaseRepository {
+        return ClaseRepository(claseDao)
+    }
+
+    @Provides
+    fun provideSesionClaseDao(database: ClientesDatabase): SesionClaseDao {
+        return database.sesionClaseDao()
+    }
+
+    @Provides
+    fun provideSesionClaseRepository(sesionClaseDao: SesionClaseDao): SesionClaseRepository {
+        return SesionClaseRepository(sesionClaseDao)
+    }
+
+    @Provides
+    fun provideReservaDao(database: ClientesDatabase): ReservaDao {
+        return database.reservaDao()
+    }
+
+    @Provides
+    fun provideReservaRepository(reservaDao: ReservaDao): ReservaRepository {
+        return ReservaRepository(reservaDao)
     }
 
     @Provides

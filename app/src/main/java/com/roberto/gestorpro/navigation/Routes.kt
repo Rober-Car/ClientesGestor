@@ -88,6 +88,14 @@ object Routes {
     const val PREFERENCIAS = "preferencias"
     const val DATOS = "datos"
     const val CUENTA = "cuenta"
+    const val CLASES = "clases"
+    const val CREAR_CLASE = "crear_clase"
+
+    fun detalleClase(idClase: Int): String {
+        return "detalle_clase/$idClase"
+    }
+
+    const val DETALLE_CLASE = "detalle_clase"
 
     /**
      * modificarCliente
