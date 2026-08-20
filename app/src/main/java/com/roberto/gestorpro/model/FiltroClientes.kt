@@ -51,5 +51,14 @@ enum class FiltroClientes {
      * Es el filtro que muestra solo los clientes con estado BAJA.
      * Sirve para consultar únicamente los clientes dados de baja del gestor.
      */
-    BAJA
+    BAJA,
+
+    /**
+     * ARCHIVADO
+     * ---------
+     * ✔ TIPO: constante (valor del enum FiltroClientes)
+     * Es el filtro que muestra solo los clientes archivados.
+     * Sirve para consultar los clientes que el administrador ha ocultado de la lista principal.
+     */
+    ARCHIVADO
 }

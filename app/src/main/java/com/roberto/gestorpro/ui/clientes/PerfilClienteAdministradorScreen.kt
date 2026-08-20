@@ -405,6 +405,8 @@ fun PerfilClienteScreen(
      */
     var mostrarConfirmarEliminar by rememberSaveable { mutableStateOf(false) }
 
+    var mostrarConfirmarArchivar by rememberSaveable { mutableStateOf(false) }
+
     /**
      * LaunchedEffect(movimientoSeleccionado)
      * --------------------------------------
@@ -809,6 +811,21 @@ fun PerfilClienteScreen(
                     )
                 ) {
                     Text("Modificar cliente")
+                }
+
+                val esArchivado = cliente?.estado == EstadoCliente.ARCHIVADO
+
+                androidx.compose.material3.OutlinedButton(
+                    onClick = { mostrarConfirmarArchivar = true },
+                    modifier = Modifier
+                        .fillMaxWidth(0.7f)
+                        .align(Alignment.CenterHorizontally)
+                        .padding(top = 8.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = if (esArchivado) Color(0xFF4CAF50) else Color(0xFFE53935)
+                    )
+                ) {
+                    Text(if (esArchivado) "Restaurar cliente" else "Archivar cliente")
                 }
             }else {
                 /**
@@ -1630,6 +1647,45 @@ fun PerfilClienteScreen(
                 }
 
             }
+        }
+
+        if (mostrarConfirmarArchivar) {
+            val esArchivado = cliente?.estado == EstadoCliente.ARCHIVADO
+            AlertDialog(
+                onDismissRequest = { mostrarConfirmarArchivar = false },
+                title = { Text(if (esArchivado) "Restaurar cliente" else "Archivar cliente") },
+                text = {
+                    Text(
+                        if (esArchivado) {
+                            "¿Seguro que quieres restaurar a ${cliente?.nombre}? Volverá a aparecer en la lista principal como activo."
+                        } else {
+                            "¿Seguro que quieres archivar a ${cliente?.nombre}? No aparecerá en la lista principal, pero podrás restaurarlo más adelante."
+                        }
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        mostrarConfirmarArchivar = false
+                        cliente?.let {
+                            if (esArchivado) {
+                                viewModel.restaurarCliente(it)
+                            } else {
+                                viewModel.archivarCliente(it)
+                            }
+                        }
+                    }) {
+                        Text(
+                            if (esArchivado) "Restaurar" else "Archivar",
+                            color = if (esArchivado) Color(0xFF4CAF50) else Color(0xFFFF9800)
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { mostrarConfirmarArchivar = false }) {
+                        Text("Cancelar")
+                    }
+                }
+            )
         }
     }
 }

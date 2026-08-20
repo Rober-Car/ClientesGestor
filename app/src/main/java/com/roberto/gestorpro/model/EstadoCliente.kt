@@ -46,6 +46,15 @@ enum class EstadoCliente {
 
 
     /**
+     * ARCHIVADO
+     * ---------
+     * ✔ TIPO: constante (valor del enum EstadoCliente)
+     * Es el estado de los clientes que han sido archivados por el administrador.
+     * Sirve para ocultar clientes que ya no están activos pero cuyos datos se conservan.
+     */
+    ARCHIVADO,
+
+    /**
      * REGISTRADO
      * ----------
      * ✔ TIPO: constante (valor del enum EstadoCliente)

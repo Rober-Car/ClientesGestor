@@ -10,6 +10,7 @@ import com.roberto.gestorpro.data.entity.ClienteEntity
 import com.roberto.gestorpro.data.entity.toCliente
 import com.roberto.gestorpro.data.repository.ClienteRepository
 import com.roberto.gestorpro.model.Cliente
+import com.roberto.gestorpro.model.EstadoCliente
 import dagger.hilt.android.lifecycle.HiltViewModel
 import jakarta.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -235,6 +236,36 @@ class ClienteViewModel @Inject constructor(
          */
         viewModelScope.launch {
             clienteRepository.eliminarClienteRepo(cliente)
+        }
+    }
+
+    /**
+     * archivarCliente
+     * ---------------
+     * ✔ TIPO: método (fun) de ClienteViewModel
+     * Es la función que cambia el estado de un cliente a ARCHIVADO.
+     * Sirve para ocultar un cliente de la lista principal conservando todos sus datos.
+     */
+    fun archivarCliente(cliente: ClienteEntity) {
+        viewModelScope.launch {
+            clienteRepository.actualizarClienteRepo(
+                cliente.copy(estado = EstadoCliente.ARCHIVADO)
+            )
+        }
+    }
+
+    /**
+     * restaurarCliente
+     * ----------------
+     * ✔ TIPO: método (fun) de ClienteViewModel
+     * Es la función que restaura un cliente archivado cambiando su estado a ACTIVO.
+     * Sirve para devolver un cliente archivado a la lista principal.
+     */
+    fun restaurarCliente(cliente: ClienteEntity) {
+        viewModelScope.launch {
+            clienteRepository.actualizarClienteRepo(
+                cliente.copy(estado = EstadoCliente.ACTIVO)
+            )
         }
     }
 
