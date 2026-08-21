@@ -2,8 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- TODO(PRODUCCION): allowBackup desactivado en desarrollo para que Google no restaure
+         BDs antiguas al reinstalar. Antes de publicar: decidir si se reactiva y con qué
+         reglas de exclusion (backup_rules.xml / data_extraction_rules.xml) -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:name=".GestorProApplication"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"

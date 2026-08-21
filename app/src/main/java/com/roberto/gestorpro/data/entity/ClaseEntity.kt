@@ -7,12 +7,13 @@ import androidx.room.PrimaryKey
 data class ClaseEntity(
     @PrimaryKey(autoGenerate = true)
     val idClase: Int = 0,
+    val negocioId: String,
     val nombre: String,
     val diasSemana: String,
     val horaInicio: String,
     val duracionMinutos: Int,
     val capacidadMaxima: Int,
-    val reservaDesdeHorasAntes: Int,
+    val horaAperturaReservas: String,
     val fechaInicio: Long,
     val fechaFin: Long,
     val activa: Boolean = true

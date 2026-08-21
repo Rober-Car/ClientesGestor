@@ -41,7 +41,7 @@ class SesionClaseRepository @Inject constructor(
         sesionClaseDao.eliminarSesionesPorClase(idClase)
     }
 
-    fun obtenerSesionesActivasConClase(desde: Long): Flow<List<SesionConClase>> {
-        return sesionClaseDao.obtenerSesionesActivasConClase(desde)
+    fun obtenerSesionesActivasConClase(desde: Long, hasta: Long): Flow<List<SesionConClase>> {
+        return sesionClaseDao.obtenerSesionesActivasConClase(desde, hasta)
     }
 }

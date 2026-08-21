@@ -77,7 +77,22 @@ fun ClasesScreen(
         viewModel.cargarSesionesActivas()
     }
 
-    Scaffold { innerPadding ->
+    Scaffold(
+        floatingActionButton = {
+            if (tabSeleccionada == 0) {
+                FloatingActionButton(
+                    onClick = { navController.navigate(Routes.CREAR_CLASE) },
+                    containerColor = Color(0xFF1E88E5)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Crear clase",
+                        tint = Color.White
+                    )
+                }
+            }
+        }
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -140,9 +155,8 @@ fun TabConfiguracion(
     val clases by viewModel.clases.collectAsStateWithLifecycle()
     var claseEliminar by remember { mutableStateOf<ClaseEntity?>(null) }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            if (clases.isEmpty()) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (clases.isEmpty()) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -185,9 +199,8 @@ fun TabConfiguracion(
                 }
             }
         }
-    }
 
-    if (claseEliminar != null) {
+        if (claseEliminar != null) {
         AlertDialog(
             onDismissRequest = { claseEliminar = null },
             title = { Text("Eliminar clase") },

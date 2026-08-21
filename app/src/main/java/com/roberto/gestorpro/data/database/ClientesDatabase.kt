@@ -18,6 +18,9 @@ import com.roberto.gestorpro.data.entity.MovimientoEntity
 import com.roberto.gestorpro.data.entity.ReservaEntity
 import com.roberto.gestorpro.data.entity.SesionClaseEntity
 
+// TODO(PRODUCCION): version subida a 8 solo para forzar recreacion de BD en desarrollo
+// (el backup de Google restauraba una BD vieja y no se ejecutaban los datos de prueba).
+// Antes de publicar: sustituir fallbackToDestructiveMigration por migraciones reales.
 @Database(
     entities = [
         ClienteEntity::class,
@@ -27,7 +30,7 @@ import com.roberto.gestorpro.data.entity.SesionClaseEntity
         SesionClaseEntity::class,
         ReservaEntity::class
     ],
-    version = 6
+    version = 8
 )
 @TypeConverters(EstadoClienteConverter::class, EstadoMovimientoConverter::class)
 abstract class ClientesDatabase : RoomDatabase() {

@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
@@ -72,7 +73,7 @@ fun CrearClaseScreen(
     var horaInicio by rememberSaveable { mutableStateOf("20:00") }
     var duracionMinutos by rememberSaveable { mutableStateOf("60") }
     var capacidadMaxima by rememberSaveable { mutableStateOf("20") }
-    var reservaDesdeHorasAntes by rememberSaveable { mutableStateOf("2") }
+    var horaAperturaReservas by rememberSaveable { mutableStateOf("08:00") }
 
     var diasSeleccionados by rememberSaveable { mutableStateOf(setOf<DayOfWeek>()) }
     var fechaInicio by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -88,6 +89,7 @@ fun CrearClaseScreen(
 
     var mostrarDatePickerInicio by rememberSaveable { mutableStateOf(false) }
     var mostrarDatePickerFin by rememberSaveable { mutableStateOf(false) }
+    var mostrarTimePickerReservas by rememberSaveable { mutableStateOf(false) }
 
     val diasSemana = listOf(
         DayOfWeek.MONDAY to "L",
@@ -140,11 +142,12 @@ fun CrearClaseScreen(
                     if (!errorNombre && !errorHora && !errorDuracion && !errorCapacidad && !errorDias && !errorFechaInicio && !errorFechaFin) {
                         val clase = ClaseEntity(
                             nombre = nombre.trim(),
+                            negocioId = "", // PENDIENTE: conectar con el id de negocio real
                             diasSemana = ClaseViewModel.diasSemanaToString(diasSeleccionados),
                             horaInicio = horaInicio,
                             duracionMinutos = duracionMinutos.toInt(),
                             capacidadMaxima = capacidadMaxima.toInt(),
-                            reservaDesdeHorasAntes = reservaDesdeHorasAntes.toIntOrNull() ?: 2,
+                            horaAperturaReservas = horaAperturaReservas,
                             fechaInicio = fechaInicio!!,
                             fechaFin = fechaFin!!
                         )
@@ -263,12 +266,28 @@ fun CrearClaseScreen(
             }
 
             OutlinedTextField(
-                value = reservaDesdeHorasAntes,
-                onValueChange = { reservaDesdeHorasAntes = it },
-                label = { Text("Reserva desde (h antes)") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                value = horaAperturaReservas,
+                onValueChange = { },
+                readOnly = true,
+                enabled = false,
+                label = { Text("Reserva desde") },
+                placeholder = { Text("HH:mm") },
+                colors = OutlinedTextFieldDefaults.colors(
+                    disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                    disabledContainerColor = Color.Transparent,
+                    disabledBorderColor = MaterialTheme.colorScheme.outline,
+                    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                trailingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.DateRange,
+                        contentDescription = "Seleccionar hora"
+                    )
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { mostrarTimePickerReservas = true }
             )
 
             Text(
@@ -474,5 +493,48 @@ fun CrearClaseScreen(
         ) {
             DatePicker(state = datePickerState)
         }
+    }
+
+    if (mostrarTimePickerReservas) {
+        val partes = horaAperturaReservas.split(":")
+        val initialHour = partes.getOrNull(0)?.toIntOrNull() ?: 8
+        val initialMinute = partes.getOrNull(1)?.toIntOrNull() ?: 0
+        val timePickerState = androidx.compose.material3.TimePickerState(
+            initialHour = initialHour,
+            initialMinute = initialMinute,
+            is24Hour = true
+        )
+
+        AlertDialog(
+            onDismissRequest = { mostrarTimePickerReservas = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    val h = timePickerState.hour.toString().padStart(2, '0')
+                    val m = timePickerState.minute.toString().padStart(2, '0')
+                    horaAperturaReservas = "$h:$m"
+                    mostrarTimePickerReservas = false
+                }) {
+                    Text("Aceptar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarTimePickerReservas = false }) {
+                    Text("Cancelar")
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Hora de apertura de reservas",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    androidx.compose.material3.TimePicker(state = timePickerState)
+                }
+            }
+        )
     }
 }

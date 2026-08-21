@@ -161,7 +161,7 @@ fun DetalleClaseScreen(
                         DetalleCampo("Horario", "${c.horaInicio} · ${c.duracionMinutos} min")
                         DetalleCampo("Días", formatDias(c.diasSemana))
                         DetalleCampo("Plazas", "${c.capacidadMaxima}")
-                        DetalleCampo("Reserva desde", "${c.reservaDesdeHorasAntes}h antes")
+                        DetalleCampo("Reserva desde", c.horaAperturaReservas)
                         DetalleCampo("Inicio", Instant.ofEpochMilli(c.fechaInicio)
                             .atZone(ZoneId.systemDefault())
                             .toLocalDate()
@@ -411,7 +411,7 @@ fun DialogEditarClase(
     var horaInicio by remember { mutableStateOf(clase.horaInicio) }
     var duracionMinutos by remember { mutableStateOf(clase.duracionMinutos.toString()) }
     var capacidadMaxima by remember { mutableStateOf(clase.capacidadMaxima.toString()) }
-    var reservaDesdeHorasAntes by remember { mutableStateOf(clase.reservaDesdeHorasAntes.toString()) }
+    var horaAperturaReservas by remember { mutableStateOf(clase.horaAperturaReservas) }
     var fechaFin by remember { mutableStateOf(clase.fechaFin) }
     var diasSeleccionados by remember { mutableStateOf(ClaseViewModel.parseDiasSemana(clase.diasSemana)) }
     var fechaInicio by remember { mutableStateOf(clase.fechaInicio) }
@@ -509,16 +509,13 @@ fun DialogEditarClase(
                     )
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value = reservaDesdeHorasAntes,
-                        onValueChange = { reservaDesdeHorasAntes = it },
-                        label = { Text("Reserva h antes") },
-                        keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
-                }
+                OutlinedTextField(
+                    value = horaAperturaReservas,
+                    onValueChange = { horaAperturaReservas = it },
+                    label = { Text("Reserva desde (HH:mm)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
 
                 val fechaInicioStr = Instant.ofEpochMilli(fechaInicio)
                     .atZone(ZoneId.systemDefault())
@@ -585,7 +582,7 @@ fun DialogEditarClase(
                                     horaInicio = horaInicio,
                                     duracionMinutos = duracionMinutos.toIntOrNull() ?: clase.duracionMinutos,
                                     capacidadMaxima = capacidadMaxima.toIntOrNull() ?: clase.capacidadMaxima,
-                                    reservaDesdeHorasAntes = reservaDesdeHorasAntes.toIntOrNull() ?: clase.reservaDesdeHorasAntes,
+                                    horaAperturaReservas = horaAperturaReservas.ifBlank { clase.horaAperturaReservas },
                                     fechaInicio = fechaInicio,
                                     fechaFin = fechaFin,
                                     activa = activa

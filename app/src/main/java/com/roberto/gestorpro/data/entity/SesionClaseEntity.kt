@@ -7,6 +7,7 @@ import androidx.room.PrimaryKey
 data class SesionClaseEntity(
     @PrimaryKey(autoGenerate = true)
     val idSesion: Int = 0,
+    val negocioId: String,
     val idClase: Int,
     val fecha: Long,
     val plazasDisponibles: Int

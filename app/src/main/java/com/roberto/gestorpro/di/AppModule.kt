@@ -94,6 +94,8 @@ object AppModule {
         return databaseBuilder.build()
     }
 
+    // TODO(PRODUCCION): eliminar insertarDatosPrueba() - datos ficticios solo para desarrollo
+    // (20 clientes, movimientos y gastos de ejemplo insertados solo al crear la BD)
     private fun insertarDatosPrueba(db: SupportSQLiteDatabase) {
         val ahora = System.currentTimeMillis()
         val hace30anos = ahora - TimeUnit.DAYS.toMillis(365 * 30)
@@ -116,6 +118,17 @@ object AppModule {
         val haceSeisMeses = ahora - seisMeses
         val haceTresMeses = ahora - tresMeses
         val haceUnMes = ahora - unMes
+        val hace4anos = ahora - TimeUnit.DAYS.toMillis(365 * 4)
+        val haceDosMeses = ahora - TimeUnit.DAYS.toMillis(60)
+        val haceQuinceDias = ahora - TimeUnit.DAYS.toMillis(15)
+        val hace19anos = ahora - TimeUnit.DAYS.toMillis(365 * 19)
+        val hace22anos = ahora - TimeUnit.DAYS.toMillis(365 * 22)
+        val hace24anos = ahora - TimeUnit.DAYS.toMillis(365 * 24)
+        val hace26anos = ahora - TimeUnit.DAYS.toMillis(365 * 26)
+        val hace33anos = ahora - TimeUnit.DAYS.toMillis(365 * 33)
+        val hace38anos = ahora - TimeUnit.DAYS.toMillis(365 * 38)
+        val hace42anos = ahora - TimeUnit.DAYS.toMillis(365 * 42)
+        val hace47anos = ahora - TimeUnit.DAYS.toMillis(365 * 47)
 
         val clientesSql = listOf(
             "INSERT OR IGNORE INTO cliente (nombre, apellidos, dni, telefono, email, foto, fechaNacimiento, fechaRegistro, fechaAlta, fechaBaja, estado, tieneLlave, observaciones) VALUES ('Carlos', 'Garcia Lopez', '12345678A', '612345678', 'carlos.garcia@email.com', '', $hace30anos, $haceDosAnos, $haceDosAnos, NULL, 'ACTIVO', 1, 'Cliente fiel desde hace 2 anios')",
@@ -125,7 +138,19 @@ object AppModule {
             "INSERT OR IGNORE INTO cliente (nombre, apellidos, dni, telefono, email, foto, fechaNacimiento, fechaRegistro, fechaAlta, fechaBaja, estado, tieneLlave, observaciones) VALUES ('Javier', 'Rodriguez Diaz', '56789012E', '699887766', 'javier.rodriguez@email.com', '', $hace20anos, $haceUnAno, $haceUnAno, NULL, 'ACTIVO', 0, NULL)",
             "INSERT OR IGNORE INTO cliente (nombre, apellidos, dni, telefono, email, foto, fechaNacimiento, fechaRegistro, fechaAlta, fechaBaja, estado, tieneLlave, observaciones) VALUES ('Laura', 'Sanchez Moreno', '67890123F', '655443322', 'laura.sanchez@email.com', '', $hace35anos, $haceDosAnos, $haceDosAnos, NULL, 'ACTIVO', 1, 'Entrena 3 veces por semana')",
             "INSERT OR IGNORE INTO cliente (nombre, apellidos, dni, telefono, email, foto, fechaNacimiento, fechaRegistro, fechaAlta, fechaBaja, estado, tieneLlave, observaciones) VALUES ('Miguel', 'Hernandez Jimenez', '78901234G', '677889900', 'miguel.hernandez@email.com', '', $hace28anos, $haceTresAnos, $haceTresAnos, $haceSeisMeses, 'BAJA', 1, 'Lesion de rodilla')",
-            "INSERT OR IGNORE INTO cliente (nombre, apellidos, dni, telefono, email, foto, fechaNacimiento, fechaRegistro, fechaAlta, fechaBaja, estado, tieneLlave, observaciones) VALUES ('Elena', 'Jimenez Torres', '89012345H', '633221100', 'elena.jimenez@email.com', '', $hace40anos, $haceUnAno, $haceUnAno, NULL, 'ACTIVO', 0, 'Pendiente de regularizar pagos')"
+            "INSERT OR IGNORE INTO cliente (nombre, apellidos, dni, telefono, email, foto, fechaNacimiento, fechaRegistro, fechaAlta, fechaBaja, estado, tieneLlave, observaciones) VALUES ('Elena', 'Jimenez Torres', '89012345H', '633221100', 'elena.jimenez@email.com', '', $hace40anos, $haceUnAno, $haceUnAno, NULL, 'ACTIVO', 0, 'Pendiente de regularizar pagos')",
+            "INSERT OR IGNORE INTO cliente (nombre, apellidos, dni, telefono, email, foto, fechaNacimiento, fechaRegistro, fechaAlta, fechaBaja, estado, tieneLlave, observaciones) VALUES ('Sara', 'Moreno Ruiz', '11223344B', '611234567', 'sara.moreno@email.com', '', $hace22anos, $haceTresMeses, $haceTresMeses, NULL, 'ACTIVO', 0, 'Objetivo: perder peso para el verano')",
+            "INSERT OR IGNORE INTO cliente (nombre, apellidos, dni, telefono, email, foto, fechaNacimiento, fechaRegistro, fechaAlta, fechaBaja, estado, tieneLlave, observaciones) VALUES ('Diego', 'Torres Navarro', '22334455Y', '622345678', 'diego.torres@email.com', '', $hace19anos, $haceQuinceDias, $haceQuinceDias, NULL, 'ACTIVO', 0, NULL)",
+            "INSERT OR IGNORE INTO cliente (nombre, apellidos, dni, telefono, email, foto, fechaNacimiento, fechaRegistro, fechaAlta, fechaBaja, estado, tieneLlave, observaciones) VALUES ('Carmen', 'Vega Serrano', '33445566R', '633456789', 'carmen.vega@email.com', '', $hace47anos, $hace4anos, $hace4anos, $haceUnMes, 'BAJA', 1, 'Dejo el gimnasio por cambio de ciudad. Pendiente devolucion de llave')",
+            "INSERT OR IGNORE INTO cliente (nombre, apellidos, dni, telefono, email, foto, fechaNacimiento, fechaRegistro, fechaAlta, fechaBaja, estado, tieneLlave, observaciones) VALUES ('Pablo', 'Ortega Castillo', '44556677L', '644567890', 'pablo.ortega@email.com', '', $hace33anos, $haceDosAnos, $haceDosAnos, NULL, 'ACTIVO', 1, 'Entrena crossfit, muy puntual')",
+            "INSERT OR IGNORE INTO cliente (nombre, apellidos, dni, telefono, email, foto, fechaNacimiento, fechaRegistro, fechaAlta, fechaBaja, estado, tieneLlave, observaciones) VALUES ('Lucia', 'Ramos Hidalgo', '55667788Z', '655678901', 'lucia.ramos@email.com', '', $hace26anos, $haceSeisMeses, $haceSeisMeses, NULL, 'ACTIVO', 0, 'Clases de spinning martes y jueves')",
+            "INSERT OR IGNORE INTO cliente (nombre, apellidos, dni, telefono, email, foto, fechaNacimiento, fechaRegistro, fechaAlta, fechaBaja, estado, tieneLlave, observaciones) VALUES ('Andres', 'Molina Cruz', '66778899D', '666789012', 'andres.molina@email.com', '', $hace42anos, $haceTresAnos, $haceTresAnos, $haceTresMeses, 'BAJA', 0, 'Baja por lesion de espalda')",
+            "INSERT OR IGNORE INTO cliente (nombre, apellidos, dni, telefono, email, foto, fechaNacimiento, fechaRegistro, fechaAlta, fechaBaja, estado, tieneLlave, observaciones) VALUES ('Isabel', 'Castro Leon', '77889900D', '677890123', 'isabel.castro@email.com', '', $hace38anos, $haceUnAno, $haceUnAno, $haceDosMeses, 'BAJA', 0, 'Baja temporal, espera volver en otonio')",
+            "INSERT OR IGNORE INTO cliente (nombre, apellidos, dni, telefono, email, foto, fechaNacimiento, fechaRegistro, fechaAlta, fechaBaja, estado, tieneLlave, observaciones) VALUES ('Sergio', 'Pena Marquez', '88990011K', '688901234', 'sergio.pena@email.com', '', $hace24anos, $haceDosMeses, $haceDosMeses, NULL, 'ACTIVO', 1, 'Interesado en entrenamiento personal')",
+            "INSERT OR IGNORE INTO cliente (nombre, apellidos, dni, telefono, email, foto, fechaNacimiento, fechaRegistro, fechaAlta, fechaBaja, estado, tieneLlave, observaciones) VALUES ('Marta', 'Gil Romero', '99001122Z', '699012345', 'marta.gil@email.com', '', $hace30anos, $haceUnMes, $haceUnMes, NULL, 'ACTIVO', 0, 'Pago domiciliado')",
+            "INSERT OR IGNORE INTO cliente (nombre, apellidos, dni, telefono, email, foto, fechaNacimiento, fechaRegistro, fechaAlta, fechaBaja, estado, tieneLlave, observaciones) VALUES ('Raul', 'Herrera Aguilar', '50123456Q', '610123456', 'raul.herrera@email.com', '', $hace26anos, $haceTresAnos, $haceTresAnos, $haceSeisMeses, 'BAJA', 1, 'Pendiente devolucion de llave')",
+            "INSERT OR IGNORE INTO cliente (nombre, apellidos, dni, telefono, email, foto, fechaNacimiento, fechaRegistro, fechaAlta, fechaBaja, estado, tieneLlave, observaciones) VALUES ('Patricia', 'Rubio Mendez', '60234567M', '620234567', 'patricia.rubio@email.com', '', $hace33anos, $haceDosAnos, $haceDosAnos, NULL, 'ACTIVO', 0, 'Viene con su hermana, tarifa familiar')",
+            "INSERT OR IGNORE INTO cliente (nombre, apellidos, dni, telefono, email, foto, fechaNacimiento, fechaRegistro, fechaAlta, fechaBaja, estado, tieneLlave, observaciones) VALUES ('Jorge', 'Delgado Fuentes', '70345678V', '630345678', 'jorge.delgado@email.com', '', $hace19anos, $haceTresMeses, $haceTresMeses, NULL, 'ACTIVO', 0, 'Estudiante, cuota reducida')"
         )
 
         clientesSql.forEach { db.execSQL(it) }
@@ -137,7 +162,18 @@ object AppModule {
             "INSERT OR IGNORE INTO movimiento (idCliente, servicio, fechaInicio, fechaFin, precio, estado, observaciones) VALUES (3, 'Cuota trimestral anterior', $haceSeisMeses, $haceTresMeses, 90.0, 'PAGADO', NULL)",
             "INSERT OR IGNORE INTO movimiento (idCliente, servicio, fechaInicio, fechaFin, precio, estado, observaciones) VALUES (6, 'Pack entrenamiento personal', $haceTresMeses, $ahora, 500.0, 'PAGADO', '10 sesiones')",
             "INSERT OR IGNORE INTO movimiento (idCliente, servicio, fechaInicio, fechaFin, precio, estado, observaciones) VALUES (8, 'Cuota mensual', $haceUnMes, $haceSeisMeses, 40.0, 'PENDIENTE', 'Atraso en el pago')",
-            "INSERT OR IGNORE INTO movimiento (idCliente, servicio, fechaInicio, fechaFin, precio, estado, observaciones) VALUES (5, 'Cuota mensual', $haceTresMeses, $ahora, 45.0, 'PAGADO', NULL)"
+            "INSERT OR IGNORE INTO movimiento (idCliente, servicio, fechaInicio, fechaFin, precio, estado, observaciones) VALUES (5, 'Cuota mensual', $haceTresMeses, $ahora, 45.0, 'PAGADO', NULL)",
+            "INSERT OR IGNORE INTO movimiento (idCliente, servicio, fechaInicio, fechaFin, precio, estado, observaciones) VALUES (9, 'Cuota mensual', $haceTresMeses, $haceUnMes, 40.0, 'PAGADO', NULL)",
+            "INSERT OR IGNORE INTO movimiento (idCliente, servicio, fechaInicio, fechaFin, precio, estado, observaciones) VALUES (9, 'Cuota mensual', $haceUnMes, $ahora, 40.0, 'PENDIENTE', 'Mes actual sin pagar')",
+            "INSERT OR IGNORE INTO movimiento (idCliente, servicio, fechaInicio, fechaFin, precio, estado, observaciones) VALUES (10, 'Cuota mensual', $haceQuinceDias, $ahora, 40.0, 'PAGADO', 'Cliente nuevo')",
+            "INSERT OR IGNORE INTO movimiento (idCliente, servicio, fechaInicio, fechaFin, precio, estado, observaciones) VALUES (12, 'Pack entrenamiento personal', $haceDosMeses, $ahora, 250.0, 'PAGADO', '5 sesiones')",
+            "INSERT OR IGNORE INTO movimiento (idCliente, servicio, fechaInicio, fechaFin, precio, estado, observaciones) VALUES (13, 'Clases de spinning', $haceSeisMeses, $ahora, 120.0, 'PAGADO', NULL)",
+            "INSERT OR IGNORE INTO movimiento (idCliente, servicio, fechaInicio, fechaFin, precio, estado, observaciones) VALUES (14, 'Cuota trimestral', $haceSeisMeses, $haceTresMeses, 90.0, 'PAGADO', NULL)",
+            "INSERT OR IGNORE INTO movimiento (idCliente, servicio, fechaInicio, fechaFin, precio, estado, observaciones) VALUES (16, 'Cuota mensual', $haceDosMeses, $haceUnMes, 40.0, 'PAGADO', NULL)",
+            "INSERT OR IGNORE INTO movimiento (idCliente, servicio, fechaInicio, fechaFin, precio, estado, observaciones) VALUES (16, 'Entrenamiento personal sesion suelta', $haceQuinceDias, $ahora, 30.0, 'PENDIENTE', 'Pendiente de cobro')",
+            "INSERT OR IGNORE INTO movimiento (idCliente, servicio, fechaInicio, fechaFin, precio, estado, observaciones) VALUES (17, 'Cuota anual', $haceUnMes, $ahora, 300.0, 'PAGADO', 'Pago anual completo')",
+            "INSERT OR IGNORE INTO movimiento (idCliente, servicio, fechaInicio, fechaFin, precio, estado, observaciones) VALUES (19, 'Cuota trimestral', $haceDosMeses, $haceUnMes, 90.0, 'PENDIENTE', 'Tarifa familiar pendiente')",
+            "INSERT OR IGNORE INTO movimiento (idCliente, servicio, fechaInicio, fechaFin, precio, estado, observaciones) VALUES (20, 'Cuota mensual estudiante', $haceTresMeses, $haceUnMes, 30.0, 'PAGADO', 'Precio reducido')"
         )
 
         movimientosSql.forEach { db.execSQL(it) }

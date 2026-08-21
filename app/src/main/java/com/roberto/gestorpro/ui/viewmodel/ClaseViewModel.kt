@@ -69,12 +69,11 @@ class ClaseViewModel @Inject constructor(
     }
 
     fun cargarSesionesActivas() {
-        val hoyMillis = LocalDate.now()
-            .atStartOfDay(ZoneId.systemDefault())
-            .toInstant()
-            .toEpochMilli()
+        val hoy = LocalDate.now()
+        val desdeMillis = hoy.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val hastaMillis = hoy.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
         viewModelScope.launch {
-            sesionClaseRepository.obtenerSesionesActivasConClase(hoyMillis).collect { lista ->
+            sesionClaseRepository.obtenerSesionesActivasConClase(desdeMillis, hastaMillis).collect { lista ->
                 _sesionesActivas.value = lista
             }
         }
@@ -149,6 +148,7 @@ class ClaseViewModel @Inject constructor(
                 sesiones.add(
                     SesionClaseEntity(
                         idClase = clase.idClase,
+                        negocioId = "", // PENDIENTE: conectar con el id de negocio real
                         fecha = fechaActual.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                         plazasDisponibles = clase.capacidadMaxima
                     )
