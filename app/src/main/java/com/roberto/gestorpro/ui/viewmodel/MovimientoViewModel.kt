@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.roberto.gestorpro.data.entity.MovimientoEntity
 import com.roberto.gestorpro.data.repository.MovimientoRepository
+import com.roberto.gestorpro.model.EstadoMovimiento
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -303,6 +304,105 @@ class MovimientoViewModel @Inject constructor(
              * para rellenar un formulario, mostrar datos, etc.
              */
             onResultado(movimiento)
+        }
+    }
+
+    /* ============================================================
+     * ============ BLOQUE 6: RENOVACIÓN DE MOVIMIENTO ============
+     * ============================================================ */
+    /**
+     * renovarMovimiento
+     * -----------------
+     * ✔ TIPO: método (fun) de MovimientoViewModel
+     * Es la función que crea un nuevo movimiento renovando el último periodo del cliente.
+     * Sirve para copiar el servicio, precio y duración del último movimiento,
+     * continuando el periodo donde este terminó (o empezando hoy si el usuario lo prefiere).
+     *
+     * CÓMO FUNCIONA:
+     * 1. Calcula la duración del último periodo (fechaFin - fechaInicio).
+     * 2. Si la duración no es válida (<= 0), aborta sin insertar nada.
+     * 3. Calcula la nueva fecha de inicio: hoy o la fechaFin del último movimiento.
+     * 4. Crea una copia del movimiento con idMovimiento = 0 (nuevo registro),
+     *    las nuevas fechas, estado PAGADO, fechaPago = ahora y sin observaciones.
+     * 5. Inserta el movimiento a través del repositorio.
+     *
+     * @param ultimo MovimientoEntity → el último movimiento del cliente que se quiere renovar.
+     * @param empezarHoy Boolean → true si el nuevo periodo debe empezar hoy;
+     *        false si debe empezar en la fechaFin del último movimiento.
+     */
+    fun renovarMovimiento(ultimo: MovimientoEntity, empezarHoy: Boolean) {
+
+        /**
+         * viewModelScope.launch
+         * ---------------------
+         * ✔ TIPO: corrutina lanzada en el ámbito del ViewModel
+         * Es la corrutina que ejecuta el cálculo e inserción en segundo plano.
+         * Sirve para no bloquear el hilo principal de la UI.
+         */
+        viewModelScope.launch {
+
+            /**
+             * duracion
+             * --------
+             * ✔ TIPO: variable local (val) → Long
+             * Es la duración en milisegundos del periodo del último movimiento.
+             * Sirve para replicar el mismo periodo en el movimiento renovado.
+             */
+            val duracion = ultimo.fechaFin - ultimo.fechaInicio
+
+            /**
+             * Protección de datos corruptos
+             * -----------------------------
+             * ✔ TIPO: condición de guarda (if) con return@launch
+             * Si la duración calculada no es positiva, el movimiento tiene fechas incoherentes.
+             * Sirve para abortar la renovación sin insertar un movimiento inválido.
+             */
+            if (duracion <= 0) return@launch
+
+            /**
+             * ahora
+             * -----
+             * ✔ TIPO: variable local (val) → Long
+             * Es la marca de tiempo actual en milisegundos.
+             * Sirve como posible fecha de inicio del nuevo periodo y como fecha de pago.
+             */
+            val ahora = System.currentTimeMillis()
+
+            /**
+             * nuevaFechaInicio
+             * ----------------
+             * ✔ TIPO: variable local (val) → Long
+             * Es la fecha de inicio del periodo renovado.
+             * Sirve para empezar el nuevo periodo hoy (si empezarHoy es true)
+             * o justo donde terminó el último movimiento (si es false).
+             */
+            val nuevaFechaInicio = if (empezarHoy) ahora else ultimo.fechaFin
+
+            /**
+             * movimientoRenovado
+             * ------------------
+             * ✔ TIPO: variable local (val) → MovimientoEntity
+             * Es el nuevo movimiento construido copiando el anterior con .copy().
+             * Sirve para mantener servicio y precio originales, actualizando solo
+             * el periodo, el estado (PAGADO), la fecha de pago y limpiando observaciones.
+             */
+            val movimientoRenovado = ultimo.copy(
+                idMovimiento = 0,
+                fechaInicio = nuevaFechaInicio,
+                fechaFin = nuevaFechaInicio + duracion,
+                estado = EstadoMovimiento.PAGADO,
+                fechaPago = ahora,
+                observaciones = null
+            )
+
+            /**
+             * movimientoRepository.insertarMovimiento(movimientoRenovado)
+             * ------------------------------------------------------------
+             * ✔ TIPO: llamada al repositorio (suspend fun)
+             * Es la operación que guarda el movimiento renovado en la base de datos.
+             * Sirve para persistir la renovación; el Flow del DAO actualizará la lista automáticamente.
+             */
+            movimientoRepository.insertarMovimiento(movimientoRenovado)
         }
     }
 }

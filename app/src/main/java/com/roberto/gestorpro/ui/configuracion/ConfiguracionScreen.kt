@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
@@ -59,6 +60,22 @@ fun ConfiguracionScreen(
                     style = MaterialTheme.typography.titleLarge
                 )
             }
+
+            /**
+             * Opción Mi negocio
+             * -----------------
+             * ✔ TIPO: llamada a Composable (ConfiguracionItem)
+             * Es la tarjeta de personalización de la identidad del negocio.
+             * Sirve para que el administrador configure el nombre y el logo
+             * que se muestran en las cabeceras de Home y Login.
+             */
+            ConfiguracionItem(
+                titulo = "Mi negocio",
+                descripcion = "Nombre y logo de tu negocio",
+                icono = Icons.Default.AccountBox,
+                iconColor = Color(0xFF1E88E5),
+                onClick = { navController.navigate(Routes.MINEGOCIO) }
+            )
 
             ConfiguracionItem(
                 titulo = "Preferencias",

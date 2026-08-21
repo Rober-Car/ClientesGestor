@@ -16,6 +16,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -41,15 +42,28 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.roberto.gestorpro.navigation.Routes
+import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 
 @Composable
 fun CuentaScreen(
     navController: NavHostController
 ) {
+
+    /**
+     * mainViewModel
+     * -------------
+     * ✔ TIPO: variable inmutable (val) → MainViewModel
+     * Es el ViewModel de preferencias de la app.
+     * Sirve para restablecer el tipo de usuario guardado en DataStore.
+     */
+    val mainViewModel: MainViewModel = hiltViewModel()
+
     var mostrarDialogoContrasena by remember { mutableStateOf(false) }
     var mostrarDialogoCerrarSesion by remember { mutableStateOf(false) }
+    var mostrarDialogoCambiarTipo by remember { mutableStateOf(false) }
 
     Scaffold { innerPadding ->
         Column(
@@ -98,6 +112,21 @@ fun CuentaScreen(
                 icono = Icons.Default.ExitToApp,
                 onClick = { mostrarDialogoCerrarSesion = true }
             )
+
+            /**
+             * Opción Cambiar tipo de usuario
+             * ------------------------------
+             * ✔ TIPO: llamada a Composable (CuentaItem)
+             * Es la tarjeta que permite restablecer la elección de perfil.
+             * Sirve para borrar el tipo de usuario guardado y volver a mostrar
+             * la pantalla "¿Cómo vas a utilizar GestorPro?" en el próximo arranque.
+             */
+            CuentaItem(
+                titulo = "Cambiar tipo de usuario",
+                descripcion = "Volver a elegir entre Administrador y Cliente",
+                icono = Icons.Default.Refresh,
+                onClick = { mostrarDialogoCambiarTipo = true }
+            )
         }
     }
 
@@ -139,6 +168,53 @@ fun CuentaScreen(
             },
             dismissButton = {
                 TextButton(onClick = { mostrarDialogoCerrarSesion = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    /**
+     * Diálogo Cambiar tipo de usuario
+     * -------------------------------
+     * ✔ TIPO: condición + Composable (AlertDialog)
+     * Es el diálogo de confirmación para restablecer el tipo de usuario.
+     * Sirve para evitar cambios accidentales: al confirmar, borra la preferencia
+     * en DataStore y navega a la pantalla de selección limpiando todo el historial.
+     */
+    if (mostrarDialogoCambiarTipo) {
+        AlertDialog(
+            onDismissRequest = { mostrarDialogoCambiarTipo = false },
+            title = {
+                Text(
+                    text = "Cambiar tipo de usuario",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color(0xFF1E88E5),
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+            },
+            text = {
+                Text("Volverás a la pantalla inicial para elegir entre Administrador y Cliente. ¿Continuar?")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        mostrarDialogoCambiarTipo = false
+                        mainViewModel.restablecerTipoUsuario()
+                        navController.navigate(Routes.SELECCION_TIPO_USUARIO) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF1E88E5)
+                    )
+                ) {
+                    Text("Cambiar", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarDialogoCambiarTipo = false }) {
                     Text("Cancelar")
                 }
             }

@@ -27,6 +27,16 @@ object Routes {
     const val LOGIN = "login"
 
     /**
+     * SELECCION_TIPO_USUARIO
+     * ----------------------
+     * ✔ TIPO: constante (const val) → String
+     * Es la ruta de la pantalla inicial de selección de perfil ("¿Cómo vas a utilizar GestorPro?").
+     * Sirve para que el usuario elija entre Administrador/Negocio o Cliente
+     * solo la primera vez que abre la app (o tras restablecerlo desde Cuenta).
+     */
+    const val SELECCION_TIPO_USUARIO = "seleccion_tipo_usuario"
+
+    /**
      * HOME
      * ----
      * ✔ TIPO: constante (const val) → String
@@ -90,6 +100,16 @@ object Routes {
     const val CUENTA = "cuenta"
     const val CLASES = "clases"
     const val CREAR_CLASE = "crear_clase"
+
+    /**
+     * MINEGOCIO
+     * ---------
+     * ✔ TIPO: constante (const val) → String
+     * Es la ruta de la pantalla de personalización del negocio (nombre y logo).
+     * Sirve para que el administrador configure la identidad del negocio
+     * que se muestra en Home y Login.
+     */
+    const val MINEGOCIO = "mi_negocio"
 
     fun detalleClase(idClase: Int): String {
         return "detalle_clase/$idClase"

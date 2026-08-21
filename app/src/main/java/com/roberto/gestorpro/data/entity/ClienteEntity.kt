@@ -60,6 +60,7 @@ data class ClienteEntity(
     val estado: EstadoCliente,
     val tieneLlave: Boolean,
     val observaciones: String? = null,
+    val negocioId: String? = null,
     val firebaseUid: String? = null
 )
 

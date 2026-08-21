@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
@@ -29,20 +30,40 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import coil3.compose.AsyncImage
 import com.roberto.gestorpro.navigation.Routes
+import com.roberto.gestorpro.ui.viewmodel.MainViewModel
+import java.io.File
 
 @Composable
 fun LoginScreen(
-    navController: NavHostController
+    navController: NavHostController,
+    mainViewModel: MainViewModel = hiltViewModel()
 ) {
+
+    /**
+     * nombreNegocio / logoNegocio
+     * ---------------------------
+     * ✔ TIPO: variables observables (val by collectAsStateWithLifecycle) → String
+     * Son el nombre y la ruta del logo del negocio configurados por el administrador.
+     * Sirven para personalizar la pantalla de acceso; si están vacíos se muestra
+     * el icono de persona y el nombre "GestorPro" de siempre.
+     */
+    val nombreNegocio by mainViewModel.nombreNegocio.collectAsStateWithLifecycle()
+    val logoNegocio by mainViewModel.logoNegocio.collectAsStateWithLifecycle()
+
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
 
@@ -57,17 +78,44 @@ fun LoginScreen(
     ) {
         Spacer(modifier = Modifier.height(80.dp))
 
-        Icon(
-            imageVector = Icons.Default.Person,
-            contentDescription = null,
-            tint = azulPrincipal,
-            modifier = Modifier.size(80.dp)
-        )
+        /**
+         * Logo o icono de la cabecera
+         * ---------------------------
+         * ✔ TIPO: bloque condicional con Composables
+         * Es la imagen superior de la pantalla de acceso.
+         * Sirve para mostrar el logo del negocio si está configurado;
+         * si no, mantiene el icono de persona clásico de GestorPro.
+         */
+        if (logoNegocio.isNotBlank()) {
+
+            /**
+             * logoDelNegocio
+             * --------------
+             * ✔ TIPO: Composable (coil3.compose.AsyncImage)
+             * Es la imagen del logo cargada desde memoria interna con Coil.
+             * Sirve para identificar visualmente el negocio al iniciar sesión.
+             */
+            AsyncImage(
+                model = File(logoNegocio),
+                contentDescription = "Logo del negocio",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(CircleShape)
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Default.Person,
+                contentDescription = null,
+                tint = azulPrincipal,
+                modifier = Modifier.size(80.dp)
+            )
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "GestorPro",
+            text = nombreNegocio.ifBlank { "GestorPro" },
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface

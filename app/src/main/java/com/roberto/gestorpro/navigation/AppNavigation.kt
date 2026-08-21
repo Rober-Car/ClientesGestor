@@ -1,10 +1,22 @@
 package com.roberto.gestorpro.navigation
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.roberto.gestorpro.ui.auth.LoginScreen
+import com.roberto.gestorpro.ui.auth.SeleccionTipoUsuarioScreen
 import com.roberto.gestorpro.ui.clases.ClasesScreen
 import com.roberto.gestorpro.ui.clases.CrearClaseScreen
 import com.roberto.gestorpro.ui.clases.DetalleClaseScreen
@@ -15,9 +27,11 @@ import com.roberto.gestorpro.ui.clientes.PerfilClienteScreen
 import com.roberto.gestorpro.ui.configuracion.ConfiguracionScreen
 import com.roberto.gestorpro.ui.configuracion.CuentaScreen
 import com.roberto.gestorpro.ui.configuracion.DatosScreen
+import com.roberto.gestorpro.ui.configuracion.MiNegocioScreen
 import com.roberto.gestorpro.ui.configuracion.PreferenciasScreen
 import com.roberto.gestorpro.ui.economia.EconomiaScreen
 import com.roberto.gestorpro.ui.home.HomeScreen
+import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 
 /**
  * AppNavigation.kt
@@ -47,24 +61,88 @@ fun AppNavigation() {
     val navController = rememberNavController()
 
     /**
+     * mainViewModel
+     * -------------
+     * ✔ TIPO: variable inmutable (val) → MainViewModel
+     * Es el ViewModel de preferencias de la app.
+     * Sirve para leer el tipo de usuario guardado y decidir la pantalla inicial.
+     */
+    val mainViewModel: MainViewModel = hiltViewModel()
+
+    /**
+     * destinoInicial
+     * --------------
+     * ✔ TIPO: variable observable (var by mutableStateOf) → String? (nullable)
+     * Es la ruta de inicio del NavHost, calculada al arrancar.
+     * Sirve para mostrar la pantalla de selección solo si el usuario aún no eligió
+     * su perfil; mientras es null se muestra una pantalla de carga mínima.
+     */
+    var destinoInicial by remember { mutableStateOf<String?>(null) }
+
+    /**
+     * LaunchedEffect (lectura inicial de preferencias)
+     * ------------------------------------------------
+     * ✔ TIPO: bloque de efecto (LaunchedEffect)
+     * Es el bloque que lee el tipo de usuario guardado en DataStore una sola vez.
+     * Sirve para decidir si la app arranca en la pantalla de selección o en el Login.
+     */
+    LaunchedEffect(Unit) {
+        destinoInicial = if (mainViewModel.obtenerTipoUsuario() == null) {
+            Routes.SELECCION_TIPO_USUARIO
+        } else {
+            Routes.LOGIN
+        }
+    }
+
+    /**
+     * Pantalla de carga mínima
+     * ------------------------
+     * ✔ TIPO: condición + Composable (Box con CircularProgressIndicator)
+     * Es lo que se muestra mientras se lee la preferencia de tipo de usuario.
+     * Sirve para evitar parpadeos: no se monta el NavHost hasta conocer el destino real.
+     */
+    val destino = destinoInicial
+    if (destino == null) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+
+    /**
      * NavHost
      * -------
      * ✔ TIPO: función @Composable (androidx.navigation.compose.NavHost)
      * Es el contenedor principal donde se registran todas las rutas de la aplicación.
      * Sirve como el "mapa" que indica qué pantalla se muestra según la ruta actual.
+     * Arranca en la pantalla de selección (primera vez) o en el Login (resto de veces).
      */
     NavHost(
         navController = navController,
-        startDestination = Routes.LOGIN
+        startDestination = destino
     ) {
+
+        /**
+         * Ruta SELECCION_TIPO_USUARIO
+         * ---------------------------
+         * ✔ TIPO: ruta de navegación (composable)
+         * Es la ruta de la pantalla "¿Cómo vas a utilizar GestorPro?".
+         * Sirve para que el usuario elija su perfil la primera vez que abre la app;
+         * tras elegir, guarda la preferencia y navega al Login sin poder volver atrás.
+         */
+        composable(Routes.SELECCION_TIPO_USUARIO) {
+            SeleccionTipoUsuarioScreen(navController)
+        }
 
         /**
          * Ruta LOGIN
          * ----------
          * ✔ TIPO: ruta de navegación (composable)
-         * Es la ruta de inicio que muestra la pantalla de Login.
-         * Sirve para que al abrir la aplicación se muestre el inicio de sesión
-         * y se pase el navController para poder navegar al Home.
+         * Es la ruta que muestra la pantalla de Login.
+         * Sirve para iniciar sesión y pasar el navController para poder navegar al Home.
          */
         composable(Routes.LOGIN) {
             LoginScreen(navController)
@@ -170,6 +248,18 @@ fun AppNavigation() {
 
         composable(Routes.CONFIGURACION) {
             ConfiguracionScreen(navController)
+        }
+
+        /**
+         * Ruta MINEGOCIO
+         * --------------
+         * ✔ TIPO: ruta de navegación (composable)
+         * Es la ruta de la pantalla de personalización del negocio.
+         * Sirve para que el administrador configure el nombre y el logo
+         * que se muestran en Home y Login.
+         */
+        composable(Routes.MINEGOCIO) {
+            MiNegocioScreen(navController)
         }
 
         composable(Routes.PREFERENCIAS) {

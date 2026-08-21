@@ -96,6 +96,7 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.text.input.KeyboardType
@@ -287,6 +288,44 @@ fun PerfilClienteScreen(
     var errorPrecioMovimiento by rememberSaveable { mutableStateOf(false) }
     var errorFechaInicioMovimiento by rememberSaveable { mutableStateOf(false) }
     var errorFechaFinMovimiento by rememberSaveable { mutableStateOf(false) }
+
+    /* ============================================================
+     * ============ ESTADO DEL DIÁLOGO RENOVAR MOVIMIENTO =========
+     * ============================================================ */
+    /**
+     * mostrarDialogoRenovar
+     * ---------------------
+     * ✔ TIPO: variable con estado (var) → Boolean
+     * Controla si se muestra el diálogo de renovación de movimiento.
+     * Sirve para abrir y cerrar el diálogo donde se elige el inicio del nuevo periodo.
+     */
+    var mostrarDialogoRenovar by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+    /**
+     * renovarDesdeHoy
+     * ---------------
+     * ✔ TIPO: variable con estado (var) → Boolean
+     * Indica la opción elegida en el diálogo de renovación.
+     * Sirve para decidir si el nuevo periodo empieza hoy (true)
+     * o en la fecha de fin del último movimiento (false).
+     */
+    var renovarDesdeHoy by rememberSaveable {
+        mutableStateOf(true)
+    }
+
+    /**
+     * movimientoARenovar
+     * ------------------
+     * ✔ TIPO: variable con estado (var) → MovimientoEntity? (nullable)
+     * Es el último movimiento del cliente que se va a renovar.
+     * Sirve como base para calcular las fechas del nuevo periodo y copiar servicio y precio.
+     * Es null cuando no hay ningún movimiento seleccionado para renovar.
+     */
+    var movimientoARenovar by remember {
+        mutableStateOf<MovimientoEntity?>(null)
+    }
 
     /* ============================================================
      * ============ ESTADO DEL DIÁLOGO DETALLE MOVIMIENTO =========
@@ -891,6 +930,35 @@ fun PerfilClienteScreen(
                 }
 
                 /**
+                 * Button de Renovar último movimiento
+                 * -----------------------------------
+                 * ✔ TIPO: función @Composable (androidx.compose.material3.Button)
+                 * Es el botón que abre el diálogo de renovación del último movimiento del cliente.
+                 * Sirve para crear un nuevo periodo copiando el servicio y precio del movimiento
+                 * con fecha de fin más reciente, eligiendo si empieza hoy o al terminar aquel.
+                 * Se desactiva cuando el cliente no tiene movimientos registrados.
+                 */
+                Button(
+                    onClick = {
+                        val ultimo = movimientos.maxByOrNull { it.fechaFin }
+                        if (ultimo != null) {
+                            movimientoARenovar = ultimo
+                            renovarDesdeHoy = ultimo.fechaFin < System.currentTimeMillis()
+                            mostrarDialogoRenovar = true
+                        }
+                    },
+                    enabled = movimientos.isNotEmpty(),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF43A047),
+                        contentColor = Color.White,
+                        disabledContainerColor = Color(0xFFBDBDBD)
+                    )
+                ) {
+                    Text("Renovar")
+                }
+
+                /**
                  * Contenido de movimientos
                  * ------------------------
                  * ✔ TIPO: bloque condicional (if/else) que muestra la lista o un aviso vacío.
@@ -929,6 +997,172 @@ fun PerfilClienteScreen(
                                 movimientoSeleccionado = movimiento
                             }
                         )
+                    }
+                }
+
+                /**
+                 * Diálogo de renovación de movimiento
+                 * -----------------------------------
+                 * ✔ TIPO: bloque condicional (if) + @Composable (Dialog)
+                 * Es el diálogo que muestra los datos de la renovación antes de crearla.
+                 * Sirve para elegir si el nuevo periodo empieza hoy o en la fecha de fin
+                 * del último movimiento, mostrando las fechas calculadas en vivo.
+                 */
+                val aRenovar = movimientoARenovar
+                if (mostrarDialogoRenovar && aRenovar != null) {
+
+                    /**
+                     * ahoraRenovacion / duracionRenovacion
+                     * ------------------------------------
+                     * ✔ TIPO: variables locales (val) → Long
+                     * Son la hora actual y la duración en milisegundos del periodo del último movimiento.
+                     * Sirven para calcular y mostrar las fechas resultantes de cada opción del diálogo.
+                     */
+                    val ahoraRenovacion = System.currentTimeMillis()
+                    val duracionRenovacion = aRenovar.fechaFin - aRenovar.fechaInicio
+
+                    Dialog(
+                        onDismissRequest = {
+                            mostrarDialogoRenovar = false
+                        }
+                    ) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            shape = RoundedCornerShape(20.dp),
+                            color = Color.White,
+                            shadowElevation = 8.dp
+                        ) {
+
+                            Column(
+                                modifier = Modifier.padding(20.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+
+                                Text(
+                                    text = "Renovar movimiento",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    color = Color(0xFF1E88E5),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = TextAlign.Center
+                                )
+
+                                Text(
+                                    text = "${aRenovar.servicio} · ${"%.2f".format(aRenovar.precio)} €",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = TextAlign.Center
+                                )
+
+                                Text(
+                                    text = "Duración del periodo: ${duracionRenovacion / (1000 * 60 * 60 * 24)} días",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = TextAlign.Center
+                                )
+
+                                /**
+                                 * Opción 1: continuar desde el fin del último periodo
+                                 * ---------------------------------------------------
+                                 * ✔ TIPO: fila @Composable (Row) con RadioButton
+                                 * Es la opción que continúa el periodo exactamente donde terminó el último movimiento.
+                                 * Sirve para mantener la continuidad de periodos del cliente.
+                                 */
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { renovarDesdeHoy = false },
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RadioButton(
+                                        selected = !renovarDesdeHoy,
+                                        onClick = { renovarDesdeHoy = false }
+                                    )
+                                    Column {
+                                        Text(
+                                            text = "Continuar",
+                                            style = MaterialTheme.typography.bodyLarge
+                                        )
+                                        Text(
+                                            text = "${formatearFecha(aRenovar.fechaFin)} → ${formatearFecha(aRenovar.fechaFin + duracionRenovacion)}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                }
+
+                                /**
+                                 * Opción 2: empezar hoy
+                                 * ---------------------
+                                 * ✔ TIPO: fila @Composable (Row) con RadioButton
+                                 * Es la opción que inicia el nuevo periodo en la fecha actual.
+                                 * Sirve para renovar un cliente cuyo periodo anterior ya venció.
+                                 */
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { renovarDesdeHoy = true },
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RadioButton(
+                                        selected = renovarDesdeHoy,
+                                        onClick = { renovarDesdeHoy = true }
+                                    )
+                                    Column {
+                                        Text(
+                                            text = "Desde hoy",
+                                            style = MaterialTheme.typography.bodyLarge
+                                        )
+                                        Text(
+                                            text = "${formatearFecha(ahoraRenovacion)} → ${formatearFecha(ahoraRenovacion + duracionRenovacion)}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                }
+
+                                if (duracionRenovacion <= 0) {
+                                    Text(
+                                        text = "El último movimiento tiene un periodo no válido y no se puede renovar.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.Red,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    TextButton(
+                                        onClick = {
+                                            mostrarDialogoRenovar = false
+                                        }
+                                    ) {
+                                        Text("Cancelar")
+                                    }
+
+                                    Spacer(modifier = Modifier.width(8.dp))
+
+                                    Button(
+                                        onClick = {
+                                            movimientoViewModel.renovarMovimiento(aRenovar, renovarDesdeHoy)
+                                            mostrarDialogoRenovar = false
+                                        },
+                                        enabled = duracionRenovacion > 0,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xFF43A047),
+                                            contentColor = Color.White
+                                        )
+                                    ) {
+                                        Text("Aceptar")
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
