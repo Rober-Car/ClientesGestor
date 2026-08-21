@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -21,16 +24,22 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.roberto.gestorpro.data.repository.PreferencesRepository
+import com.roberto.gestorpro.navigation.Routes
 import com.roberto.gestorpro.ui.viewmodel.PreferenciasViewModel
 
 @Composable
@@ -39,6 +48,15 @@ fun PreferenciasScreen(
     viewModel: PreferenciasViewModel = hiltViewModel()
 ) {
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+
+    /**
+     * mostrarDialogoCerrarSesion
+     * --------------------------
+     * ✔ TIPO: variable observable (var by mutableStateOf) → Boolean
+     * Es el estado que controla si se muestra el diálogo de confirmación.
+     * Sirve para que cerrar sesión no ocurra por un toque accidental.
+     */
+    var mostrarDialogoCerrarSesion by remember { mutableStateOf(false) }
 
     Scaffold { innerPadding ->
         Column(
@@ -102,7 +120,76 @@ fun PreferenciasScreen(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            /**
+             * Botón Cerrar sesión
+             * -------------------
+             * ✔ TIPO: Composable (TextButton)
+             * Es la salida de sesión disponible para cualquier perfil (admin o cliente).
+             * Sirve para volver a la pantalla de Login limpiando todo el historial
+             * de navegación; pide confirmación antes de actuar.
+             */
+            TextButton(
+                onClick = { mostrarDialogoCerrarSesion = true },
+                modifier = Modifier
+                    .padding(horizontal = 16.dp)
+                    .align(Alignment.CenterHorizontally)
+            ) {
+                Text(
+                    text = "Cerrar sesión",
+                    color = Color(0xFFF44336),
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
         }
+    }
+
+    /**
+     * Diálogo Cerrar sesión
+     * ---------------------
+     * ✔ TIPO: condición + Composable (AlertDialog)
+     * Es el diálogo de confirmación antes de cerrar la sesión.
+     * Sirve para evitar cierres accidentales; al confirmar, navega al Login
+     * vaciando por completo la pila de navegación.
+     */
+    if (mostrarDialogoCerrarSesion) {
+        AlertDialog(
+            onDismissRequest = { mostrarDialogoCerrarSesion = false },
+            title = {
+                Text(
+                    text = "Cerrar sesión",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color(0xFF1E88E5),
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+            },
+            text = {
+                Text("¿Seguro que quieres cerrar sesión?")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        mostrarDialogoCerrarSesion = false
+                        navController.navigate(Routes.LOGIN) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFF44336)
+                    )
+                ) {
+                    Text("Cerrar sesión", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarDialogoCerrarSesion = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 }
 

@@ -46,6 +46,16 @@ object Routes {
     const val HOME = "home"
 
     /**
+     * HOME_CLIENTE
+     * ------------
+     * ✔ TIPO: constante (const val) → String
+     * Es la ruta de la pantalla de inicio exclusiva del perfil Cliente.
+     * Sirve para que los usuarios que entraron como Cliente vean un menú propio,
+     * distinto al del administrador, tras iniciar sesión.
+     */
+    const val HOME_CLIENTE = "home_cliente"
+
+    /**
      * CLIENTES
      * --------
      * ✔ TIPO: constante (const val) → String

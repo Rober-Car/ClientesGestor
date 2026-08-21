@@ -149,6 +149,7 @@ class ClaseViewModel @Inject constructor(
                     SesionClaseEntity(
                         idClase = clase.idClase,
                         negocioId = "", // PENDIENTE: conectar con el id de negocio real
+                        servicio = clase.servicio,
                         fecha = fechaActual.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                         plazasDisponibles = clase.capacidadMaxima
                     )

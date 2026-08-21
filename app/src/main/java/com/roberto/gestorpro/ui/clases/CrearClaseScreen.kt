@@ -143,6 +143,7 @@ fun CrearClaseScreen(
                         val clase = ClaseEntity(
                             nombre = nombre.trim(),
                             negocioId = "", // PENDIENTE: conectar con el id de negocio real
+                            servicio = "", // PENDIENTE: conectar con el servicio real de la clase
                             diasSemana = ClaseViewModel.diasSemanaToString(diasSeleccionados),
                             horaInicio = horaInicio,
                             duracionMinutos = duracionMinutos.toInt(),

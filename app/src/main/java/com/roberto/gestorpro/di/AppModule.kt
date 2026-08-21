@@ -10,6 +10,7 @@ import com.roberto.gestorpro.data.dao.GastoDao
 import com.roberto.gestorpro.data.dao.MovimientoDao
 import com.roberto.gestorpro.data.dao.ReservaDao
 import com.roberto.gestorpro.data.dao.SesionClaseDao
+import com.roberto.gestorpro.data.dao.SolicitudDao
 import com.roberto.gestorpro.data.database.ClientesDatabase
 import com.roberto.gestorpro.data.repository.PreferencesRepository
 import com.roberto.gestorpro.data.repository.ClaseRepository
@@ -17,6 +18,7 @@ import com.roberto.gestorpro.data.repository.ClienteRepository
 import com.roberto.gestorpro.data.repository.GastoRepository
 import com.roberto.gestorpro.data.repository.MovimientoRepository
 import com.roberto.gestorpro.data.repository.ReservaRepository
+import com.roberto.gestorpro.data.repository.SolicitudRepository
 import com.roberto.gestorpro.data.repository.SesionClaseRepository
 import com.roberto.gestorpro.model.EstadoCliente
 import dagger.Module
@@ -310,6 +312,16 @@ object AppModule {
     @Provides
     fun provideReservaRepository(reservaDao: ReservaDao): ReservaRepository {
         return ReservaRepository(reservaDao)
+    }
+
+    @Provides
+    fun provideSolicitudDao(database: ClientesDatabase): SolicitudDao {
+        return database.solicitudDao()
+    }
+
+    @Provides
+    fun provideSolicitudRepository(solicitudDao: SolicitudDao): SolicitudRepository {
+        return SolicitudRepository(solicitudDao)
     }
 
     @Provides

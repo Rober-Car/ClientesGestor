@@ -4,10 +4,12 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.roberto.gestorpro.model.TipoUsuario
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -47,13 +49,25 @@ class PreferencesRepository @Inject constructor(
 
         /**
          * LOGO_NEGOCIO_KEY
-         * ----------------
+         * ------------------
          * ✔ TIPO: propiedad (private val) → Preferences.Key<String>
          * Es la clave bajo la que se guarda la ruta del logo del negocio en DataStore.
          * Sirve para mostrar el logo configurado en Home y Login; si está vacía,
          * se muestra el icono por defecto de GestorPro.
          */
         private val LOGO_NEGOCIO_KEY = stringPreferencesKey("logo_negocio")
+
+        /**
+         * ID_CLIENTE_SESION_KEY
+         * ---------------------
+         * ✔ TIPO: propiedad (private val) → Preferences.Key<Int>
+         * Es la clave bajo la que se guarda el id del cliente registrado desde este dispositivo.
+         * Sirve para vincular el registro hecho por un usuario con perfil CLIENTE
+         * (pantalla Mi perfil) con su fila en la tabla cliente; si no existe la clave,
+         * es que ese dispositivo aún no tiene registro de cliente y debe mostrarse
+         * el formulario de alta.
+         */
+        private val ID_CLIENTE_SESION_KEY = intPreferencesKey("id_cliente_sesion")
     }
 
     /**
@@ -125,6 +139,64 @@ class PreferencesRepository @Inject constructor(
     suspend fun restablecerTipoUsuario() {
         context.dataStore.edit { preferences ->
             preferences.remove(TIPO_USUARIO_KEY)
+        }
+    }
+
+    /**
+     * idClienteSesion
+     * ---------------
+     * ✔ TIPO: propiedad (val) → Flow<Int?> (nullable)
+     * Es el flujo que emite el id del cliente registrado en este dispositivo,
+     * o null si todavía no se ha registrado ninguno.
+     * Sirve para que las pantallas del perfil de cliente reaccionen en tiempo real:
+     * si hay id muestran la ficha con sus datos y si no lo hay ofrecen registrarse.
+     */
+    val idClienteSesion: Flow<Int?> = context.dataStore.data.map { preferences ->
+        preferences[ID_CLIENTE_SESION_KEY]
+    }
+
+    /**
+     * obtenerIdClienteSesion
+     * ----------------------
+     * ✔ TIPO: método (fun) suspend de Kotlin → Int?
+     * Es la lectura única (sin observar) del id del cliente registrado en este dispositivo.
+     * Sirve para comprobaciones puntuales dentro de los ViewModels
+     * (por ejemplo al guardar el registro o al entrar en Mi perfil)
+     * siguiendo el mismo patrón que obtenerTipoUsuario().
+     */
+    suspend fun obtenerIdClienteSesion(): Int? {
+        return context.dataStore.data.map { preferences ->
+            preferences[ID_CLIENTE_SESION_KEY]
+        }.first()
+    }
+
+    /**
+     * setIdClienteSesion
+     * ------------------
+     * ✔ TIPO: método (fun) suspend de Kotlin
+     * Es la operación que guarda el id del cliente recién registrado en DataStore.
+     * Sirve para que, tras completar el alta desde la pantalla Mi perfil,
+     * el dispositivo recuerde qué fila de la tabla cliente pertenece a este usuario
+     * y pueda abrirla directamente en los siguientes accesos.
+     */
+    suspend fun setIdClienteSesion(id: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[ID_CLIENTE_SESION_KEY] = id
+        }
+    }
+
+    /**
+     * borrarIdClienteSesion
+     * ---------------------
+     * ✔ TIPO: método (fun) suspend de Kotlin
+     * Es la operación que borra el id del cliente guardado en DataStore.
+     * Sirve para volver al estado "sin registro" cuando el administrador elimina
+     * al cliente de la base de datos, obligando a registrarse de nuevo
+     * la próxima vez que entre en Mi perfil.
+     */
+    suspend fun borrarIdClienteSesion() {
+        context.dataStore.edit { preferences ->
+            preferences.remove(ID_CLIENTE_SESION_KEY)
         }
     }
 

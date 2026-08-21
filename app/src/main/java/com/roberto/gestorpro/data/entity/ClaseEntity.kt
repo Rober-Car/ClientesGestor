@@ -9,6 +9,7 @@ data class ClaseEntity(
     val idClase: Int = 0,
     val negocioId: String,
     val nombre: String,
+    val servicio: String,
     val diasSemana: String,
     val horaInicio: String,
     val duracionMinutos: Int,

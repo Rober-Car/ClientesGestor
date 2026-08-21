@@ -25,6 +25,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,9 +44,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
+import com.roberto.gestorpro.model.TipoUsuario
 import com.roberto.gestorpro.navigation.Routes
 import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 import java.io.File
+import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(
@@ -63,6 +66,15 @@ fun LoginScreen(
      */
     val nombreNegocio by mainViewModel.nombreNegocio.collectAsStateWithLifecycle()
     val logoNegocio by mainViewModel.logoNegocio.collectAsStateWithLifecycle()
+
+    /**
+     * scope
+     * -----
+     * ✔ TIPO: variable inmutable (val) → CoroutineScope
+     * Es el ámbito de corrutinas ligado a la composición de esta pantalla.
+     * Sirve para leer el tipo de usuario guardado antes de navegar al Home correcto.
+     */
+    val scope = rememberCoroutineScope()
 
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
@@ -205,8 +217,24 @@ fun LoginScreen(
 
                 Button(
                     onClick = {
-                        navController.navigate(Routes.HOME) {
-                            popUpTo(Routes.LOGIN) { inclusive = true }
+
+                        /**
+                         * Decisión de destino según el tipo de usuario
+                         * --------------------------------------------
+                         * ✔ TIPO: bloque de corrutina (scope.launch)
+                         * Es la lectura del perfil guardado en DataStore antes de navegar.
+                         * Sirve para llevar a cada usuario a su menú principal:
+                         * los CLIENTE van a su Home propio y el resto al Home de administrador.
+                         */
+                        scope.launch {
+                            val destino = if (mainViewModel.obtenerTipoUsuario() == TipoUsuario.CLIENTE) {
+                                Routes.HOME_CLIENTE
+                            } else {
+                                Routes.HOME
+                            }
+                            navController.navigate(destino) {
+                                popUpTo(Routes.LOGIN) { inclusive = true }
+                            }
                         }
                     },
                     enabled = formularioValido,

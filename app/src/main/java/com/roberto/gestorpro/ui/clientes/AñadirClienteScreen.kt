@@ -989,6 +989,9 @@ fun AñadirClienteScreen(
                                 estado = if (esActivo) EstadoCliente.ACTIVO else EstadoCliente.BAJA,
                                 tieneLlave = tieneLlave,
                                 observaciones = observaciones.ifBlank { null },
+                                // Se conservan los servicios ya contratados al editar;
+                                // PENDIENTE: pantalla para gestionarlos
+                                serviciosContratados = original.serviciosContratados,
                                 firebaseUid = original.firebaseUid
                             )
 
@@ -1016,7 +1019,10 @@ fun AñadirClienteScreen(
                                 fechaNacimiento = fechaNacimiento!!,
                                 estado = if (esActivo) EstadoCliente.ACTIVO else EstadoCliente.BAJA,
                                 tieneLlave = tieneLlave,
-                                observaciones = observaciones.ifBlank { null }
+                                observaciones = observaciones.ifBlank { null },
+                                // Un cliente nuevo empieza sin servicios contratados;
+                                // PENDIENTE: pantalla para gestionarlos
+                                serviciosContratados = emptyList()
                             )
 
                             viewModel.insertarCliente(cliente) {

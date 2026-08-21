@@ -30,6 +30,7 @@ import com.roberto.gestorpro.ui.configuracion.DatosScreen
 import com.roberto.gestorpro.ui.configuracion.MiNegocioScreen
 import com.roberto.gestorpro.ui.configuracion.PreferenciasScreen
 import com.roberto.gestorpro.ui.economia.EconomiaScreen
+import com.roberto.gestorpro.ui.home.HomeClienteScreen
 import com.roberto.gestorpro.ui.home.HomeScreen
 import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 
@@ -158,6 +159,18 @@ fun AppNavigation() {
          */
         composable(Routes.HOME) {
             HomeScreen(navController)
+        }
+
+        /**
+         * Ruta HOME_CLIENTE
+         * -----------------
+         * ✔ TIPO: ruta de navegación (composable)
+         * Es la ruta que muestra el menú principal exclusivo del perfil Cliente.
+         * Sirve para que los usuarios que entraron como Cliente tengan su propio
+         * inicio, distinto al del administrador.
+         */
+        composable(Routes.HOME_CLIENTE) {
+            HomeClienteScreen(navController)
         }
 
         /**
