@@ -137,4 +137,46 @@ class MainViewModel @Inject constructor(
             preferencesRepository.setLogoNegocio(ruta)
         }
     }
+
+    /**
+     * idClienteSesion
+     * ---------------
+     * ✔ TIPO: propiedad (val) → StateFlow<Int?> (nullable)
+     * Es el estado observable del id del cliente registrado en este dispositivo.
+     * Sirve para que Mi perfil reaccione en tiempo real: si hay id muestra la ficha
+     * con sus datos y si no lo hay ofrece registrarse.
+     */
+    val idClienteSesion = preferencesRepository.idClienteSesion.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = null
+    )
+
+    /**
+     * guardarIdClienteSesion
+     * ----------------------
+     * ✔ TIPO: método (fun) de Kotlin (lanza corrutina)
+     * Es la operación que guarda el id del cliente recién registrado.
+     * Sirve para que, tras completar el alta desde Mi perfil, el dispositivo
+     * recuerde qué fila de la tabla cliente pertenece a este usuario.
+     */
+    fun guardarIdClienteSesion(id: Int) {
+        viewModelScope.launch {
+            preferencesRepository.setIdClienteSesion(id)
+        }
+    }
+
+    /**
+     * borrarIdClienteSesion
+     * ---------------------
+     * ✔ TIPO: método (fun) de Kotlin (lanza corrutina)
+     * Es la operación que borra el id del cliente guardado en DataStore.
+     * Sirve para volver al estado "sin registro" cuando el administrador eliminó
+     * al cliente, obligando a registrarse de nuevo en el próximo acceso a Mi perfil.
+     */
+    fun borrarIdClienteSesion() {
+        viewModelScope.launch {
+            preferencesRepository.borrarIdClienteSesion()
+        }
+    }
 }

@@ -155,10 +155,10 @@ class ClienteViewModel @Inject constructor(
      * Es la función que guarda un nuevo cliente en la base de datos.
      * Sirve para que la interfaz inserte un cliente sin bloquear la UI, lanzando la
      * operación de Room en segundo plano; limpia el error anterior, comprueba que el DNI
-     * no esté ya registrado y ejecuta onExito() al terminar correctamente (por ejemplo,
-     * para volver a la lista de clientes).
+     * no esté ya registrado y ejecuta onExito(idGenerado) al terminar correctamente,
+     * entregando el id del cliente creado (por ejemplo para guardar la sesión en Mi perfil).
      */
-    fun insertarCliente(cliente: ClienteEntity, onExito: () -> Unit = {}) {
+    fun insertarCliente(cliente: ClienteEntity, onExito: (Int) -> Unit = {}) {
         viewModelScope.launch {
 
             _error.value = null
@@ -171,8 +171,8 @@ class ClienteViewModel @Inject constructor(
             }
 
             try {
-                clienteRepository.insertarClienteRepo(cliente)
-                onExito()
+                val nuevoId = clienteRepository.insertarClienteRepo(cliente)
+                onExito(nuevoId.toInt())
             } catch (e: SQLiteConstraintException) {
                 _error.value = "El DNI ya está registrado"
             }

@@ -112,6 +112,17 @@ object Routes {
     const val CREAR_CLASE = "crear_clase"
 
     /**
+     * CLIENTE_CLASES
+     * --------------
+     * ✔ TIPO: constante (const val) → String
+     * Es la ruta de la pantalla de clases vista desde el perfil Cliente.
+     * Sirve para mostrar ClasesScreen en modo solo lectura (esCliente = true),
+     * sin crear/configurar clases; de momento muestra un estado vacío con mensaje
+     * hasta integrar las inscripciones de Firestore.
+     */
+    const val CLIENTE_CLASES = "cliente_clases"
+
+    /**
      * MINEGOCIO
      * ---------
      * ✔ TIPO: constante (const val) → String
@@ -143,6 +154,48 @@ object Routes {
      */
     fun modificarCliente(idCliente: Int): String {
         return "$MODIFICARCLIENTE/$idCliente"
+    }
+
+    /**
+     * MIPERFIL
+     * --------
+     * ✔ TIPO: constante (const val) → String
+     * Es la ruta de la pantalla "Mi perfil" del usuario con perfil Cliente.
+     * Sirve para que HomeClienteScreen navegue a la ficha propia; esa pantalla decide
+     * por sí sola si pedir el registro o mostrar los datos del cliente guardado.
+     */
+    const val MIPERFIL = "mi_perfil"
+
+    /**
+     * REGISTRO_CLIENTE
+     * ----------------
+     * ✔ TIPO: constante (const val) → String
+     * Es la ruta del formulario de registro del propio cliente (alta desde "Mi perfil").
+     * Sirve para mostrar AñadirClienteScreen en modo registro, sin los campos exclusivos
+     * del administrador; al guardar se registra el id creado como sesión del dispositivo.
+     */
+    const val REGISTRO_CLIENTE = "registro_cliente"
+
+    /**
+     * MODIFICAR_MIPERFIL
+     * ------------------
+     * ✔ TIPO: constante (const val) → String
+     * Es la ruta base de la edición de los propios datos del cliente ("Modificar mis datos").
+     * Sirve como prefijo de la ruta dinámica que incluye el id del cliente a modificar,
+     * mostrando el mismo formulario pero adaptado al perfil Cliente.
+     */
+    const val MODIFICAR_MIPERFIL = "modificar_mi_perfil"
+
+    /**
+     * modificarMiPerfil
+     * -----------------
+     * ✔ TIPO: función (fun) → String
+     * Es la función que genera la ruta completa de edición de los propios datos.
+     * Sirve para construir la ruta dinámica concatenando MODIFICAR_MIPERFIL con el id.
+     * Ejemplo de uso: modificarMiPerfil(7) → "modificar_mi_perfil/7"
+     */
+    fun modificarMiPerfil(idCliente: Int): String {
+        return "$MODIFICAR_MIPERFIL/$idCliente"
     }
 
 }

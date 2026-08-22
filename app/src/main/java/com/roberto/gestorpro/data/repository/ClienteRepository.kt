@@ -34,12 +34,14 @@ class ClienteRepository(
     /**
      * insertarClienteRepo
      * -------------------
-     * ✔ TIPO: método (fun) suspend de Kotlin
+     * ✔ TIPO: método (fun) suspend de Kotlin → Long
      * Es la operación que inserta un cliente en la base de datos a través del DAO.
-     * Sirve para guardar un nuevo ClienteEntity desde la capa de repositorio.
+     * Sirve para guardar un nuevo ClienteEntity desde la capa de repositorio
+     * y devolver el id generado para poder vincularlo (por ejemplo al registro
+     * de un cliente desde Mi perfil).
      */
-    suspend fun insertarClienteRepo(cliente: ClienteEntity) {
-        clienteDao.insertarClienteDao(cliente)
+    suspend fun insertarClienteRepo(cliente: ClienteEntity): Long {
+        return clienteDao.insertarClienteDao(cliente)
     }
 
     /**

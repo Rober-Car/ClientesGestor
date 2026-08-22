@@ -75,7 +75,9 @@ import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
 import com.roberto.gestorpro.data.entity.ClienteEntity
 import com.roberto.gestorpro.model.EstadoCliente
+import com.roberto.gestorpro.navigation.Routes
 import com.roberto.gestorpro.ui.viewmodel.ClienteViewModel
+import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 import java.io.File
 import java.io.FileOutputStream
 import java.time.Instant
@@ -121,13 +123,34 @@ fun AñadirClienteScreen(
      */
     idCliente: Int? = null,
     /**
+     * modoRegistroCliente
+     * -------------------
+     * ✔ TIPO: parámetro (param) → Boolean (false por defecto)
+     * Es la marca de que la pantalla se usa para el registro del propio cliente
+     * desde "Mi perfil" y no por el administrador.
+     * Sirve para ocultar los campos exclusivos del administrador (tiene llave,
+     * activo/baja y observaciones), cambiar los títulos ("Completa tu registro",
+     * "Modificar mis datos") y, al crear el cliente, guardar su id en DataStore
+     * como sesión activa antes de navegar a Mi perfil.
+     */
+    modoRegistroCliente: Boolean = false,
+    /**
      * viewModel
      * ---------
      * ✔ TIPO: parámetro (param) → ClienteViewModel (inyectado por Hilt)
      * Es el ViewModel de clientes que recibe la pantalla.
      * Sirve para guardar el nuevo cliente en la base de datos cuando se complete el formulario.
      */
-    viewModel: ClienteViewModel = hiltViewModel()
+    viewModel: ClienteViewModel = hiltViewModel(),
+    /**
+     * mainViewModel
+     * -------------
+     * ✔ TIPO: parámetro (param) → MainViewModel (inyectado por Hilt)
+     * Es el ViewModel de preferencias de la app.
+     * Sirve para guardar en DataStore el id del cliente registrado cuando el alta
+     * se hace en modo registro de cliente (modoRegistroCliente = true).
+     */
+    mainViewModel: MainViewModel = hiltViewModel()
 
 
 ) {
@@ -589,10 +612,16 @@ fun AñadirClienteScreen(
              * ---------------
              * ✔ TIPO: función @Composable (androidx.compose.material3.Text)
              * Es el título de la pantalla de clientes.
-             * Sirve para indicar al usuario en qué sección se encuentra.
+             * Sirve para indicar al usuario en qué sección se encuentra;
+             * en modo registro de cliente se usan títulos propios ("Completa tu registro"
+             * y "Modificar mis datos") en lugar de los del administrador.
              */
             Text(
-                text = if (idCliente != null) "Modificar cliente" else "Añadir cliente",
+                text = when {
+                    idCliente != null -> if (modoRegistroCliente) "Modificar mis datos" else "Modificar cliente"
+                    modoRegistroCliente -> "Completa tu registro"
+                    else -> "Añadir cliente"
+                },
                 style = MaterialTheme.typography.titleLarge
             )
         }
@@ -874,60 +903,72 @@ fun AñadirClienteScreen(
          * ============ BLOQUE 8: UI - OPCIONES Y GUARDAR =============
          * ============================================================ */
         /**
-         * Row de "Tiene llave"
-         * --------------------
-         * ✔ TIPO: función @Composable (androidx.compose.foundation.layout.Row)
-         * Es la fila que junta el texto "Tiene llave" con el interruptor.
-         * Sirve para activar o desactivar la opción de que el cliente tenga llave.
+         * Sección "Otros datos" (solo administrador)
+         * ------------------------------------------
+         * ✔ TIPO: bloque condicional (if) que agrupa llave, estado y observaciones.
+         * Sirve para ocultar estos campos cuando la pantalla se usa como registro del
+         * propio cliente (modoRegistroCliente): son decisiones del administrador, no
+         * del cliente; sus valores se conservan sin cambios al editar (se precargan
+         * del cliente original) o toman valores por defecto al crear.
          */
-        Text(
-            text = "Otros datos",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(top = 16.dp)
-        )
+        if (!modoRegistroCliente) {
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+            /**
+             * Row de "Tiene llave"
+             * --------------------
+             * ✔ TIPO: función @Composable (androidx.compose.foundation.layout.Row)
+             * Es la fila que junta el texto "Tiene llave" con el interruptor.
+             * Sirve para activar o desactivar la opción de que el cliente tenga llave.
+             */
+            Text(
+                text = "Otros datos",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = 16.dp)
+            )
+
             Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Tiene llave")
-                Switch(
-                    checked = tieneLlave,
-                    onCheckedChange = {
-                        tieneLlave = it
-                        viewModel.limpiarError()
-                    }
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Tiene llave")
+                    Switch(
+                        checked = tieneLlave,
+                        onCheckedChange = {
+                            tieneLlave = it
+                            viewModel.limpiarError()
+                        }
+                    )
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(if (esActivo) "Activo" else "Baja")
+                    Switch(
+                        checked = esActivo,
+                        onCheckedChange = {
+                            esActivo = it
+                            viewModel.limpiarError()
+                        }
+                    )
+                }
             }
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(if (esActivo) "Activo" else "Baja")
-                Switch(
-                    checked = esActivo,
-                    onCheckedChange = {
-                        esActivo = it
-                        viewModel.limpiarError()
-                    }
-                )
-            }
+
+            OutlinedTextField(
+                value = observaciones,
+                onValueChange = {
+                    observaciones = it
+                    viewModel.limpiarError()
+                },
+                label = { Text("Observaciones") },
+                minLines = 3,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
-
-        OutlinedTextField(
-            value = observaciones,
-            onValueChange = {
-                observaciones = it
-                viewModel.limpiarError()
-            },
-            label = { Text("Observaciones") },
-            minLines = 3,
-            modifier = Modifier.fillMaxWidth()
-        )
 
         /**
          * Button de Guardar cliente
@@ -1007,7 +1048,10 @@ fun AñadirClienteScreen(
                             }
                         } else {
                             // MODO ALTA: el cliente nuevo empieza con el estado elegido
-                            // en el switch (ACTIVO o BAJA) y sin fecha de registro propia.
+                            // en el switch (ACTIVO o BAJA); si el alta la hace el propio
+                            // cliente desde Mi perfil, nace como REGISTRADO a la espera
+                            // de que el administrador lo revise, sin llave ni observaciones
+                            // (campos que son exclusivos del administrador).
                             val cliente = ClienteEntity(
                                 nombre = nombre,
                                 apellidos = apellidos,
@@ -1017,7 +1061,11 @@ fun AñadirClienteScreen(
                                 email = email,
                                 foto = foto,
                                 fechaNacimiento = fechaNacimiento!!,
-                                estado = if (esActivo) EstadoCliente.ACTIVO else EstadoCliente.BAJA,
+                                estado = when {
+                                    modoRegistroCliente -> EstadoCliente.REGISTRADO
+                                    esActivo -> EstadoCliente.ACTIVO
+                                    else -> EstadoCliente.BAJA
+                                },
                                 tieneLlave = tieneLlave,
                                 observaciones = observaciones.ifBlank { null },
                                 // Un cliente nuevo empieza sin servicios contratados;
@@ -1025,8 +1073,19 @@ fun AñadirClienteScreen(
                                 serviciosContratados = emptyList()
                             )
 
-                            viewModel.insertarCliente(cliente) {
-                                navController.popBackStack()
+                            viewModel.insertarCliente(cliente) { idGenerado ->
+                                if (modoRegistroCliente) {
+                                    // REGISTRO DESDE MI PERFIL: se guarda el id del cliente
+                                    // creado en DataStore para que este dispositivo recuerde
+                                    // su ficha, y se navega a Mi perfil limpiando el registro
+                                    // del historial para que atrás no vuelva al formulario.
+                                    mainViewModel.guardarIdClienteSesion(idGenerado)
+                                    navController.navigate(Routes.MIPERFIL) {
+                                        popUpTo(Routes.REGISTRO_CLIENTE) { inclusive = true }
+                                    }
+                                } else {
+                                    navController.popBackStack()
+                                }
                             }
                         }
                     }
@@ -1041,7 +1100,13 @@ fun AñadirClienteScreen(
                 contentColor = Color.White
             )
         ) {
-            Text(if (idCliente != null) "Guardar cambios" else "Guardar cliente")
+            Text(
+                when {
+                    idCliente != null -> "Guardar cambios"
+                    modoRegistroCliente -> "Completar registro"
+                    else -> "Guardar cliente"
+                }
+            )
         }
 
         /**

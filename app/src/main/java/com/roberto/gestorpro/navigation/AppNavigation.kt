@@ -23,6 +23,7 @@ import com.roberto.gestorpro.ui.clases.DetalleClaseScreen
 import com.roberto.gestorpro.ui.clases.DetalleSesionReservasScreen
 import com.roberto.gestorpro.ui.clientes.AñadirClienteScreen
 import com.roberto.gestorpro.ui.clientes.ClientesScreen
+import com.roberto.gestorpro.ui.clientes.MiPerfilScreen
 import com.roberto.gestorpro.ui.clientes.PerfilClienteScreen
 import com.roberto.gestorpro.ui.configuracion.ConfiguracionScreen
 import com.roberto.gestorpro.ui.configuracion.CuentaScreen
@@ -259,6 +260,59 @@ fun AppNavigation() {
             EconomiaScreen(navController)
         }
 
+        /**
+         * Ruta MIPERFIL
+         * -------------
+         * ✔ TIPO: ruta de navegación (composable)
+         * Es la ruta que muestra la ficha del propio cliente del dispositivo.
+         * Sirve para que la tarjeta "Mi perfil" de HomeClienteScreen llegue aquí;
+         * la pantalla decide sola si pedir el registro o mostrar los datos guardados.
+         */
+        composable(Routes.MIPERFIL) {
+            MiPerfilScreen(navController)
+        }
+
+        /**
+         * Ruta REGISTRO_CLIENTE
+         * ---------------------
+         * ✔ TIPO: ruta de navegación (composable)
+         * Es la ruta del formulario de alta del propio cliente desde "Mi perfil".
+         * Sirve para reutilizar AñadirClienteScreen en modo registro (modoRegistroCliente
+         * = true), ocultando los campos exclusivos del administrador; al guardar, el id
+         * creado se registra como sesión y se navega a Mi perfil.
+         */
+        composable(Routes.REGISTRO_CLIENTE) {
+            AñadirClienteScreen(
+                navController = navController,
+                modoRegistroCliente = true
+            )
+        }
+
+        /**
+         * Ruta MODIFICAR_MIPERFIL
+         * -----------------------
+         * ✔ TIPO: ruta de navegación (composable) con parámetro dinámico
+         * Es la ruta que muestra el formulario para que el cliente edite sus propios datos.
+         * Sirve para abrir AñadirClienteScreen en modo registro y edición a la vez:
+         * precarga el cliente del id recibido y oculta los campos del administrador.
+         */
+        composable(
+            route = "${Routes.MODIFICAR_MIPERFIL}/{idCliente}"
+        ) { backStackEntry ->
+
+            val idCliente = backStackEntry.arguments
+                ?.getString("idCliente")
+                ?.toIntOrNull()
+
+            if (idCliente != null) {
+                AñadirClienteScreen(
+                    navController = navController,
+                    idCliente = idCliente,
+                    modoRegistroCliente = true
+                )
+            }
+        }
+
         composable(Routes.CONFIGURACION) {
             ConfiguracionScreen(navController)
         }
@@ -289,6 +343,10 @@ fun AppNavigation() {
 
         composable(Routes.CLASES) {
             ClasesScreen(navController)
+        }
+
+        composable(Routes.CLIENTE_CLASES) {
+            ClasesScreen(navController, esCliente = true)
         }
 
         composable(Routes.CREAR_CLASE) {

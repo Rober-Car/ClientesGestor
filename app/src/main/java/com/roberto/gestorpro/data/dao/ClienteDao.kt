@@ -39,12 +39,13 @@ interface ClienteDao {
     /**
      * insertarClienteDao
      * ------------------
-     * ✔ TIPO: método (fun) de Room con anotación @Insert
+     * ✔ TIPO: método (fun) de Room con anotación @Insert → Long
      * Es la operación que inserta un cliente en la tabla de la base de datos.
-     * Sirve para guardar un nuevo ClienteEntity cuando se le pasa como parámetro.
+     * Sirve para guardar un nuevo ClienteEntity cuando se le pasa como parámetro
+     * y devolver el rowId generado por Room para conocer el id del cliente creado.
      */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertarClienteDao(cliente: ClienteEntity)
+    suspend fun insertarClienteDao(cliente: ClienteEntity): Long
 
     /**
      * actualizarClienteDao

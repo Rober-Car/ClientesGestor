@@ -67,19 +67,32 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun ClasesScreen(
     navController: NavHostController,
+    /**
+     * esCliente
+     * ---------
+     * ✔ TIPO: parámetro (param) → Boolean
+     * Indica si la pantalla se muestra para un perfil Cliente.
+     * Sirve para ocultar toda la gestión (crear clases, configuración, eliminar):
+     * el cliente solo podrá consultar; de momento, hasta integrar las
+     * inscripciones de Firestore, verá un estado vacío con mensaje explicativo.
+     */
+    esCliente: Boolean = false,
     viewModel: ClaseViewModel = hiltViewModel()
 ) {
     var tabSeleccionada by remember { mutableIntStateOf(0) }
     val tabs = listOf("Configuración", "Sesiones")
 
     LaunchedEffect(Unit) {
-        viewModel.cargarClases()
-        viewModel.cargarSesionesActivas()
+        if (!esCliente) {
+            viewModel.cargarClases()
+            viewModel.cargarSesionesActivas()
+        }
     }
 
     Scaffold(
         floatingActionButton = {
-            if (tabSeleccionada == 0) {
+            // El cliente no puede crear ni configurar clases: solo el administrador.
+            if (tabSeleccionada == 0 && !esCliente) {
                 FloatingActionButton(
                     onClick = { navController.navigate(Routes.CREAR_CLASE) },
                     containerColor = Color(0xFF1E88E5)
@@ -118,32 +131,74 @@ fun ClasesScreen(
                 )
             }
 
-            SecondaryTabRow(
-                selectedTabIndex = tabSeleccionada,
-                containerColor = Color.White,
-                contentColor = Color(0xFF1E88E5)
-            ) {
-                tabs.forEachIndexed { index, titulo ->
-                    Tab(
-                        selected = tabSeleccionada == index,
-                        onClick = { tabSeleccionada = index },
-                        text = {
-                            Text(
-                                text = titulo,
-                                fontWeight = if (tabSeleccionada == index) FontWeight.Bold else FontWeight.Normal
-                            )
-                        },
-                        selectedContentColor = Color(0xFF1E88E5),
-                        unselectedContentColor = Color.Gray
-                    )
+            if (esCliente) {
+                /**
+                 * Vista de cliente (solo lectura)
+                 * -------------------------------
+                 * ✔ TIPO: bloque condicional + Composable
+                 * Es el estado que ve el cliente al entrar a Clases.
+                 * Sirve para dejar claro que las inscripciones aún no están disponibles:
+                 * cuando se integre la parte de Firestore (otra IA) aquí se listarán
+                 * únicamente las sesiones de los servicios en los que esté inscrito.
+                 */
+                TabClientePlaceholder()
+            } else {
+                SecondaryTabRow(
+                    selectedTabIndex = tabSeleccionada,
+                    containerColor = Color.White,
+                    contentColor = Color(0xFF1E88E5)
+                ) {
+                    tabs.forEachIndexed { index, titulo ->
+                        Tab(
+                            selected = tabSeleccionada == index,
+                            onClick = { tabSeleccionada = index },
+                            text = {
+                                Text(
+                                    text = titulo,
+                                    fontWeight = if (tabSeleccionada == index) FontWeight.Bold else FontWeight.Normal
+                                )
+                            },
+                            selectedContentColor = Color(0xFF1E88E5),
+                            unselectedContentColor = Color.Gray
+                        )
+                    }
+                }
+
+                when (tabSeleccionada) {
+                    0 -> TabConfiguracion(viewModel, navController)
+                    1 -> TabSesiones(viewModel, navController)
                 }
             }
-
-            when (tabSeleccionada) {
-                0 -> TabConfiguracion(viewModel, navController)
-                1 -> TabSesiones(viewModel, navController)
-            }
         }
+    }
+}
+
+@Composable
+fun TabClientePlaceholder() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.CalendarMonth,
+            contentDescription = null,
+            modifier = Modifier.size(64.dp),
+            tint = Color.Gray.copy(alpha = 0.5f)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "Aún no estás inscrito en ninguna sesión",
+            style = MaterialTheme.typography.bodyLarge,
+            color = Color.Gray
+        )
+        Text(
+            text = "Cuando el negocio active las inscripciones, aquí verás las sesiones de tus servicios",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.Gray.copy(alpha = 0.7f)
+        )
     }
 }
 
