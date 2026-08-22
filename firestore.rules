@@ -1,0 +1,427 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================
+    // FUNCIONES GENERALES
+    // =========================================================
+
+    function autenticado() {
+      return request.auth != null;
+    }
+
+    function usuarioActual() {
+      return get(
+        /databases/$(database)/documents/usuarios/$(request.auth.uid)
+      ).data;
+    }
+
+    function esAdmin() {
+      return autenticado()
+        && usuarioActual().rol == "ADMIN"
+        && usuarioActual().activo == true;
+    }
+
+    function esCliente() {
+      return autenticado()
+        && usuarioActual().rol == "CLIENTE"
+        && usuarioActual().activo == true;
+    }
+
+    // El codigo se obtiene de la ficha remota del cliente y no del cliente.
+    // Asi el cliente no puede cambiarlo para saltarse la vinculacion.
+    function codigoVinculacionDelCliente(clienteId) {
+      return get(
+        /databases/$(database)/documents/clientes/$(clienteId)
+      ).data.codigoVinculacion;
+    }
+
+    // Exige que el codigo actual siga pendiente y no haya caducado antes
+    // de comenzar el Batch de vinculacion.
+    function vinculacionPendiente(clienteId) {
+      return codigoVinculacionDelCliente(clienteId) is string
+        && get(
+          /databases/$(database)/documents/vinculaciones/$(codigoVinculacionDelCliente(clienteId))
+        ).data.estado == "PENDIENTE"
+        && get(
+          /databases/$(database)/documents/vinculaciones/$(codigoVinculacionDelCliente(clienteId))
+        ).data.fechaExpiracion > request.time;
+    }
+
+    // La vinculacion solo se acepta si el mismo Batch deja el codigo como USADA.
+    function vinculacionUsadaDespuesDelBatch(clienteId) {
+      return getAfter(
+        /databases/$(database)/documents/vinculaciones/$(codigoVinculacionDelCliente(clienteId))
+      ).data.estado == "USADA";
+    }
+
+    function sesionDelNegocio(sesionId) {
+      return get(
+        /databases/$(database)/documents/sesiones/$(sesionId)
+      ).data.negocioId == usuarioActual().negocioId;
+    }
+
+    function clienteAutorizadoEnSesion(sesionId) {
+      return request.auth.uid in get(
+        /databases/$(database)/documents/sesiones/$(sesionId)
+      ).data.clientesPermitidos;
+    }
+
+
+    // =========================================================
+    // NEGOCIOS
+    // =========================================================
+
+    match /negocios/{negocioId} {
+      allow get: if esAdmin()
+        && usuarioActual().negocioId == negocioId
+        && resource.data.adminUid == request.auth.uid;
+
+      // Las consultas deben filtrar por documentId/negocioId para que
+      // Firestore pueda demostrar que solo devuelven el negocio propio.
+      allow list: if esAdmin()
+        && usuarioActual().negocioId == negocioId
+        && resource.data.adminUid == request.auth.uid;
+
+      // Debe formar parte del mismo Batch que actualiza usuarios/{uid}.
+      allow create: if esAdmin()
+        && usuarioActual().negocioId == null
+        && request.resource.data.adminUid == request.auth.uid
+        && getAfter(
+          /databases/$(database)/documents/usuarios/$(request.auth.uid)
+        ).data.negocioId == negocioId;
+
+      allow update: if esAdmin()
+        && usuarioActual().negocioId == negocioId
+        && resource.data.adminUid == request.auth.uid
+        && request.resource.data.adminUid == request.auth.uid;
+
+      allow delete: if false;
+    }
+
+
+    // =========================================================
+    // USUARIOS
+    // =========================================================
+
+    match /usuarios/{uid} {
+      allow get: if autenticado()
+        && request.auth.uid == uid;
+
+      allow list: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+
+      allow create: if autenticado()
+        && request.auth.uid == uid
+        && request.resource.data.rol in ["ADMIN", "CLIENTE"]
+        && request.resource.data.activo == true
+        && request.resource.data.clienteId == null
+        && request.resource.data.negocioId == null;
+
+      // Un ADMIN nuevo puede crear su negocio, pero no vincularse a uno ajeno.
+      allow update: if esAdmin()
+        && request.auth.uid == uid
+        && resource.data.negocioId == null
+        && request.resource.data.negocioId is string
+        && request.resource.data.rol == resource.data.rol
+        && request.resource.data.activo == resource.data.activo
+        && request.resource.data.clienteId == resource.data.clienteId
+        && request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly(["negocioId"])
+        && getAfter(
+          /databases/$(database)/documents/negocios/$(request.resource.data.negocioId)
+        ).data.adminUid == request.auth.uid;
+
+      // La vinculacion de un CLIENTE solo es valida dentro del Batch completo.
+      allow update: if esCliente()
+        && request.auth.uid == uid
+        && resource.data.clienteId == null
+        && resource.data.negocioId == null
+        && request.resource.data.clienteId is int
+        && request.resource.data.negocioId is string
+        && request.resource.data.rol == resource.data.rol
+        && request.resource.data.activo == resource.data.activo
+        && request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly(["clienteId", "negocioId"])
+        && vinculacionPendiente(request.resource.data.clienteId)
+        && vinculacionUsadaDespuesDelBatch(request.resource.data.clienteId)
+        && getAfter(
+          /databases/$(database)/documents/clientes/$(request.resource.data.clienteId)
+        ).data.firebaseUid == request.auth.uid
+        && getAfter(
+          /databases/$(database)/documents/clientes/$(request.resource.data.clienteId)
+        ).data.negocioId == request.resource.data.negocioId;
+
+      allow delete: if false;
+    }
+
+
+    // =========================================================
+    // CLIENTES
+    // =========================================================
+
+    match /clientes/{clienteId} {
+      allow get: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+
+      allow list: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+
+      allow create: if esAdmin()
+        && request.resource.data.negocioId == usuarioActual().negocioId;
+
+      // El cliente solo puede completar su vinculacion con su UID y dentro
+      // del Batch que consume el codigo correcto.
+      allow update: if esCliente()
+        && request.resource.data.firebaseUid == request.auth.uid
+        && resource.data.negocioId == null
+        && request.resource.data.negocioId is string
+        && request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly(["firebaseUid", "negocioId"])
+        && vinculacionPendiente(resource.data.idCliente)
+        && vinculacionUsadaDespuesDelBatch(resource.data.idCliente)
+        && getAfter(
+          /databases/$(database)/documents/usuarios/$(request.auth.uid)
+        ).data.clienteId == resource.data.idCliente
+        && getAfter(
+          /databases/$(database)/documents/usuarios/$(request.auth.uid)
+        ).data.negocioId == request.resource.data.negocioId;
+
+      allow update: if esCliente()
+        && usuarioActual().clienteId == clienteId
+        && resource.data.firebaseUid == request.auth.uid
+        && request.resource.data.firebaseUid == resource.data.firebaseUid
+        && request.resource.data.negocioId == resource.data.negocioId
+        && request.resource.data.idCliente == resource.data.idCliente
+        && request.resource.data.estado == resource.data.estado
+        && request.resource.data.fechaAlta == resource.data.fechaAlta
+        && request.resource.data.fechaBaja == resource.data.fechaBaja
+        && request.resource.data.fechaInicioActual == resource.data.fechaInicioActual
+        && request.resource.data.fechaFinActual == resource.data.fechaFinActual
+        && request.resource.data.serviciosContratados == resource.data.serviciosContratados
+        && request.resource.data.codigoVinculacion == resource.data.codigoVinculacion
+        && request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly([
+              "nombre",
+              "apellidos",
+              "dni",
+              "telefono",
+              "email",
+              "foto",
+              "fechaNacimiento",
+              "observaciones"
+            ]);
+
+      allow update: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId
+        && request.resource.data.negocioId == usuarioActual().negocioId;
+
+      allow delete: if false;
+    }
+
+
+    // =========================================================
+    // MOVIMIENTOS
+    // =========================================================
+
+    match /movimientos/{movimientoId} {
+      allow get: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+
+      allow list: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+
+      allow create: if esAdmin()
+        && request.resource.data.negocioId == usuarioActual().negocioId;
+
+      allow update: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId
+        && request.resource.data.negocioId == usuarioActual().negocioId;
+
+      allow delete: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+    }
+
+
+    // =========================================================
+    // CLASES
+    // =========================================================
+
+    match /clases/{claseId} {
+      allow get, list: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+
+      allow get, list: if esCliente()
+        && resource.data.negocioId == usuarioActual().negocioId;
+
+      allow create: if esAdmin()
+        && request.resource.data.negocioId == usuarioActual().negocioId;
+
+      allow update: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId
+        && request.resource.data.negocioId == usuarioActual().negocioId;
+
+      allow delete: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+    }
+
+
+    // =========================================================
+    // SESIONES
+    // =========================================================
+
+    match /sesiones/{sesionId} {
+      allow get, list: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+
+      allow get, list: if esCliente()
+        && resource.data.negocioId == usuarioActual().negocioId
+        && request.auth.uid in resource.data.clientesPermitidos;
+
+      allow create: if esAdmin()
+        && request.resource.data.negocioId == usuarioActual().negocioId;
+
+      allow update: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId
+        && request.resource.data.negocioId == usuarioActual().negocioId;
+
+      allow delete: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+    }
+
+
+    // =========================================================
+    // RESERVAS
+    // =========================================================
+
+    match /reservas/{reservaId} {
+      allow get, list: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+
+      allow get, list: if esCliente()
+        && resource.data.negocioId == usuarioActual().negocioId
+        && resource.data.clienteId == usuarioActual().clienteId;
+
+      // La sesion debe existir y pertenecer al negocio del ADMIN.
+      allow create: if esAdmin()
+        && request.resource.data.negocioId == usuarioActual().negocioId
+        && request.resource.data.sesionId is int
+        && sesionDelNegocio(request.resource.data.sesionId);
+
+      // El cliente solo puede reservar para si mismo una sesion autorizada.
+      allow create: if esCliente()
+        && request.resource.data.negocioId == usuarioActual().negocioId
+        && request.resource.data.clienteId == usuarioActual().clienteId
+        && request.resource.data.sesionId is int
+        && sesionDelNegocio(request.resource.data.sesionId)
+        && clienteAutorizadoEnSesion(request.resource.data.sesionId);
+
+      allow update: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId
+        && request.resource.data.negocioId == usuarioActual().negocioId;
+
+      allow update: if false;
+
+      allow delete: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+
+      allow delete: if esCliente()
+        && resource.data.negocioId == usuarioActual().negocioId
+        && resource.data.clienteId == usuarioActual().clienteId;
+    }
+
+
+    // =========================================================
+    // SOLICITUDES
+    // =========================================================
+
+    match /solicitudes/{solicitudId} {
+      allow get, list: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+
+      allow get, list: if esCliente()
+        && resource.data.negocioId == usuarioActual().negocioId
+        && resource.data.idCliente == usuarioActual().clienteId;
+
+      allow create: if esCliente()
+        && request.resource.data.negocioId == usuarioActual().negocioId
+        && request.resource.data.idCliente == usuarioActual().clienteId
+        && request.resource.data.estado == "PENDIENTE"
+        && request.resource.data.tipo in ["ALTA", "BAJA"];
+
+      allow update: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId
+        && request.resource.data.negocioId == usuarioActual().negocioId;
+
+      allow update: if false;
+
+      allow delete: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+
+      allow delete: if false;
+    }
+
+
+    // =========================================================
+    // VINCULACIONES
+    // =========================================================
+
+    match /vinculaciones/{codigo} {
+      allow get: if autenticado()
+        && resource.data.estado == "PENDIENTE"
+        && resource.data.fechaExpiracion > request.time;
+
+      // Nunca se permite listar todos los codigos.
+      allow list: if false;
+
+      allow create: if esAdmin()
+        && request.resource.data.negocioId == usuarioActual().negocioId
+        && request.resource.data.estado == "PENDIENTE";
+
+      // Este update solo puede ocurrir como parte del Batch de vinculacion.
+      allow update: if esCliente()
+        && request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly(["estado"])
+        && resource.data.estado == "PENDIENTE"
+        && resource.data.fechaExpiracion > request.time
+        && request.resource.data.estado == "USADA"
+        && resource.data.clienteId == getAfter(
+          /databases/$(database)/documents/usuarios/$(request.auth.uid)
+        ).data.clienteId
+        && resource.data.negocioId == getAfter(
+          /databases/$(database)/documents/usuarios/$(request.auth.uid)
+        ).data.negocioId
+        && getAfter(
+          /databases/$(database)/documents/clientes/$(resource.data.clienteId)
+        ).data.firebaseUid == request.auth.uid
+        && getAfter(
+          /databases/$(database)/documents/clientes/$(resource.data.clienteId)
+        ).data.negocioId == resource.data.negocioId
+        && getAfter(
+          /databases/$(database)/documents/clientes/$(resource.data.clienteId)
+        ).data.codigoVinculacion == codigo;
+
+      allow update: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId
+        && request.resource.data.negocioId == usuarioActual().negocioId;
+
+      allow delete: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+    }
+
+
+    // =========================================================
+    // BLOQUEO POR DEFECTO
+    // =========================================================
+
+    match /{documento=**} {
+      allow read, write: if false;
+    }
+  }
+}
