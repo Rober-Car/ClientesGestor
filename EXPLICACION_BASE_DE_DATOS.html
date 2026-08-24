@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ClientesGestor - Base de datos y Hilt (simple)</title>
+<title>GestorPro - Base de datos, Hilt y Firebase (simple)</title>
 <style>
   :root {
     --bg: #0f172a; --card: #1e293b; --border: #334155;
@@ -59,7 +59,7 @@
 <div class="container">
 
 <header>
-  <h1>🗄️ ClientesGestor: la base de datos y Hilt</h1>
+  <h1>🗄️ GestorPro: la base de datos local, Hilt y Firebase</h1>
   <p>Explicación sencilla, sin montañas de código. Clic en cada caja.</p>
 </header>
 
@@ -122,26 +122,74 @@
 </div>
 
 <div class="card">
-  <span class="tag">ClientesGestorApplication.kt</span>
+  <span class="tag">GestorProApplication.kt</span>
   <h3>El "encendido" de Hilt</h3>
-  <p><code>@HiltAndroidApp</code> enciende Hilt cuando arranca la app. Sin esto, Hilt no existe.</p>
+  <p><code>@HiltAndroidApp</code> enciende Hilt cuando arranca la app (en <code>GestorProApplication</code>). Sin esto, Hilt no existe.</p>
 </div>
 
 <div class="card">
-  <h3>Los 3 puntos donde se "etiqueta" (lo que falta)</h3>
-  <p>Para que Hilt conecte todo necesita 3 etiquetas, y en tu proyecto <b>solo falta esto</b>:</p>
-  <p style="margin-top:8px">1️⃣ En <code>AppModule</code>: las <b>recetas</b> para crear la base, el DAO y el Repository.<br>
+  <h3>Los 3 puntos donde se "etiqueta" (ya conectados)</h3>
+  <p>Hilt conecta todo con 3 etiquetas, y en el proyecto <b>ya están las tres</b>:</p>
+  <p style="margin-top:8px">1️⃣ En <code>AppModule</code>: las <b>recetas</b> para crear la base, los DAOs y los Repositories.<br>
   2️⃣ En <code>MainActivity</code>: <code>@AndroidEntryPoint</code>.<br>
-  3️⃣ En <code>ClienteViewModel</code>: <code>@HiltViewModel</code> + <code>@Inject</code>.</p>
-  <div class="warn">⚠ Con todo etiquetado, la conexión queda así: <b>Pantalla pide datos → ViewModel los pide al Repository → Hilt se los da, porque ya sabe cómo crearlos</b> (base → DAO → Repository → ViewModel).</div>
+  3️⃣ En cada ViewModel: <code>@HiltViewModel</code> + <code>@Inject</code>.</p>
+  <div class="analogy">⚠ Con todo etiquetado, la conexión queda así: <b>Pantalla pide datos → ViewModel los pide al Repository → Hilt se los da, porque ya sabe cómo crearlos</b> (base → DAO → Repository → ViewModel).</div>
 </div>
+
+<!-- ===== FIREBASE ===== -->
+<h2>☁️ La capa remota: Firebase (Auth + Firestore)</h2>
+<div class="flow">
+  <div class="box"><span>📱</span><b>APP</b><span style="font-size:.75rem;color:var(--muted)">Android</span></div>
+  <div class="arrow">→</div>
+  <div class="box"><span>🔐</span><b>AUTH</b><span style="font-size:.75rem;color:var(--muted)">¿quién eres?</span></div>
+  <div class="arrow">→</div>
+  <div class="box"><span>📜</span><b>RULES</b><span style="font-size:.75rem;color:var(--muted)">el portero</span></div>
+  <div class="arrow">→</div>
+  <div class="box"><span>🌐</span><b>FIRESTORE</b><span style="font-size:.75rem;color:var(--muted)">documentos en la nube</span></div>
+</div>
+
+<div class="card">
+  <h3>🔐 La autenticación ya es real</h3>
+  <p>Desde esta sesión, la app se conecta de verdad a Firebase. El nuevo
+  <code>AutenticacionRepository</code> hace tres cosas: al <b>registrarte</b> crea la cuenta y su documento
+  <code>usuarios/{uid}</code> con <code>rol</code>, <code>activo: true</code>, <code>clienteId: null</code> y
+  <code>negocioId: null</code>; al <b>iniciar sesión</b> comprueba que exista ese perfil y que esté activo;
+  y al <b>cerrar sesión</b> llama a <code>signOut()</code> sin borrar tus preferencias locales.</p>
+  <div class="analogy">🧠 <b>Como un registro de entrada del gimnasio:</b> te das de alta una vez (y si el alta en la nube falla, se cancela todo y no queda mitad hecha), cada día enseñas tu carnet (login), y al irte devuelves el carnet pero tus datos siguen en la taquilla (DataStore).</div>
+</div>
+
+<div class="card">
+  <h3>Las colecciones de Firestore (proyecto gestorpro-50e83)</h3>
+  <p><code>usuarios/{uid}</code>, <code>negocios/{negocioId}</code>, <code>clientes/{idCliente}</code>,
+  <code>clases</code>, <code>sesiones</code>, <code>reservas</code>, <code>solicitudes</code>,
+  <code>movimientos</code> y <code>vinculaciones/{codigo}</code>.</p>
+  <p style="margin-top:6px">Cada documento lleva <code>negocioId</code>: es la frontera entre negocios. Las
+  <b>Security Rules</b> (publicadas y con 9/9 pruebas) bloquean todo por defecto y solo permiten
+  operaciones demostrablemente legítimas. El documento <code>usuarios/{uid}</code> ya nace desde la propia
+  app cuando un usuario se registra.</p>
+</div>
+
+<div class="card">
+  <h3>La vinculación: un Batch atómico o nada</h3>
+  <p>1️⃣ El ADMIN crea <code>vinculaciones/{codigo}</code> con estado <code>PENDIENTE</code> y fecha de
+  caducidad, y lo asigna a la ficha (<code>clientes/{id}.codigoVinculacion</code>) en el mismo Batch.<br>
+  2️⃣ El CLIENTE introduce el código y se ejecuta UN Batch que actualiza los tres documentos a la vez:
+  <code>usuarios/{uid} ← clienteId+negocioId</code>, <code>clientes/{id} ← firebaseUid (+negocioId)</code>
+  y <code>vinculaciones/{codigo} ← estado "USADA"</code>.</p>
+  <div class="analogy">🧠 <b>Como un contrato de tres copias:</b> o firman las tres a la vez, o no vale ninguna. Las Rules comprueban el estado DESPUÉS del Batch para asegurarse.</div>
+</div>
+
+<div class="warn">⚠ <b>Room ≠ Firestore:</b> hoy la app guarda su negocio en Room (local). Firestore ya
+  participa en la <b>autenticación</b> (login, registro y logout reales) y en la <b>vinculación</b> por
+  contrato de Rules, aunque esta última aún no tiene pantalla que la invoque. No hay sincronización
+  automática entre ambas bases: son dos bases distintas con contratos distintos (ver <code>AGENTS.md</code>).</div>
 
 <h2>✅ En una frase</h2>
 <div class="card">
-  <p style="font-size:1.05rem">La <b>pantalla</b> pide → el <b>ViewModel</b> organiza → el <b>Repository</b> traduce → el <b>DAO</b> ordena → <b>Room</b> guarda. Y <b>Hilt</b> es el que entrega cada pieza al sitio sin que tengas que crearla tú.</p>
+  <p style="font-size:1.05rem">La <b>pantalla</b> pide → el <b>ViewModel</b> organiza → el <b>Repository</b> traduce → el <b>DAO</b> ordena → <b>Room</b> guarda. Y <b>Hilt</b> es el que entrega cada pieza al sitio sin que tengas que crearla tú. Para identificarte, además, ahora hay un segundo puente hacia <b>Firebase Auth</b>.</p>
 </div>
 
-<footer>Guía simplificada · ClientesGestor</footer>
+<footer>Guía simplificada · GestorPro · Actualizada 2026-08-24 · v3</footer>
 </div>
 
 <script>

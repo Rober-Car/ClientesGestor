@@ -18,11 +18,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -44,7 +46,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
-import com.roberto.gestorpro.model.TipoUsuario
 import com.roberto.gestorpro.navigation.Routes
 import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 import java.io.File
@@ -66,6 +67,25 @@ fun LoginScreen(
      */
     val nombreNegocio by mainViewModel.nombreNegocio.collectAsStateWithLifecycle()
     val logoNegocio by mainViewModel.logoNegocio.collectAsStateWithLifecycle()
+
+    /**
+     * autenticando
+     * ------------
+     * ✔ TIPO: variable observable (val by collectAsStateWithLifecycle) → Boolean
+     * Es el estado que indica si el inicio de sesión está en curso.
+     * Sirve para desactivar el botón y mostrar carga mientras Firebase responde.
+     */
+    val autenticando by mainViewModel.autenticando.collectAsStateWithLifecycle()
+
+    /**
+     * mensajeError
+     * ------------
+     * ✔ TIPO: variable de estado (var by rememberSaveable) → String
+     * Guarda el error devuelto por la autenticación real (credenciales,
+     * cuenta desactivada, sin conexión...).
+     * Sirve para mostrarlo bajo el formulario sin romper la pantalla.
+     */
+    var mensajeError by rememberSaveable { mutableStateOf("") }
 
     /**
      * scope
@@ -219,25 +239,28 @@ fun LoginScreen(
                     onClick = {
 
                         /**
-                         * Decisión de destino según el tipo de usuario
-                         * --------------------------------------------
+                         * Inicio de sesión real con Firebase
+                         * ----------------------------------
                          * ✔ TIPO: bloque de corrutina (scope.launch)
-                         * Es la lectura del perfil guardado en DataStore antes de navegar.
-                         * Sirve para llevar a cada usuario a su menú principal:
-                         * los CLIENTE van a su Home propio y el resto al Home de administrador.
+                         * Llama al MainViewModel para autenticar contra Firebase
+                         * Authentication y comprobar el perfil usuarios/{uid}.
+                         * Si hay error se muestra en pantalla; si no, navega al
+                         * Home correcto según el tipo de usuario guardado.
                          */
                         scope.launch {
-                            val destino = if (mainViewModel.obtenerTipoUsuario() == TipoUsuario.CLIENTE) {
-                                Routes.HOME_CLIENTE
+                            val error = mainViewModel.iniciarSesion(email.trim(), password)
+                            if (error == null) {
+                                mensajeError = ""
+                                val destino = mainViewModel.destinoSegunTipo()
+                                navController.navigate(destino) {
+                                    popUpTo(Routes.LOGIN) { inclusive = true }
+                                }
                             } else {
-                                Routes.HOME
-                            }
-                            navController.navigate(destino) {
-                                popUpTo(Routes.LOGIN) { inclusive = true }
+                                mensajeError = error
                             }
                         }
                     },
-                    enabled = formularioValido,
+                    enabled = formularioValido && !autenticando,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
@@ -249,10 +272,41 @@ fun LoginScreen(
                         disabledContentColor = Color.White.copy(alpha = 0.7f)
                     )
                 ) {
+                    if (autenticando) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(22.dp),
+                            strokeWidth = 2.dp,
+                            color = Color.White
+                        )
+                    } else {
+                        Text(
+                            text = "Entrar",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
+                if (mensajeError.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+
                     Text(
-                        text = "Entrar",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
+                        text = mensajeError,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                TextButton(
+                    onClick = { navController.navigate(Routes.REGISTRO) },
+                    enabled = !autenticando
+                ) {
+                    Text(
+                        text = "¿No tienes cuenta? Crear una",
+                        color = azulPrincipal,
+                        fontSize = 14.sp
                     )
                 }
             }

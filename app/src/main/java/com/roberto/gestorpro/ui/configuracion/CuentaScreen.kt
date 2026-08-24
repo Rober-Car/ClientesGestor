@@ -155,6 +155,7 @@ fun CuentaScreen(
                 Button(
                     onClick = {
                         mostrarDialogoCerrarSesion = false
+                        mainViewModel.cerrarSesion()
                         navController.navigate(Routes.LOGIN) {
                             popUpTo(0) { inclusive = true }
                         }

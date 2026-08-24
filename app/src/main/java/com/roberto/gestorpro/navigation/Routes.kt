@@ -27,6 +27,16 @@ object Routes {
     const val LOGIN = "login"
 
     /**
+     * REGISTRO
+     * --------
+     * ✔ TIPO: constante (const val) → String
+     * Es la ruta de la pantalla de creación de cuenta real con Firebase.
+     * Sirve para que un usuario nuevo se registre con email y contraseña
+     * manteniendo el perfil (Administrador/Cliente) elegido previamente.
+     */
+    const val REGISTRO = "registro"
+
+    /**
      * SELECCION_TIPO_USUARIO
      * ----------------------
      * ✔ TIPO: constante (const val) → String

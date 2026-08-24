@@ -12,6 +12,8 @@ import com.roberto.gestorpro.data.dao.ReservaDao
 import com.roberto.gestorpro.data.dao.SesionClaseDao
 import com.roberto.gestorpro.data.dao.SolicitudDao
 import com.roberto.gestorpro.data.database.ClientesDatabase
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import com.roberto.gestorpro.data.repository.PreferencesRepository
 import com.roberto.gestorpro.data.repository.ClaseRepository
 import com.roberto.gestorpro.data.repository.ClienteRepository
@@ -64,6 +66,33 @@ import java.util.concurrent.TimeUnit
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
+
+    /**
+     * provideFirebaseAuth
+     * -------------------
+     * ✔ TIPO: método (fun) de Hilt con anotación @Provides y @Singleton → FirebaseAuth
+     * Es la receta que proporciona la instancia única de Firebase Authentication.
+     * Sirve para que el repositorio de autenticación no cree sus propias instancias
+     * y toda la app comparta la misma sesión.
+     */
+    @Provides
+    @Singleton
+    fun provideFirebaseAuth(): FirebaseAuth {
+        return FirebaseAuth.getInstance()
+    }
+
+    /**
+     * provideFirebaseFirestore
+     * ------------------------
+     * ✔ TIPO: método (fun) de Hilt con anotación @Provides y @Singleton → FirebaseFirestore
+     * Es la receta que proporciona la instancia única de Firestore.
+     * Sirve para que los repositorios remotos compartan la misma conexión a la nube.
+     */
+    @Provides
+    @Singleton
+    fun provideFirebaseFirestore(): FirebaseFirestore {
+        return FirebaseFirestore.getInstance()
+    }
 
     /**
      * provideDatabase

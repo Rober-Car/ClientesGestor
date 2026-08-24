@@ -16,6 +16,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.roberto.gestorpro.ui.auth.LoginScreen
+import com.roberto.gestorpro.ui.auth.RegistroScreen
 import com.roberto.gestorpro.ui.auth.SeleccionTipoUsuarioScreen
 import com.roberto.gestorpro.ui.clases.ClasesScreen
 import com.roberto.gestorpro.ui.clases.CrearClaseScreen
@@ -82,18 +83,16 @@ fun AppNavigation() {
     var destinoInicial by remember { mutableStateOf<String?>(null) }
 
     /**
-     * LaunchedEffect (lectura inicial de preferencias)
-     * ------------------------------------------------
+     * LaunchedEffect (lectura inicial de sesión)
+     * -----------------------------------------
      * ✔ TIPO: bloque de efecto (LaunchedEffect)
-     * Es el bloque que lee el tipo de usuario guardado en DataStore una sola vez.
-     * Sirve para decidir si la app arranca en la pantalla de selección o en el Login.
+     * Es el bloque que decide la pantalla inicial combinando DataStore y Firebase:
+     * sin tipo guardado → selección de perfil; tipo con sesión Firebase activa
+     * (restaurada por el SDK) → Home directo; tipo sin sesión → Login.
+     * Sirve para no pedir credenciales cuando la sesión sigue vigente.
      */
     LaunchedEffect(Unit) {
-        destinoInicial = if (mainViewModel.obtenerTipoUsuario() == null) {
-            Routes.SELECCION_TIPO_USUARIO
-        } else {
-            Routes.LOGIN
-        }
+        destinoInicial = mainViewModel.destinoInicialSegunSesion()
     }
 
     /**
@@ -148,6 +147,18 @@ fun AppNavigation() {
          */
         composable(Routes.LOGIN) {
             LoginScreen(navController)
+        }
+
+        /**
+         * Ruta REGISTRO
+         * -------------
+         * ✔ TIPO: ruta de navegación (composable)
+         * Es la ruta de la pantalla de creación de cuenta con Firebase.
+         * Sirve para que un usuario nuevo se registre con email y contraseña
+         * y vuelva aquí al Login si ya tenía cuenta.
+         */
+        composable(Routes.REGISTRO) {
+            RegistroScreen(navController)
         }
 
         /**

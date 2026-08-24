@@ -40,12 +40,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.roberto.gestorpro.data.repository.PreferencesRepository
 import com.roberto.gestorpro.navigation.Routes
+import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 import com.roberto.gestorpro.ui.viewmodel.PreferenciasViewModel
 
 @Composable
 fun PreferenciasScreen(
     navController: NavHostController,
-    viewModel: PreferenciasViewModel = hiltViewModel()
+    viewModel: PreferenciasViewModel = hiltViewModel(),
+    mainViewModel: MainViewModel = hiltViewModel()
 ) {
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
 
@@ -173,6 +175,7 @@ fun PreferenciasScreen(
                 Button(
                     onClick = {
                         mostrarDialogoCerrarSesion = false
+                        mainViewModel.cerrarSesion()
                         navController.navigate(Routes.LOGIN) {
                             popUpTo(0) { inclusive = true }
                         }

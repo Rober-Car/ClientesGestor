@@ -2,10 +2,15 @@ package com.roberto.gestorpro.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.roberto.gestorpro.data.firebase.AutenticacionRepository
 import com.roberto.gestorpro.data.repository.PreferencesRepository
 import com.roberto.gestorpro.model.TipoUsuario
+import com.roberto.gestorpro.navigation.Routes
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -13,8 +18,20 @@ import javax.inject.Inject
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
-    private val preferencesRepository: PreferencesRepository
+    private val preferencesRepository: PreferencesRepository,
+    private val autenticacionRepository: AutenticacionRepository
 ) : ViewModel() {
+
+    /**
+     * _autenticando / autenticando
+     * ----------------------------
+     * ✔ TIPO: propiedad (private val) → MutableStateFlow<Boolean> y (val) → StateFlow<Boolean>
+     * Es el estado que indica si hay una operación de autenticación en curso.
+     * Sirve para que Login y Registro desactiven el botón y muestren carga
+     * mientras se comunica con Firebase.
+     */
+    private val _autenticando = MutableStateFlow(false)
+    val autenticando: StateFlow<Boolean> = _autenticando.asStateFlow()
 
     /**
      * themeMode
@@ -52,6 +69,117 @@ class MainViewModel @Inject constructor(
      */
     suspend fun obtenerTipoUsuario(): TipoUsuario? {
         return preferencesRepository.tipoUsuario.first()
+    }
+
+    /**
+     * destinoSegunTipo
+     * ----------------
+     * ✔ TIPO: método (fun) suspend de Kotlin → String
+     * Es la ruta del menú principal correspondiente al tipo guardado.
+     * Sirve para que Login y Registro naveguen al Home correcto una vez
+     * autenticado el usuario.
+     */
+    suspend fun destinoSegunTipo(): String {
+        return if (obtenerTipoUsuario() == TipoUsuario.CLIENTE) {
+            Routes.HOME_CLIENTE
+        } else {
+            Routes.HOME
+        }
+    }
+
+    /**
+     * destinoInicialSegunSesion
+     * -------------------------
+     * ✔ TIPO: método (fun) suspend de Kotlin → String
+     * Calcula la pantalla inicial combinando DataStore y Firebase:
+     * sin tipo → selección; tipo con sesión Firebase activa → Home directo;
+     * tipo sin sesión → Login. Sirve a AppNavigation para arrancar en el sitio
+     * correcto cuando el SDK restaura automáticamente la sesión.
+     */
+    suspend fun destinoInicialSegunSesion(): String {
+        val tipo = obtenerTipoUsuario()
+        return when {
+            tipo == null -> Routes.SELECCION_TIPO_USUARIO
+            autenticacionRepository.haySesionActiva() -> destinoSegunTipo()
+            else -> Routes.LOGIN
+        }
+    }
+
+    /**
+     * iniciarSesion
+     * -------------
+     * ✔ TIPO: método (fun) suspend de Kotlin → String?
+     * Delegará en AutenticacionRepository el acceso real con email y contraseña.
+     * Devuelve null si todo fue bien o el mensaje de error para mostrar en UI.
+     * Sirve como entrada real de la app respetando el campo activo remoto.
+     */
+    suspend fun iniciarSesion(email: String, contrasena: String): String? {
+        _autenticando.value = true
+        try {
+            val resultado = autenticacionRepository.iniciarSesion(email, contrasena)
+            return if (resultado.exito) {
+                null
+            } else {
+                resultado.mensaje
+            }
+        } finally {
+            _autenticando.value = false
+        }
+    }
+
+    /**
+     * registrarse
+     * -----------
+     * ✔ TIPO: método (fun) suspend de Kotlin → String?
+     * Crea la cuenta real en Firebase Authentication y el documento usuarios/{uid}
+     * con el rol derivado del tipo guardado (ADMINISTRADOR → ADMIN, CLIENTE → CLIENTE).
+     * Valida contraseñas antes de llamar al repositorio. Devuelve null si todo fue
+     * bien o el mensaje de error para mostrar en UI.
+     */
+    suspend fun registrarse(
+        email: String,
+        contrasena: String,
+        contrasenaRepetida: String
+    ): String? {
+        val tipo = obtenerTipoUsuario()
+            ?: return "Falta elegir el tipo de usuario"
+        if (contrasena.length < 6) {
+            return "La contraseña debe tener al menos 6 caracteres"
+        }
+        if (contrasena != contrasenaRepetida) {
+            return "Las contraseñas no coinciden"
+        }
+
+        val rol = if (tipo == TipoUsuario.CLIENTE) {
+            AutenticacionRepository.ROL_CLIENTE
+        } else {
+            AutenticacionRepository.ROL_ADMIN
+        }
+
+        _autenticando.value = true
+        try {
+            val resultado = autenticacionRepository.registrar(email, contrasena, rol)
+            return if (resultado.exito) {
+                null
+            } else {
+                resultado.mensaje
+            }
+        } finally {
+            _autenticando.value = false
+        }
+    }
+
+    /**
+     * cerrarSesion
+     * ------------
+     * ✔ TIPO: método (fun) de Kotlin (lanza corrutina)
+     * Cierra la sesión de Firebase Authentication sin borrar DataStore.
+     * Sirve a las opciones "Cerrar sesión" de Cuenta y Preferencias.
+     */
+    fun cerrarSesion() {
+        viewModelScope.launch {
+            autenticacionRepository.cerrarSesion()
+        }
     }
 
     /**
