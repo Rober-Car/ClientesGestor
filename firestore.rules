@@ -29,6 +29,17 @@ service cloud.firestore {
         && usuarioActual().activo == true;
     }
 
+    function servicioContratadoPorCliente(servicio) {
+      return usuarioActual().clienteId is int
+        && servicio is string
+        && get(
+          /databases/$(database)/documents/clientes/$(usuarioActual().clienteId)
+        ).data.serviciosContratados is list
+        && servicio in get(
+          /databases/$(database)/documents/clientes/$(usuarioActual().clienteId)
+        ).data.serviciosContratados;
+    }
+
     // El codigo se obtiene de la ficha remota del cliente y no del cliente.
     // Asi el cliente no puede cambiarlo para saltarse la vinculacion.
     function codigoVinculacionDelCliente(clienteId) {
@@ -146,6 +157,15 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data)
             .affectedKeys()
             .hasOnly(["clienteId", "negocioId"])
+        && get(
+          /databases/$(database)/documents/clientes/$(request.resource.data.clienteId)
+        ).data.idCliente == request.resource.data.clienteId
+        && get(
+          /databases/$(database)/documents/clientes/$(request.resource.data.clienteId)
+        ).data.negocioId == request.resource.data.negocioId
+        && get(
+          /databases/$(database)/documents/clientes/$(request.resource.data.clienteId)
+        ).data.firebaseUid == null
         && vinculacionPendiente(request.resource.data.clienteId)
         && vinculacionUsadaDespuesDelBatch(request.resource.data.clienteId)
         && getAfter(
@@ -167,21 +187,58 @@ service cloud.firestore {
       allow get: if esAdmin()
         && resource.data.negocioId == usuarioActual().negocioId;
 
+      allow get: if esCliente()
+        && string(usuarioActual().clienteId) == clienteId
+        && resource.data.negocioId == usuarioActual().negocioId
+        && resource.data.firebaseUid == request.auth.uid;
+
       allow list: if esAdmin()
         && resource.data.negocioId == usuarioActual().negocioId;
 
       allow create: if esAdmin()
-        && request.resource.data.negocioId == usuarioActual().negocioId;
+        && request.resource.data.keys().hasOnly([
+          "idCliente",
+          "negocioId",
+          "firebaseUid",
+          "codigoVinculacion",
+          "nombre",
+          "apellidos",
+          "dni",
+          "telefono",
+          "email",
+          "foto",
+          "fechaNacimiento",
+          "fechaRegistro",
+          "fechaAlta",
+          "fechaBaja",
+          "estado",
+          "tieneLlave",
+          "observaciones",
+          "serviciosContratados",
+          "fechaInicioActual",
+          "fechaFinActual"
+        ])
+        && usuarioActual().negocioId is string
+        && request.resource.data.negocioId is string
+        && request.resource.data.negocioId == usuarioActual().negocioId
+        && request.resource.data.idCliente is int
+        && string(request.resource.data.idCliente) == clienteId
+        && request.resource.data.firebaseUid == null
+        && request.resource.data.codigoVinculacion == null
+        && request.resource.data.serviciosContratados is list;
 
       // El cliente solo puede completar su vinculacion con su UID y dentro
       // del Batch que consume el codigo correcto.
       allow update: if esCliente()
         && request.resource.data.firebaseUid == request.auth.uid
-        && resource.data.negocioId == null
-        && request.resource.data.negocioId is string
+        && resource.data.idCliente is int
+        && string(resource.data.idCliente) == clienteId
+        && resource.data.negocioId is string
+        && request.resource.data.negocioId == resource.data.negocioId
+        && resource.data.firebaseUid == null
         && request.resource.data.diff(resource.data)
             .affectedKeys()
-            .hasOnly(["firebaseUid", "negocioId"])
+            .hasOnly(["firebaseUid"])
         && vinculacionPendiente(resource.data.idCliente)
         && vinculacionUsadaDespuesDelBatch(resource.data.idCliente)
         && getAfter(
@@ -192,8 +249,9 @@ service cloud.firestore {
         ).data.negocioId == request.resource.data.negocioId;
 
       allow update: if esCliente()
-        && usuarioActual().clienteId == clienteId
+        && string(usuarioActual().clienteId) == clienteId
         && resource.data.firebaseUid == request.auth.uid
+        && resource.data.negocioId == usuarioActual().negocioId
         && request.resource.data.firebaseUid == resource.data.firebaseUid
         && request.resource.data.negocioId == resource.data.negocioId
         && request.resource.data.idCliente == resource.data.idCliente
@@ -217,9 +275,98 @@ service cloud.firestore {
               "observaciones"
             ]);
 
+      // La asignacion del codigo al cliente debe ser atomica con su creacion.
       allow update: if esAdmin()
+        && usuarioActual().negocioId is string
         && resource.data.negocioId == usuarioActual().negocioId
-        && request.resource.data.negocioId == usuarioActual().negocioId;
+        && resource.data.negocioId is string
+        && request.resource.data.negocioId == resource.data.negocioId
+        && resource.data.idCliente is int
+        && string(resource.data.idCliente) == clienteId
+        && request.resource.data.idCliente == resource.data.idCliente
+        && resource.data.firebaseUid == null
+        && request.resource.data.firebaseUid == null
+        && resource.data.codigoVinculacion == null
+        && request.resource.data.codigoVinculacion is string
+        && request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly(["codigoVinculacion"])
+        && !exists(
+          /databases/$(database)/documents/vinculaciones/$(request.resource.data.codigoVinculacion)
+        )
+        && getAfter(
+          /databases/$(database)/documents/vinculaciones/$(request.resource.data.codigoVinculacion)
+        ).data.estado == "PENDIENTE"
+        && getAfter(
+          /databases/$(database)/documents/vinculaciones/$(request.resource.data.codigoVinculacion)
+        ).data.clienteId == resource.data.idCliente
+        && getAfter(
+          /databases/$(database)/documents/vinculaciones/$(request.resource.data.codigoVinculacion)
+        ).data.negocioId == resource.data.negocioId
+        && getAfter(
+          /databases/$(database)/documents/vinculaciones/$(request.resource.data.codigoVinculacion)
+        ).data.fechaExpiracion > request.time;
+
+      // Revocar un codigo pendiente exige limpiar tambien la ficha del cliente.
+      allow update: if esAdmin()
+        && usuarioActual().negocioId is string
+        && resource.data.negocioId == usuarioActual().negocioId
+        && resource.data.negocioId is string
+        && request.resource.data.negocioId == resource.data.negocioId
+        && resource.data.idCliente is int
+        && string(resource.data.idCliente) == clienteId
+        && request.resource.data.idCliente == resource.data.idCliente
+        && resource.data.firebaseUid == null
+        && request.resource.data.firebaseUid == null
+        && resource.data.codigoVinculacion is string
+        && request.resource.data.codigoVinculacion == null
+        && request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly(["codigoVinculacion"])
+        && exists(
+          /databases/$(database)/documents/vinculaciones/$(resource.data.codigoVinculacion)
+        )
+        && get(
+          /databases/$(database)/documents/vinculaciones/$(resource.data.codigoVinculacion)
+        ).data.estado == "PENDIENTE"
+        && get(
+          /databases/$(database)/documents/vinculaciones/$(resource.data.codigoVinculacion)
+        ).data.clienteId == resource.data.idCliente
+        && get(
+          /databases/$(database)/documents/vinculaciones/$(resource.data.codigoVinculacion)
+        ).data.negocioId == resource.data.negocioId
+        && !existsAfter(
+          /databases/$(database)/documents/vinculaciones/$(resource.data.codigoVinculacion)
+        );
+
+      // ADMIN solo puede modificar campos de gestion del cliente propio.
+      allow update: if esAdmin()
+        && usuarioActual().negocioId is string
+        && resource.data.negocioId == usuarioActual().negocioId
+        && resource.data.negocioId is string
+        && request.resource.data.negocioId == resource.data.negocioId
+        && resource.data.idCliente is int
+        && string(resource.data.idCliente) == clienteId
+        && request.resource.data.idCliente == resource.data.idCliente
+        && request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly([
+              "nombre",
+              "apellidos",
+              "dni",
+              "telefono",
+              "email",
+              "foto",
+              "fechaNacimiento",
+              "observaciones",
+              "serviciosContratados",
+              "estado",
+              "fechaAlta",
+              "fechaBaja",
+              "fechaInicioActual",
+              "fechaFinActual",
+              "tieneLlave"
+            ]);
 
       allow delete: if false;
     }
@@ -281,7 +428,8 @@ service cloud.firestore {
 
       allow get, list: if esCliente()
         && resource.data.negocioId == usuarioActual().negocioId
-        && request.auth.uid in resource.data.clientesPermitidos;
+        && request.auth.uid in resource.data.clientesPermitidos
+        && servicioContratadoPorCliente(resource.data.servicio);
 
       allow create: if esAdmin()
         && request.resource.data.negocioId == usuarioActual().negocioId;
@@ -319,7 +467,12 @@ service cloud.firestore {
         && request.resource.data.clienteId == usuarioActual().clienteId
         && request.resource.data.sesionId is int
         && sesionDelNegocio(request.resource.data.sesionId)
-        && clienteAutorizadoEnSesion(request.resource.data.sesionId);
+        && clienteAutorizadoEnSesion(request.resource.data.sesionId)
+        && servicioContratadoPorCliente(
+          get(
+            /databases/$(database)/documents/sesiones/$(request.resource.data.sesionId)
+          ).data.servicio
+        );
 
       allow update: if esAdmin()
         && resource.data.negocioId == usuarioActual().negocioId
@@ -380,8 +533,43 @@ service cloud.firestore {
       allow list: if false;
 
       allow create: if esAdmin()
+        && request.resource.data.keys().hasOnly([
+          "negocioId",
+          "estado",
+          "fechaExpiracion",
+          "clienteId"
+        ])
+        && usuarioActual().negocioId is string
+        && request.resource.data.negocioId is string
         && request.resource.data.negocioId == usuarioActual().negocioId
-        && request.resource.data.estado == "PENDIENTE";
+        && request.resource.data.estado == "PENDIENTE"
+        && request.resource.data.clienteId is int
+        && request.resource.data.fechaExpiracion is timestamp
+        && request.resource.data.fechaExpiracion > request.time
+        && get(
+          /databases/$(database)/documents/clientes/$(request.resource.data.clienteId)
+        ).data.idCliente == request.resource.data.clienteId
+        && get(
+          /databases/$(database)/documents/clientes/$(request.resource.data.clienteId)
+        ).data.negocioId == usuarioActual().negocioId
+        && get(
+          /databases/$(database)/documents/clientes/$(request.resource.data.clienteId)
+        ).data.firebaseUid == null
+        && get(
+          /databases/$(database)/documents/clientes/$(request.resource.data.clienteId)
+        ).data.codigoVinculacion == null
+        && getAfter(
+          /databases/$(database)/documents/clientes/$(request.resource.data.clienteId)
+        ).data.idCliente == request.resource.data.clienteId
+        && getAfter(
+          /databases/$(database)/documents/clientes/$(request.resource.data.clienteId)
+        ).data.negocioId == usuarioActual().negocioId
+        && getAfter(
+          /databases/$(database)/documents/clientes/$(request.resource.data.clienteId)
+        ).data.firebaseUid == null
+        && getAfter(
+          /databases/$(database)/documents/clientes/$(request.resource.data.clienteId)
+        ).data.codigoVinculacion == codigo;
 
       // Este update solo puede ocurrir como parte del Batch de vinculacion.
       allow update: if esCliente()
@@ -391,6 +579,17 @@ service cloud.firestore {
         && resource.data.estado == "PENDIENTE"
         && resource.data.fechaExpiracion > request.time
         && request.resource.data.estado == "USADA"
+        && request.resource.data.clienteId == resource.data.clienteId
+        && request.resource.data.negocioId == resource.data.negocioId
+        && get(
+          /databases/$(database)/documents/clientes/$(resource.data.clienteId)
+        ).data.idCliente == resource.data.clienteId
+        && get(
+          /databases/$(database)/documents/clientes/$(resource.data.clienteId)
+        ).data.negocioId == resource.data.negocioId
+        && get(
+          /databases/$(database)/documents/clientes/$(resource.data.clienteId)
+        ).data.firebaseUid == null
         && resource.data.clienteId == getAfter(
           /databases/$(database)/documents/usuarios/$(request.auth.uid)
         ).data.clienteId
@@ -408,11 +607,35 @@ service cloud.firestore {
         ).data.codigoVinculacion == codigo;
 
       allow update: if esAdmin()
+        && usuarioActual().negocioId is string
         && resource.data.negocioId == usuarioActual().negocioId
-        && request.resource.data.negocioId == usuarioActual().negocioId;
+        && resource.data.negocioId is string
+        && request.resource.data.negocioId == usuarioActual().negocioId
+        && resource.data.estado == "PENDIENTE"
+        && request.resource.data.estado == "PENDIENTE"
+        && request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly(["fechaExpiracion"])
+        && request.resource.data.fechaExpiracion is timestamp
+        && request.resource.data.fechaExpiracion > request.time;
 
       allow delete: if esAdmin()
-        && resource.data.negocioId == usuarioActual().negocioId;
+        && usuarioActual().negocioId is string
+        && resource.data.negocioId == usuarioActual().negocioId
+        && resource.data.negocioId is string
+        && resource.data.estado == "PENDIENTE"
+        && get(
+          /databases/$(database)/documents/clientes/$(resource.data.clienteId)
+        ).data.idCliente == resource.data.clienteId
+        && get(
+          /databases/$(database)/documents/clientes/$(resource.data.clienteId)
+        ).data.negocioId == resource.data.negocioId
+        && get(
+          /databases/$(database)/documents/clientes/$(resource.data.clienteId)
+        ).data.codigoVinculacion == codigo
+        && getAfter(
+          /databases/$(database)/documents/clientes/$(resource.data.clienteId)
+        ).data.codigoVinculacion == null;
     }
 
 

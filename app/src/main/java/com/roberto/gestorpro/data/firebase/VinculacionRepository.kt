@@ -94,10 +94,8 @@ class VinculacionRepository {
                 // Vinculamos la ficha del cliente con Firebase UID.
                 batch.update(
                     clienteRef,
-                    mapOf(
-                        "firebaseUid" to uid,
-                        "negocioId" to negocioId
-                    )
+                    "firebaseUid",
+                    uid
                 )
 
                 // Marcamos el código como utilizado.
