@@ -142,6 +142,48 @@ object Routes {
      */
     const val MINEGOCIO = "mi_negocio"
 
+    /**
+     * CREAR_NEGOCIO
+     * -------------
+     * ✔ TIPO: constante (const val) → String
+     * Es la ruta del alta remota del negocio (negocios + negocios_publicos +
+     * usuarios/{uid}) con su código maestro. Sirve para que un ADMIN recién
+     * registrado active la sincronización en la nube desde Mi negocio.
+     */
+    const val CREAR_NEGOCIO = "crear_negocio"
+
+    /**
+     * VINCULAR_CLIENTE
+     * ----------------
+     * ✔ TIPO: constante (const val) → String
+     * Es la ruta base de la pantalla de vinculación del CLIENTE. Sirve para que
+     * el cliente se vincule mediante el código maestro del negocio (Vía A)
+     * o reclame su ficha con el enlace individual del ADMIN (Vía B).
+     * El parámetro opcional "codigo" precarga un token llegado por deep link.
+     */
+    const val VINCULAR_CLIENTE = "vincular_cliente?codigo={codigo}"
+
+    /**
+     * ENLACE_VINCULACION
+     * ------------------
+     * ✔ TIPO: constante (const val) → String
+     * Es la ruta base de la pantalla donde el ADMIN gestiona el enlace
+     * individual de un cliente (generar, copiar, compartir, regenerar o
+     * revocar). Requiere que la ficha ya esté sincronizada con Firestore.
+     */
+    const val ENLACE_VINCULACION = "enlace_vinculacion"
+
+    /**
+     * enlaceVinculacion
+     * -----------------
+     * ✔ TIPO: función (fun) → String
+     * Es la función que genera la ruta completa de gestión de enlace del
+     * cliente indicado. Sirve para navegar desde el perfil del cliente.
+     */
+    fun enlaceVinculacion(idCliente: Int): String {
+        return "$ENLACE_VINCULACION/$idCliente"
+    }
+
     fun detalleClase(idClase: Int): String {
         return "detalle_clase/$idClase"
     }

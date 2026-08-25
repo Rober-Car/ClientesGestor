@@ -657,6 +657,20 @@ fun PerfilClienteScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            /**
+             * OutlinedButton de vinculación en la nube
+             * ---------------------------------------
+             * ✔ TIPO: función @Composable (OutlinedButton)
+             * Es el acceso a la gestión del enlace individual del cliente
+             * (generar, compartir, regenerar o revocar su token de Vía B).
+             * Sirve para abrir EnlaceVinculacionScreen con este cliente.
+             */
+            OutlinedButton(
+                onClick = { navController.navigate(Routes.enlaceVinculacion(idCliente)) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Vinculación en la nube (enlace individual)")
+            }
 
             if (pestañaSeleccionada == 0) {
                 Row(

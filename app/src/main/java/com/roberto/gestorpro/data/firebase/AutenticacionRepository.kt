@@ -218,8 +218,9 @@ class AutenticacionRepository @Inject constructor(
  * dependencias externas (equivalente ligero de Task.await()). Devuelve el
  * resultado T cuando la tarea termina bien y lanza la excepción si falla.
  * Sirve para poder usar el SDK de Firebase desde corrutinas de forma limpia.
+ * Es internal para reutilizarse desde los demás repositorios de data/firebase.
  */
-private suspend fun <T> Task<T>.esperar(): T =
+internal suspend fun <T> Task<T>.esperar(): T =
     suspendCancellableCoroutine { continuacion ->
         addOnSuccessListener { resultado ->
             continuacion.resume(resultado)

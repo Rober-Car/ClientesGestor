@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.roberto.gestorpro.data.entity.ClienteEntity
 import com.roberto.gestorpro.data.entity.toCliente
+import com.roberto.gestorpro.data.firebase.ClienteRemotoRepository
 import com.roberto.gestorpro.data.repository.ClienteRepository
 import com.roberto.gestorpro.model.Cliente
 import com.roberto.gestorpro.model.EstadoCliente
@@ -52,12 +53,42 @@ import kotlinx.coroutines.launch
  */
 @HiltViewModel
 class ClienteViewModel @Inject constructor(
-    private val clienteRepository: ClienteRepository
+    private val clienteRepository: ClienteRepository,
+    private val clienteRemotoRepository: ClienteRemotoRepository
 ) : ViewModel() {
 
     /* ============================================================
      * ============ BLOQUE 4: ESTADO DEL VIEWMODEL ================
      * ============================================================ */
+    /**
+     * _errorSincronizacion / errorSincronizacion
+     * ------------------------------------------
+     * ✔ TIPO: propiedad (private val) → MutableStateFlow<String?> y (val) → StateFlow<String?>
+     * Es el mensaje del último fallo de réplica Room → Firestore.
+     * Sirve para informar al ADMIN sin revertir el cambio local y para saber
+     * cuándo ofrecer el reintento manual de sincronización.
+     */
+    private val _errorSincronizacion = MutableStateFlow<String?>(null)
+    val errorSincronizacion = _errorSincronizacion.asStateFlow()
+
+    /**
+     * _clienteSinSincronizar / clienteSinSincronizar
+     * ----------------------------------------------
+     * ✔ TIPO: propiedad (private val) → MutableStateFlow<ClienteEntity?> y (val) → StateFlow<ClienteEntity?>
+     * Es la ficha local que quedó pendiente de replicar tras un fallo remoto.
+     * Sirve para poder reintentar la operación exacta (alta o edición).
+     */
+    private val _clienteSinSincronizar = MutableStateFlow<ClienteEntity?>(null)
+    val clienteSinSincronizar = _clienteSinSincronizar.asStateFlow()
+
+    /**
+     * _sincronizacionPendienteEsAlta
+     * ------------------------------
+     * ✔ TIPO: propiedad (private val) → MutableStateFlow<Boolean>
+     * Indica si la réplica pendiente es un alta (true) o una edición (false).
+     * Sirve al reintento para llamar a la operación remota correcta.
+     */
+    private val _sincronizacionPendienteEsAlta = MutableStateFlow(false)
     /**
      * _error
      * ------
@@ -172,10 +203,54 @@ class ClienteViewModel @Inject constructor(
 
             try {
                 val nuevoId = clienteRepository.insertarClienteRepo(cliente)
+                val entidadCreada = cliente.copy(idCliente = nuevoId.toInt())
+                replicar(entidadCreada, esAlta = true)
                 onExito(nuevoId.toInt())
             } catch (e: SQLiteConstraintException) {
                 _error.value = "El DNI ya está registrado"
             }
+        }
+    }
+
+    /**
+     * replicar
+     * --------
+     * ✔ TIPO: método (fun) privado suspend de Kotlin
+     * Es la réplica write-through de una ficha local hacia Firestore.
+     * Sirve para mantener el espejo remoto sin revertir nunca el cambio
+     * local: si falla, deja el estado preparado para el reintento manual.
+     */
+    private suspend fun replicar(entidad: ClienteEntity, esAlta: Boolean) {
+        _errorSincronizacion.value = null
+        _clienteSinSincronizar.value = null
+
+        val resultado = if (esAlta) {
+            clienteRemotoRepository.crearClienteRemoto(entidad)
+        } else {
+            clienteRemotoRepository.actualizarClienteRemoto(entidad)
+        }
+
+        if (resultado.exito) {
+            _sincronizacionPendienteEsAlta.value = false
+        } else {
+            _errorSincronizacion.value =
+                "Guardado en el dispositivo, pero no sincronizado con la nube: ${resultado.mensaje}"
+            _clienteSinSincronizar.value = entidad
+            _sincronizacionPendienteEsAlta.value = esAlta
+        }
+    }
+
+    /**
+     * reintentarSincronizacion
+     * ------------------------
+     * ✔ TIPO: método (fun) de Kotlin (lanza corrutina)
+     * Repite la última operación remota pendiente (alta o edición).
+     * Sirve al botón "Reintentar sincronización" de las pantallas.
+     */
+    fun reintentarSincronizacion() {
+        val pendiente = _clienteSinSincronizar.value ?: return
+        viewModelScope.launch {
+            replicar(pendiente, _sincronizacionPendienteEsAlta.value)
         }
     }
 
@@ -210,6 +285,7 @@ class ClienteViewModel @Inject constructor(
 
             try {
                 clienteRepository.actualizarClienteRepo(cliente)
+                replicar(cliente, esAlta = false)
                 onExito()
             } catch (e: SQLiteConstraintException) {
                 _error.value = "El DNI ya está registrado"

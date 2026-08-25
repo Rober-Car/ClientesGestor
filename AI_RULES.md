@@ -57,10 +57,17 @@ Estas reglas se aplican al trabajo de agentes de IA sobre GestorPro.
 - No añadir accesos a una colección sin revisar primero `firestore.rules`.
 - No publicar o sustituir Security Rules sin revisar el cambio y ejecutar la matriz de pruebas acordada.
 - Usar Batch o Transaction cuando una regla dependa de `getAfter()`.
-- La creación de un negocio debe vincular en la misma operación el negocio y `usuarios/{uid}.negocioId`.
-- Una vinculación debe actualizar en la misma operación `usuarios/{uid}`, `clientes/{clienteId}` y `vinculaciones/{codigo}`.
-- Un código de vinculación debe estar pendiente y no caducado tanto al consultarse como al consumirse.
-- No permitir que un cliente se vincule modificando directamente un usuario o cliente sin demostrar el código que se marca como `USADA`.
+- La creación de un negocio debe vincular en la misma operación el negocio, `negocios_publicos/{id}` y `usuarios/{uid}.negocioId`.
+- La vinculación de un cliente se realiza por dos vías:
+  - **Vía A (código maestro):** Transaction genera `idCliente` como entero aleatorio en rango `Int` con verificación de existencia y reintento, crea `clientes/{idCliente}` ligado al UID y actualiza `usuarios/{uid}`. Sin `vinculaciones/{codigo}` y sin escritura del CLIENTE sobre `negocios`. Validar con `creacionDirectaValida()`.
+  - **Vía B (enlace individual):** ADMIN replica la ficha (`firebaseUid: null`) y asigna el token con Batch atómico ficha↔`vinculaciones/{token}` (`asignacionTokenValida()`); CLIENTE reclama con batch de 3 updates validado por `vinculacionValidaParaConsumo()`.
+- El token individual se genera con SecureRandom (≥20 alfanuméricos), no contiene idCliente, expira en 7 días, es de uso único, revocable (`revocacionTokenValida()` + `!existsAfter`) y regenerable.
+- El mismo `idCliente: Int` se comparte entre Room y Firestore; la réplica es write-through sin cola offline: si falla no se revierte lo local, se informa y se ofrece reintento manual. No borrar clientes remotos: baja lógica.
+- Los estados remotos de cliente son exactamente `ACTIVO`, `BAJA`, `ARCHIVADO`, `REGISTRADO` (nombres del enum Room); MOROSO nunca se almacena.
+- Un código de vinculación es de uso único, tiene `fechaExpiracion`, y puede ser revocado por el ADMIN.
+- Un CLIENTE solo puede vincularse una vez (`usuarios/{uid}` exige `clienteId == null` y `negocioId == null`).
+- El código maestro del negocio es independiente de las vinculaciones individuales; cambiarlo no afecta a clientes ya vinculados.
+- `negocios_publicos/{id}` permite `get/list` a cualquier autenticado; `create/update` solo el ADMIN del negocio.
 - Una reserva de cliente debe comprobar la sesión referenciada por `sesionId`, su `negocioId` y la autorización del UID en `clientesPermitidos`.
 - Las solicitudes remotas solo usan `ALTA` y `BAJA`; no usar `CLASE` para solicitar una plaza.
 - No usar identificadores reales, UIDs, códigos de vinculación ni datos de prueba concretos en documentación versionada; usar placeholders.

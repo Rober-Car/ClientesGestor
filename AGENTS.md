@@ -119,6 +119,7 @@ Colecciones remotas actuales:
 ```text
 usuarios/{uid}
 negocios/{negocioId}
+negocios_publicos/{negocioId}
 clientes/{idCliente}
 clases/{claseId}
 sesiones/{sesionId}
@@ -144,13 +145,19 @@ Reglas de identidad y pertenencia:
 
 Flujos funcionales remotos:
 
-- Un ADMIN nuevo puede registrarse con `negocioId = null` y debe crear su propio negocio.
-- La creación del negocio y la asignación de `usuarios/{uid}.negocioId` deben ejecutarse en el mismo Batch o Transaction.
+- Un ADMIN nuevo puede registrarse con `negocioId = null` y debe crear su propio negocio con código maestro.
+- La creación del negocio, `negocios_publicos/{id}` y la asignación de `usuarios/{uid}.negocioId` deben ejecutarse en el mismo Batch.
 - Las solicitudes solo representan altas y bajas. Sus valores remotos son `ALTA` y `BAJA`.
 - Las clases definen servicios y horarios; las sesiones son instancias concretas; las reservas relacionan un cliente con una sesión mediante `sesionId`.
 - Un cliente no solicita una clase mediante `solicitudes`; primero debe tener contratado el servicio y después puede reservar una sesión autorizada.
-- Una vinculación usa `vinculaciones/{codigo}` y solo puede consumirse una vez, antes de `fechaExpiracion`.
-- El consumo de una vinculación debe actualizar atómicamente `usuarios/{uid}`, `clientes/{clienteId}` y `vinculaciones/{codigo}`.
+- La vinculación se realiza por dos vías:
+  - **Vía A (código maestro):** CLIENTE introduce el código maestro del negocio → app busca en `negocios_publicos` → Transaction genera `idCliente` como entero aleatorio positivo dentro del rango válido de `Int` (`Random.nextInt(1_000_000_000, Int.MAX_VALUE)`), comprueba que `clientes/{id}` no existe y reintenta ante colisión (máx. 5), crea la ficha con su UID y actualiza `usuarios/{uid}`. **No se crea ninguna `vinculaciones/{codigo}`** y el CLIENTE jamás tiene permisos de escritura sobre `negocios`. No existen contadores de clientes.
+  - **Vía B (enlace individual):** ADMIN replica la ficha a Firestore (`firebaseUid: null`) y genera un token individual (SecureRandom, ≥20 caracteres alfanuméricos, sin idCliente) mediante Batch atómico sobre `clientes/{id}.codigoVinculacion` + `vinculaciones/{token}` (PENDIENTE, expira en 7 días) → CLIENTE abre el deep link `gestorpro://vincular/{token}`, se autentica y reclama la ficha → batch actualiza `clientes/{idCliente}` (firebaseUid), `vinculaciones/{token}` (PENDIENTE→USADA) y `usuarios/{uid}`. El token es de uso único, revocable y regenerable.
+- El consumo de una vinculación debe actualizar atómicamente `usuarios/{uid}`, `clientes/{cliente}` y `vinculaciones/{codigo}`.
+- El mismo `idCliente: Int` se comparte entre Room y Firestore. Los clientes creados por el ADMIN se replican a Firestore con write-through inmediato (sin cola offline); si la réplica falla, el dato local se conserva, se informa al ADMIN y queda preparada una operación de reintento manual. Las Rules prohíben `delete` en `clientes`: el borrado local se refleja como baja lógica remota.
+- Los valores remotos de `clientes.estado` son exactamente los nombres del enum Room: `ACTIVO`, `BAJA`, `ARCHIVADO`, `REGISTRADO`. `MOROSO` se calcula desde movimientos y nunca se almacena.
+- Un código de vinculación es de uso único, tiene `fechaExpiracion`, y puede ser revocado por el ADMIN.
+- El código maestro es independiente de las vinculaciones individuales; cambiarlo no afecta a clientes ya vinculados.
 - Las consultas de sesiones y reservas deben diseñarse para ser compatibles con las Security Rules; las Rules no funcionan como filtros posteriores.
 
 Security Rules:
@@ -159,7 +166,12 @@ Security Rules:
 - Todo está bloqueado por defecto salvo las rutas declaradas expresamente.
 - Las funciones de Rules usan el documento `usuarios/{uid}` para resolver rol, estado, `clienteId` y `negocioId`; por ahora no se usan Custom Claims.
 - `getAfter()` solo debe utilizarse en operaciones atómicas que actualicen todos los documentos relacionados.
-- La vinculación debe demostrar en las Rules que el código pasa de `PENDIENTE` a `USADA`, no está caducado y coincide con el cliente y negocio finales.
+- **Vía B:** la vinculación se valida con `vinculacionValidaParaConsumo()` — ficha sin UID, código PENDIENTE no caducado, PENDIENTE→USADA, coherencia negocio/cliente/usuario post-Batch.
+- **Vía A:** la creación directa se valida con `creacionDirectaValida()` — el Batch/Transaction incluye la ficha nueva ligada al UID autenticado y deja `usuarios/{uid}` coherente post-operación.
+- **Gestión de tokens (ADMIN):** `asignacionTokenValida()` (asignar/regenerar) y `revocacionTokenValida()` + `!existsAfter` exigen atomicidad estricta entre `clientes/{id}.codigoVinculacion` y `vinculaciones/{token}`; solo sobre fichas con `firebaseUid == null` y tocando únicamente esa clave.
+- La generación de enlaces está bloqueada hasta que la ficha exista en Firestore (`existeClienteRemoto`).
+- Un CLIENTE solo puede vincularse una vez (`usuarios/{uid}` exige `clienteId == null` y `negocioId == null`).
+- `negocios_publicos/{id}` permite `get/list` a cualquier autenticado; `create/update` solo el ADMIN del negocio.
 - Una reserva de cliente debe apuntar a una sesión existente del mismo negocio y a una sesión cuyo `clientesPermitidos` contenga el UID autenticado.
 - Las Rules deben probarse con los casos ADMIN, CLIENTE y vinculación antes de publicarse.
 

@@ -57,6 +57,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -1107,6 +1108,48 @@ fun AñadirClienteScreen(
                     else -> "Guardar cliente"
                 }
             )
+        }
+
+        /**
+         * Aviso de sincronización con la nube
+         * -----------------------------------
+         * ✔ TIPO: bloque condicional + Composable (Column)
+         * Es el aviso que aparece cuando el guardado local tuvo éxito pero la
+         * réplica a Firestore falló. Sirve para informar al administrador sin
+         * revertir nada y para ofrecer el reintento manual de sincronización;
+         * mientras siga pendiente, no se puede generar enlace de vinculación.
+         */
+        val errorSincronizacion by viewModel.errorSincronizacion
+            .collectAsStateWithLifecycle()
+        val clienteSinSincronizar by viewModel.clienteSinSincronizar
+            .collectAsStateWithLifecycle()
+
+        if (errorSincronizacion != null || clienteSinSincronizar != null) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
+                        CircleShape
+                    )
+                    .padding(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = errorSincronizacion
+                        ?: "Hay cambios pendientes de sincronizar con la nube.",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
+
+                OutlinedButton(
+                    onClick = { viewModel.reintentarSincronizacion() },
+                    enabled = clienteSinSincronizar != null
+                ) {
+                    Text("Reintentar sincronización")
+                }
+            }
         }
 
         /**

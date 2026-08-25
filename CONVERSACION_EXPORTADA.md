@@ -337,3 +337,288 @@ negocioId==null`, y el éxito observado implica que la validación pasó. Compro
 # Instalar en el móvil (MIUI puede exigir hacerlo manualmente desde Android Studio):
 adb -s <serial> install -r app\build\outputs\apk\debug\app-debug.apk
 ```
+
+---
+
+---
+
+# ACTUALIZACIÓN 2026-08-25 (SESIÓN IV) — DISEÑO DEFINITIVO DE VINCULACIÓN
+
+> Este bloque es el estado vigente del diseño de vinculación.
+> La Sesión III (auth real) y la Sesión II (Rules refactorizadas) siguen vigentes.
+> Lo anterior queda como histórico.
+
+## Resumen del diseño
+
+Se define un sistema de vinculación con **dos vías** que reutiliza la infraestructura
+existente de `vinculaciones/{codigo}`:
+
+### Código maestro del negocio
+
+- Un único código por negocio.
+- Se configura durante el alta inicial del ADMIN.
+- El ADMIN puede modificarlo desde Configuración → Mi negocio.
+- Sirve para que un CLIENTE que llega por su cuenta pueda registrarse y vincularse al negocio (Vía A).
+- El código maestro **no identifica a un cliente concreto**.
+- Cambiar el código maestro **no afecta** a clientes ya vinculados.
+
+### Enlace individual de vinculación
+
+- Cuando un ADMIN crea manualmente un cliente, el sistema genera un enlace/token
+  de vinculación asociado exclusivamente a esa ficha.
+- El ADMIN comparte ese enlace con el cliente.
+- El enlace identifica exactamente `clientes/{clienteId}` sin que el CLIENTE tenga
+  que buscar fichas por DNI.
+- El token es aleatorio, no es el ID del cliente, y tiene expiración.
+- Es de uso único.
+- Si caduca o se revoca, el ADMIN puede generar otro.
+
+### Vía A: CLIENTE se registra con código maestro
+
+```
+1. CLIENTE introduce código maestro
+2. App busca en negocios_publicos/{id} → obtiene negocioId
+3. App genera idCliente = abs(codigo.hashCode())
+4. App genera código de vinculación aleatorio
+5. Batch:
+   a. set(vinculaciones/{codigo}, { negocioId, clienteId, estado:"PENDIENTE", fechaExpiracion })
+   b. set(clientes/{idCliente}, { idCliente, negocioId, firebaseUid: uid, vinculacionCode: codigo, ... })
+   c. update(usuarios/{uid}, { clienteId: idCliente, negocioId: negocioId })
+6. CLIENTE queda vinculado
+```
+
+### Vía B: CLIENTE reclama ficha creada por ADMIN
+
+```
+1. ADMIN crea cliente (firebaseUid: null)
+2. ADMIN genera código de vinculación aleatorio
+3. Batch ADMIN:
+   a. set(clientes/{idCliente}, { ..., firebaseUid: null, vinculacionCode: codigo })
+   b. set(vinculaciones/{codigo}, { negocioId, clienteId, estado:"PENDIENTE", fechaExpiracion })
+4. ADMIN comparte enlace con el cliente
+5. CLIENTE pulsa enlace → se registra/inicia sesión
+6. CLIENTE pulsa "Vincular"
+7. Batch CLIENTE:
+   a. update(clientes/{idCliente}, { firebaseUid: uid, negocioId: negocioId })
+   b. update(vinculaciones/{codigo}, { estado: "USADA" })
+   c. update(usuarios/{uid}, { clienteId: idCliente, negocioId: negocioId })
+8. CLIENTE queda vinculado
+```
+
+### Restricciones de seguridad
+
+| Regla | Detalle |
+|---|---|
+| Un CLIENTE solo puede vincularse una vez | `usuarios/{uid}` exige `clienteId == null` y `negocioId == null` |
+| Código maestro no da acceso a fichas admin | `clientes/create` de CLIENTE crea documento nuevo; `clientes/update` de CLIENTE exige `firebaseUid == null` |
+| Enlace expirado no funciona | `vinculacionValidaParaConsumo()` exige `fechaExpiracion > request.time` |
+| Enlace ya usado no funciona | `clientes/update` exige `resource.data.firebaseUid == null` |
+| Cambiar código maestro no rompe vínculos | Solo se modifica `negocios/{id}.codigoMaestro` y `negocios_publicos/{id}` |
+
+### Generación de idCliente
+
+- **Vía A:** `idCliente = abs(codigo.hashCode())` — determinista, único por negocio, sin lectura extra.
+- **Vía B:** El ADMIN asigna `idCliente` al crear la ficha (secuencial con contador en `negocios/{id}.contadorClientes`).
+
+### Validación atómica en Rules
+
+**Vía B** se valida con la función existente `vinculacionValidaParaConsumo()` sin cambios.
+
+**Vía A** se valida con una nueva función `userUpdateValida()` que comprueba:
+- El batch toca el documento del cliente (`existsAfter`)
+- El batch toca el documento de la vinculación (`existsAfter`)
+- La vinculación apunta al mismo `clienteId` y `negocioId` del usuario
+- El usuario tiene `clienteId` y `negocioId` correctamente asignados
+
+### Cambios en firestore.rules
+
+| Colección | Cambio |
+|---|---|
+| `negocios_publicos/{id}` | **NUEVA.** `get/list: autenticado(); create/update: esAdmin() && getAfter().negocioId == id; delete: false` |
+| `vinculaciones/{codigo}` | Añadir `create` para CLIENTE (Vía A): valida estado, fechaExpiracion, negocioId, clienteId |
+| `clientes/{idCliente}` | Añadir `create` para CLIENTE (Vía A): valida firebaseUid, idCliente, vinculacionCode, serviciosContratados |
+| `usuarios/{uid}` | Añadir `update` para CLIENTE (Vía A): affectedKeys solo clienteId/negocioId, sin vinculacionValidaParaConsumo |
+| `negocios/{id}` | Añadir `codigoMaestro is string` en `create` |
+
+### Funciones eliminadas
+
+| Función | Motivo |
+|---|---|
+| `asignacionDeVinculacionValida()` | El ADMIN ya no asigna códigos individuales |
+| `vinculacionPendienteDeCliente()` | No hay códigos pendientes por revocar |
+
+### Funciones nuevas
+
+| Función | Motivo |
+|---|---|
+| `userUpdateValida(clienteId, negocioId)` | Valida batch atómico de Vía A (cliente + vinculación + usuario) |
+
+### Funciones que se mantienen
+
+| Función | Motivo |
+|---|---|
+| `vinculacionValidaParaConsumo()` | Sigue siendo válida para Vía B |
+| `usuarioApuntaACliente()` | Sigue siendo válida |
+| `servicioContratadoPorCliente()` | Sin cambios |
+| `sesionAccesiblePorCliente()` | Sin cambios |
+
+### Pruebas
+
+17 pruebas totales (9 existentes + 8 nuevas):
+
+| # | Estado | Qué valida |
+|---|---|---|
+| 1 | Sin cambios | CLIENTE no lee otro cliente |
+| 2 | Sin cambios | CLIENTE no modifica permisos |
+| 3 | Sin cambios | ADMIN solo lee datos de su negocio |
+| 4 | Sin cambios | CLIENTE no lee movimientos |
+| 5 | **Se reescribe** | Vía A: vinculación por código maestro |
+| 6 | Sin cambios | CLIENTE vinculado solo accede a sus datos |
+| 7 | Sin cambios | CLIENTE solo usa sesiones de servicios contratados |
+| 8 | **Se adapta** | ADMIN solo escribe en su negocio |
+| 9 | **Se reescribe** | Vía B: reclamación de ficha con enlace |
+| 10 | **Nueva** | CLIENTE no vinculado puede leer negocios_publicos |
+| 11 | **Nueva** | CLIENTE no puede modificar negocios_publicos |
+| 12 | **Nueva** | Enlace expirado no funciona |
+| 13 | **Nueva** | Enlace ya usado no funciona |
+| 14 | **Nueva** | CLIENTE ya vinculado no puede reclamar otra ficha |
+| 15 | **Nueva** | ADMIN puede revocar enlace |
+| 16 | **Nueva** | ADMIN puede regenerar enlace |
+| 17 | **Nueva** | Cambio de código maestro no rompe vínculos |
+
+### Archivos a modificar
+
+| Archivo | Cambio |
+|---|---|
+| `firestore.rules` | Añadir negocios_publicos, vinculaciones/create CLIENTE, clientes/create CLIENTE, userUpdateValida(), eliminar funciones obsoletas |
+| `VinculacionRepository.kt` | Reescritura completa |
+| `NegocioRepository.kt` | **NUEVO** |
+| `MiNegocioScreen.kt` | Añadir campo codigoMaestro, modo dual |
+| `CrearNegocioScreen.kt` | **NUEVA** |
+| `VincularClienteScreen.kt` | **NUEVA** |
+| `AppNavigation.kt` | Añadir rutas |
+| `Routes.kt` | Añadir rutas |
+| `MainViewModel.kt` | Añadir lógica de creación de negocio y vinculación |
+| `AppModule.kt` | Registrar repositorios en Hilt |
+| `firestore-tests/firestore.rules.test.cjs` | Reescribir 5,8,9; añadir 10-17 |
+
+### Archivos que NO se modifican
+
+| Archivo | Motivo |
+|---|---|
+| `AutenticacionRepository.kt` | Registro sin cambios |
+| `ClienteEntity.kt` | Room sin cambios |
+| `ClientesDatabase.kt` | Sin cambios |
+| DAOs | Sin cambios |
+| Modelos | Sin cambios |
+
+## Comandos útiles (este PC)
+
+```powershell
+.\gradlew.bat assembleDebug            # compilar APK debug
+npm --prefix firestore-tests test      # pruebas Rules (emulador)
+& ".\firestore-tests\node_modules\.bin\firebase.cmd" deploy --only firestore:rules   # despliegue
+```
+---
+
+---
+
+# ACTUALIZACION 2026-08-25 (SESION V) — VINCULACION DEFINITIVA IMPLEMENTADA, DESPLEGADA Y APK LISTO
+
+> Este bloque es el estado vigente. Sesiones anteriores quedan como historico.
+> La app compila (BUILD SUCCESSFUL), las Rules estan desplegadas en produccion
+> `gestorpro-50e83` y el APK debug esta instalado en el Xiaomi (serial
+> `batchiqwxkbylnzl`, instalacion con `install -r` conservando datos Room).
+> SIGUIENTE PASO: pruebas manuales de integracion paso a paso (flujo abajo).
+
+## Diseno definitivo aprobado e implementado
+
+1. **idCliente compartido Room/Firestore**: Int aleatorio generado con
+   `Random.nextInt(1_000_000_000, Int.MAX_VALUE)`, comprobacion de existencia en
+   Transaction y reintento ante colision (max. 5). Sin contador en negocios y sin
+   hashCode(). El CLIENTE no tiene NINGUN permiso de escritura sobre `negocios`.
+2. **Estados**: se replican los nombres exactos del enum Room: ACTIVO, BAJA,
+   ARCHIVADO, REGISTRADO. MOROSO se calcula y nunca se almacena.
+3. **Replica write-through**: alta/edicion de cliente del ADMIN se replica a
+   Firestore con el mismo id; si falla NO se revierte lo local, se informa y hay
+   boton "Reintentar sincronizacion" (`ClienteViewModel.replicar()`).
+4. **Via A** (codigo maestro): buscar en `negocios_publicos` -> Transaction:
+   comprobar inexistencia de clientes/{id}, set ficha con UID propio, update
+   usuarios/{uid}. Sin vinculaciones.
+5. **Via B** (enlace individual): token SecureRandom de 24 caracteres
+   alfanumericos (sin ambiguos), 7 dias de expiracion, uso unico, revocable y
+   regenerable. Batch atomico ficha<->vinculaciones validado por las nuevas
+   funciones `asignacionTokenValida()` y `revocacionTokenValida()` + `!existsAfter`.
+6. **Deep link**: `gestorpro://vincular/{token}` (custom scheme, singleTask,
+   holder `EnlacePendiente`). Reclamacion automatica tras login/registro via
+   `MainViewModel.destinoSegunTipo()`. Estructura lista para App Links HTTPS.
+
+## Cambios en firestore.rules (DESPLEGADAS en gestorpro-50e83)
+
+| Seccion | Cambio |
+|---|---|
+| Funciones | +`creacionDirectaValida()`, +`asignacionTokenValida()`, +`revocacionTokenValida()`. Eliminadas `asignacionDeVinculacionValida()` y `vinculacionPendienteDeCliente()` |
+| negocios | create exige `codigoMaestro is string`. Sin contadorClientes |
+| negocios_publicos | get/list autenticado; create/update solo ADMIN propietario (keys: codigoMaestro, nombre) |
+| clientes | +create CLIENTE (Via A); 2 bloques update ADMIN estrechos para codigoVinculacion (solo fichas sin UID, solo esa clave, atomicos con vinculaciones) |
+| usuarios | +update CLIENTE Via A con `creacionDirectaValida()` |
+
+Warnings del deploy (auditados, inofensivos, patron ternario null): L39:11, L58:11, L63:11.
+
+## Pruebas: 17/17 OK (emulador) tras reescritura
+
+Prueba 5 reescrita (Via A + colision/sobrescritura DENY); 15 reescrita (revocacion
+atomica, limpiar sin borrar -> DENY); 16 reescrita (token huerfano -> DENY, ficha
+con UID -> DENY, asignacion y regeneracion atomicas -> ALLOW); +10,11,12,13,14,17.
+
+## Archivos clave de esta sesion
+
+Modificados: firestore.rules, firestore-tests/firestore.rules.test.cjs,
+VinculacionRepository.kt, AutenticacionRepository.kt (solo visibilidad de
+`esperar()` a internal), ClienteViewModel.kt, MainViewModel.kt, Routes.kt,
+AppNavigation.kt, MainActivity.kt, AndroidManifest.xml (intent-filter +
+singleTask), VincularClienteScreen.kt, AnadirClienteScreen.kt (aviso sincro),
+PerfilClienteAdministradorScreen.kt (boton), MiNegocioScreen.kt, HomeClienteScreen.kt.
+Nuevos: ClienteRemotoRepository.kt, NegocioRepository.kt, EnlacePendiente.kt,
+VincularClienteScreen.kt (ui/auth), EnlaceVinculacionScreen.kt (+VM),
+CrearNegocioScreen.kt.
+
+## PENDIENTE INMEDIATO (retomar aqui)
+
+### Pruebas manuales en el movil (instalado, datos Room conservados)
+ADMIN:
+1. Registrar ADMIN nuevo
+2. Crear negocio (Mi negocio -> Crear negocio en la nube)
+3. Verificar usuarios/{uid}.negocioId en consola Firebase
+4. Verificar negocios/{negocioId} creado (negocioId = uid del ADMIN)
+5. Crear un cliente desde ADMIN
+6. Verificar Room local + replica en clientes/{idCliente} (mismo id)
+7. Generar enlace (Perfil cliente -> "Vinculacion en la nube")
+8. Verificar vinculaciones/{token} y clientes/{id}.codigoVinculacion iguales
+CLIENTE:
+9. Abrir el enlace gestorpro://vincular/{token}
+10. Registrar CLIENTE nuevo
+11. Verificar token precargado en pantalla
+12. Reclamar la ficha
+13. Verificar usuarios/{uid}.clienteId y negocioId
+14. Verificar clientes/{id}.firebaseUid = UID del cliente
+15. Comprobar entrada al Home del cliente
+Despues: edicion de perfil, regeneracion y revocacion del enlace.
+
+### Otros pendientes
+- COMMIT de todo (nada commiteado de Sesion IV+V): docs, rules, tests, Android.
+- Decidir que hacer con `firestore-tests/firestore-debug.log` (log del emulador;
+  recomendado anadirlo a .gitignore antes del commit).
+- Fase futura: ediciones del CLIENTE hacia la lista Room del ADMIN (lectura),
+  borrados como baja logica remota, App Links HTTPS, gestion de
+  fechaInicioActual/fechaFinActual del contrato de clientes.
+
+## Comandos utiles (este PC)
+
+```powershell
+.\gradlew.bat assembleDebug            # compilar APK debug
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" devices          # movil
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" -s batchiqwxkbylnzl install -r "C:\Users\Roberto\AndroidStudioProjects\GestorPro\app\build\outputs\apk\debug\app-debug.apk"
+npm --prefix firestore-tests test      # pruebas Rules (emulador)
+& ".\firestore-tests\node_modules\.bin\firebase.cmd" deploy --only firestore:rules   # despliegue
+```

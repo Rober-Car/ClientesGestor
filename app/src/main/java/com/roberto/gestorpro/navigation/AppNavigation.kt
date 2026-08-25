@@ -12,21 +12,26 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.roberto.gestorpro.ui.auth.LoginScreen
 import com.roberto.gestorpro.ui.auth.RegistroScreen
 import com.roberto.gestorpro.ui.auth.SeleccionTipoUsuarioScreen
+import com.roberto.gestorpro.ui.auth.VincularClienteScreen
 import com.roberto.gestorpro.ui.clases.ClasesScreen
 import com.roberto.gestorpro.ui.clases.CrearClaseScreen
 import com.roberto.gestorpro.ui.clases.DetalleClaseScreen
 import com.roberto.gestorpro.ui.clases.DetalleSesionReservasScreen
 import com.roberto.gestorpro.ui.clientes.AñadirClienteScreen
 import com.roberto.gestorpro.ui.clientes.ClientesScreen
+import com.roberto.gestorpro.ui.clientes.EnlaceVinculacionScreen
 import com.roberto.gestorpro.ui.clientes.MiPerfilScreen
 import com.roberto.gestorpro.ui.clientes.PerfilClienteScreen
 import com.roberto.gestorpro.ui.configuracion.ConfiguracionScreen
+import com.roberto.gestorpro.ui.configuracion.CrearNegocioScreen
 import com.roberto.gestorpro.ui.configuracion.CuentaScreen
 import com.roberto.gestorpro.ui.configuracion.DatosScreen
 import com.roberto.gestorpro.ui.configuracion.MiNegocioScreen
@@ -34,6 +39,7 @@ import com.roberto.gestorpro.ui.configuracion.PreferenciasScreen
 import com.roberto.gestorpro.ui.economia.EconomiaScreen
 import com.roberto.gestorpro.ui.home.HomeClienteScreen
 import com.roberto.gestorpro.ui.home.HomeScreen
+import com.roberto.gestorpro.model.TipoUsuario
 import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 
 /**
@@ -93,6 +99,25 @@ fun AppNavigation() {
      */
     LaunchedEffect(Unit) {
         destinoInicial = mainViewModel.destinoInicialSegunSesion()
+    }
+
+    /**
+     * LaunchedEffect (deep link con sesión abierta)
+     * ---------------------------------------------
+     * ✔ TIPO: bloque de efecto (LaunchedEffect) observable
+     * Vigila el token pendiente llegado por deep link. Sirve para que, si
+     * el CLIENTE ya está autenticado y sin vincular al pulsar el enlace,
+     * la pantalla de reclamación se abra automáticamente; si aún no hay
+     * sesión, MainViewModel.destinoSegunTipo lo abrirá tras autenticarse.
+     */
+    LaunchedEffect(EnlacePendiente.codigo) {
+        val token = EnlacePendiente.codigo ?: return@LaunchedEffect
+        if (
+            mainViewModel.obtenerTipoUsuario() == TipoUsuario.CLIENTE &&
+            mainViewModel.haySesionActiva()
+        ) {
+            navController.navigate("${Routes.VINCULAR_CLIENTE}?codigo=$token")
+        }
     }
 
     /**
@@ -338,6 +363,65 @@ fun AppNavigation() {
          */
         composable(Routes.MINEGOCIO) {
             MiNegocioScreen(navController)
+        }
+
+        /**
+         * Ruta CREAR_NEGOCIO
+         * ------------------
+         * ✔ TIPO: ruta de navegación (composable)
+         * Es la ruta del alta remota del negocio con su código maestro.
+         * Sirve para que un ADMIN sin negocio en la nube lo cree desde aquí;
+         * el Batch vincula negocios, negocios_publicos y usuarios/{uid}.
+         */
+        composable(Routes.CREAR_NEGOCIO) {
+            CrearNegocioScreen(navController)
+        }
+
+        /**
+         * Ruta VINCULAR_CLIENTE
+         * ---------------------
+         * ✔ TIPO: ruta de navegación (composable) con parámetro opcional
+         * Es la ruta de la pantalla de vinculación del CLIENTE.
+         * Sirve para vincularse por código maestro (Vía A) o reclamar una
+         * ficha creada por el administrador mediante su enlace (Vía B);
+         * cuando llega un token por deep link viene precargado en "codigo".
+         */
+        composable(
+            route = Routes.VINCULAR_CLIENTE,
+            arguments = listOf(
+                navArgument("codigo") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )
+        ) { backStackEntry ->
+            VincularClienteScreen(
+                navController = navController,
+                codigoPrecargado = backStackEntry.arguments?.getString("codigo")
+            )
+        }
+
+        /**
+         * Ruta ENLACE_VINCULACION/{idCliente}
+         * -----------------------------------
+         * ✔ TIPO: ruta de navegación (composable) con parámetro dinámico
+         * Es la ruta donde el ADMIN gestiona el enlace individual de un
+         * cliente. Sirve para generar, copiar, compartir, regenerar o revocar
+         * el token una vez la ficha está sincronizada con Firestore.
+         */
+        composable(
+            route = "${Routes.ENLACE_VINCULACION}/{idCliente}"
+        ) { backStackEntry ->
+            val idCliente = backStackEntry.arguments
+                ?.getString("idCliente")
+                ?.toIntOrNull()
+            if (idCliente != null) {
+                EnlaceVinculacionScreen(
+                    navController = navController,
+                    idCliente = idCliente
+                )
+            }
         }
 
         composable(Routes.PREFERENCIAS) {

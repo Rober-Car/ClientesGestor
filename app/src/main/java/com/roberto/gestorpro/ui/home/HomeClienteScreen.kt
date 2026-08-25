@@ -160,6 +160,14 @@ fun HomeClienteScreen(
                 onClick = { navController.navigate(Routes.MIPERFIL) }
             )
 
+            MenuCard(
+                titulo = "Vincular al negocio",
+                descripcion = "Introduce tu código o enlace",
+                icono = Icons.Default.Groups,
+                iconColor = Color(0xFF1E88E5),
+                onClick = { navController.navigate(Routes.VINCULAR_CLIENTE) }
+            )
+
             /**
              * MenuCard de Clases
              * ------------------

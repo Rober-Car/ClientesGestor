@@ -3,8 +3,11 @@ package com.roberto.gestorpro.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.roberto.gestorpro.data.firebase.AutenticacionRepository
+import com.roberto.gestorpro.data.firebase.NegocioRepository
+import com.roberto.gestorpro.data.firebase.VinculacionRepository
 import com.roberto.gestorpro.data.repository.PreferencesRepository
 import com.roberto.gestorpro.model.TipoUsuario
+import com.roberto.gestorpro.navigation.EnlacePendiente
 import com.roberto.gestorpro.navigation.Routes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,7 +22,9 @@ import javax.inject.Inject
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val preferencesRepository: PreferencesRepository,
-    private val autenticacionRepository: AutenticacionRepository
+    private val autenticacionRepository: AutenticacionRepository,
+    private val negocioRepository: NegocioRepository,
+    private val vinculacionRepository: VinculacionRepository
 ) : ViewModel() {
 
     /**
@@ -32,6 +37,17 @@ class MainViewModel @Inject constructor(
      */
     private val _autenticando = MutableStateFlow(false)
     val autenticando: StateFlow<Boolean> = _autenticando.asStateFlow()
+
+    /**
+     * _operandoRemoto / operandoRemoto
+     * --------------------------------
+     * ✔ TIPO: propiedad (private val) → MutableStateFlow<Boolean> y (val) → StateFlow<Boolean>
+     * Es el estado que indica si hay una operación remota de negocio o
+     * vinculación en curso. Sirve para que CrearNegocioScreen, MiNegocioScreen
+     * y VincularClienteScreen desactiven botones y muestren carga.
+     */
+    private val _operandoRemoto = MutableStateFlow(false)
+    val operandoRemoto: StateFlow<Boolean> = _operandoRemoto.asStateFlow()
 
     /**
      * themeMode
@@ -80,11 +96,15 @@ class MainViewModel @Inject constructor(
      * autenticado el usuario.
      */
     suspend fun destinoSegunTipo(): String {
-        return if (obtenerTipoUsuario() == TipoUsuario.CLIENTE) {
-            Routes.HOME_CLIENTE
-        } else {
-            Routes.HOME
+        if (obtenerTipoUsuario() == TipoUsuario.CLIENTE) {
+            // Reclamación automática: si llegó un deep link pendiente,
+            // el cliente va directo a reclamar su ficha tras autenticarse.
+            EnlacePendiente.codigo?.let { token ->
+                return "${Routes.VINCULAR_CLIENTE}?codigo=$token"
+            }
+            return Routes.HOME_CLIENTE
         }
+        return Routes.HOME
     }
 
     /**
@@ -103,6 +123,18 @@ class MainViewModel @Inject constructor(
             autenticacionRepository.haySesionActiva() -> destinoSegunTipo()
             else -> Routes.LOGIN
         }
+    }
+
+    /**
+     * haySesionActiva
+     * ---------------
+     * ✔ TIPO: método (fun) de Kotlin → Boolean
+     * Indica si hay sesión de Firebase restaurada en el dispositivo.
+     * Sirve a AppNavigation para decidir si un deep link pendiente puede
+     * abrirse directamente o debe esperar al login.
+     */
+    fun haySesionActiva(): Boolean {
+        return autenticacionRepository.haySesionActiva()
     }
 
     /**
@@ -179,6 +211,124 @@ class MainViewModel @Inject constructor(
     fun cerrarSesion() {
         viewModelScope.launch {
             autenticacionRepository.cerrarSesion()
+        }
+    }
+
+    /**
+     * existeNegocioPropio
+     * -------------------
+     * ✔ TIPO: método (fun) suspend de Kotlin → Boolean
+     * Indica si el ADMIN autenticado ya creó su negocio remoto.
+     * Sirve a MiNegocioScreen para elegir entre modo alta y modo edición.
+     */
+    suspend fun existeNegocioPropio(): Boolean {
+        return negocioRepository.existeNegocioPropio()
+    }
+
+    /**
+     * obtenerCodigoMaestroRemoto
+     * --------------------------
+     * ✔ TIPO: método (fun) suspend de Kotlin → String?
+     * Lee el código maestro actual del negocio propio en Firestore.
+     * Sirve para precargar el campo en MiNegocioScreen.
+     */
+    suspend fun obtenerCodigoMaestroRemoto(): String? {
+        return negocioRepository.obtenerCodigoMaestro()
+    }
+
+    /**
+     * crearNegocio
+     * ------------
+     * ✔ TIPO: método (fun) suspend de Kotlin → String?
+     * Crea el negocio remoto (negocios + negocios_publicos + usuarios/{uid})
+     * y guarda además el nombre en DataStore para la identidad local.
+     * Devuelve null si todo fue bien o el mensaje de error para la UI.
+     */
+    suspend fun crearNegocio(nombre: String, codigoMaestro: String): String? {
+        if (nombre.isBlank()) return "El nombre del negocio no puede estar vacío"
+        if (codigoMaestro.isBlank()) return "El código maestro no puede estar vacío"
+
+        _operandoRemoto.value = true
+        try {
+            val resultado = negocioRepository.crearNegocio(nombre.trim(), codigoMaestro.trim())
+            if (resultado.exito) {
+                preferencesRepository.setNombreNegocio(nombre.trim())
+                return null
+            }
+            return resultado.mensaje
+        } finally {
+            _operandoRemoto.value = false
+        }
+    }
+
+    /**
+     * guardarCodigoMaestro
+     * --------------------
+     * ✔ TIPO: método (fun) suspend de Kotlin → String?
+     * Actualiza el código maestro del negocio en los dos documentos remotos.
+     * Cambiarlo no afecta a clientes ya vinculados. Devuelve null si todo fue
+     * bien o el mensaje de error para la UI.
+     */
+    suspend fun guardarCodigoMaestro(codigoMaestro: String): String? {
+        if (codigoMaestro.isBlank()) return "El código maestro no puede estar vacío"
+
+        _operandoRemoto.value = true
+        try {
+            val resultado = negocioRepository.guardarCodigoMaestro(codigoMaestro.trim())
+            return if (resultado.exito) null else resultado.mensaje
+        } finally {
+            _operandoRemoto.value = false
+        }
+    }
+
+    /**
+     * clienteYaVinculado
+     * ------------------
+     * ✔ TIPO: método (fun) suspend de Kotlin → Boolean
+     * Indica si el CLIENTE autenticado ya tiene ficha asignada en Firestore.
+     * Un CLIENTE solo puede vincularse una vez. Sirve a VincularClienteScreen.
+     */
+    suspend fun clienteYaVinculado(): Boolean {
+        return vinculacionRepository.estaVinculado()
+    }
+
+    /**
+     * vincularConCodigoMaestro
+     * ------------------------
+     * ✔ TIPO: método (fun) suspend de Kotlin → String?
+     * Vía A: busca el negocio por su código maestro, crea la ficha propia del
+     * cliente con un idCliente aleatorio único y actualiza usuarios/{uid} en
+     * una única Transaction. Devuelve null si todo fue bien o el error.
+     */
+    suspend fun vincularConCodigoMaestro(codigoMaestro: String): String? {
+        if (codigoMaestro.isBlank()) return "Introduce el código maestro del negocio"
+
+        _operandoRemoto.value = true
+        try {
+            val resultado = vinculacionRepository.vincularConCodigoMaestro(codigoMaestro.trim())
+            return if (resultado.exito) null else resultado.mensaje
+        } finally {
+            _operandoRemoto.value = false
+        }
+    }
+
+    /**
+     * reclamarFichaConEnlace
+     * ----------------------
+     * ✔ TIPO: método (fun) suspend de Kotlin → String?
+     * Vía B: reclama la ficha creada por el ADMIN a través de su enlace
+     * individual, consumiendo vinculaciones/{codigo} atómicamente.
+     * Devuelve null si todo fue bien o el mensaje de error para la UI.
+     */
+    suspend fun reclamarFichaConEnlace(codigo: String): String? {
+        if (codigo.isBlank()) return "Introduce el código del enlace recibido"
+
+        _operandoRemoto.value = true
+        try {
+            val resultado = vinculacionRepository.reclamarFichaConEnlace(codigo.trim())
+            return if (resultado.exito) null else resultado.mensaje
+        } finally {
+            _operandoRemoto.value = false
         }
     }
 

@@ -39,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -52,7 +53,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
+import com.roberto.gestorpro.navigation.Routes
 import com.roberto.gestorpro.ui.viewmodel.MainViewModel
+import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
 
@@ -103,6 +106,35 @@ fun MiNegocioScreen(
     val logoActual by mainViewModel.logoNegocio.collectAsStateWithLifecycle()
 
     /**
+     * negocioEnNube / codigoMaestroRemoto / mensajeRemoto
+     * ---------------------------------------------------
+     * ✔ TIPO: variables con estado (var) → Boolean? / String / String
+     * Es el estado de la sincronización remota del negocio: null mientras
+     * carga, false si el ADMIN aún no creó su negocio (modo alta) y true si
+     * ya existe (modo edición del código maestro). mensajeRecoge errores.
+     * Sirven para el modo dual de la pantalla.
+     */
+    var negocioEnNube by rememberSaveable { mutableStateOf<Boolean?>(null) }
+    var codigoMaestro by rememberSaveable { mutableStateOf("") }
+    var mensajeRemoto by rememberSaveable { mutableStateOf("") }
+
+    /**
+     * LaunchedEffect(estado del negocio remoto)
+     * -----------------------------------------
+     * ✔ TIPO: efecto de composición (LaunchedEffect)
+     * Consulta una sola vez si existe el negocio remoto y precarga su
+     * código maestro. Sirve para pintar el modo dual correcto.
+     */
+    LaunchedEffect(Unit) {
+        if (mainViewModel.existeNegocioPropio()) {
+            negocioEnNube = true
+            mainViewModel.obtenerCodigoMaestroRemoto()?.let { codigoMaestro = it }
+        } else {
+            negocioEnNube = false
+        }
+    }
+
+    /**
      * nombre / logo
      * -------------
      * ✔ TIPO: variables con estado (var) → String
@@ -148,6 +180,15 @@ fun MiNegocioScreen(
      * Sirve para copiar el logo elegido al almacenamiento interno de la app.
      */
     val context = LocalContext.current
+
+    /**
+     * alcance
+     * -------
+     * ✔ TIPO: variable (val) → CoroutineScope
+     * Es el scope ligado a la composición para lanzar el guardado del
+     * código maestro. Sirve para no bloquear el hilo principal.
+     */
+    val alcance = rememberCoroutineScope()
 
     /**
      * launcherGaleria
@@ -332,6 +373,76 @@ fun MiNegocioScreen(
                         ) {
                             Text("Quitar")
                         }
+                    }
+                }
+            }
+
+            /**
+             * Sección de sincronización con la nube
+             * ------------------------------------
+             * ✔ TIPO: bloque condicional + Composable (Column)
+             * Es el modo dual remoto: sin negocio muestra el acceso al alta
+             * (CrearNegocioScreen) y con negocio permite editar el código
+             * maestro, que no afecta a clientes ya vinculados.
+             */
+            Text(
+                text = "Sincronización en la nube",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            when (negocioEnNube) {
+                null -> {
+                    Text(
+                        text = "Comprobando estado del negocio…",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                false -> {
+                    Text(
+                        text = "Aún no has creado tu negocio en la nube. " +
+                            "Créalo para poder vincular clientes.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Button(
+                        onClick = { navController.navigate(Routes.CREAR_NEGOCIO) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Crear negocio en la nube")
+                    }
+                }
+                else -> {
+                    OutlinedTextField(
+                        value = codigoMaestro,
+                        onValueChange = { codigoMaestro = it },
+                        label = { Text("Código maestro") },
+                        supportingText = {
+                            Text("Lo usan tus clientes para vincularse; cambiarlo no afecta a los ya vinculados")
+                        },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (mensajeRemoto.isNotBlank()) {
+                        Text(
+                            text = mensajeRemoto,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            alcance.launch {
+                                mensajeRemoto =
+                                    mainViewModel.guardarCodigoMaestro(codigoMaestro)
+                                        ?: ""
+                            }
+                        },
+                        enabled = codigoMaestro.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Guardar código maestro")
                     }
                 }
             }

@@ -88,46 +88,56 @@ service cloud.firestore {
         && usuarioDespues.negocioId == negocioId;
     }
 
-    // Valida atomicamente el Batch de asignacion de un codigo nuevo:
-    // la ficha esta libre, sin UID, y termina ligada al codigo creado,
-    // cuyo documento nace PENDIENTE, sin caducar y del negocio propio.
-    function asignacionDeVinculacionValida(codigo, clienteId, negocioId) {
-      let cliente = get(
-        /databases/$(database)/documents/clientes/$(clienteId)
-      ).data;
-      let clienteDespues = getAfter(
-        /databases/$(database)/documents/clientes/$(clienteId)
-      ).data;
-      let vinculoDespues = (codigo is string)
-        ? getAfter(
-            /databases/$(database)/documents/vinculaciones/$(codigo)
-          ).data
-        : null;
-      return codigo is string
+    // Valida el Batch de asignacion/regeneracion de un token individual
+    // (Via B): el documento vinculaciones/{token} nace en el mismo Batch,
+    // PENDIENTE, sin caducar y apuntando a la ficha y negocio indicados.
+    function asignacionTokenValida(token, clienteId, negocioId) {
+      return token is string
         && !exists(
-          /databases/$(database)/documents/vinculaciones/$(codigo)
+          /databases/$(database)/documents/vinculaciones/$(token)
         )
-        && cliente.idCliente == clienteId
-        && cliente.negocioId == negocioId
-        && cliente.firebaseUid == null
-        && cliente.codigoVinculacion == null
-        && vinculoDespues != null
-        && vinculoDespues.estado == "PENDIENTE"
-        && vinculoDespues.clienteId == clienteId
-        && vinculoDespues.negocioId == negocioId
-        && vinculoDespues.fechaExpiracion > request.time
-        && clienteDespues.codigoVinculacion == codigo;
+        && getAfter(
+            /databases/$(database)/documents/vinculaciones/$(token)
+          ).data.estado == "PENDIENTE"
+        && getAfter(
+            /databases/$(database)/documents/vinculaciones/$(token)
+          ).data.clienteId == clienteId
+        && getAfter(
+            /databases/$(database)/documents/vinculaciones/$(token)
+          ).data.negocioId == negocioId
+        && getAfter(
+            /databases/$(database)/documents/vinculaciones/$(token)
+          ).data.fechaExpiracion > request.time;
     }
 
-    // Exige que el codigo siga pendiente y pertenezca al cliente y
-    // negocio indicados antes de revocar la ficha en el mismo Batch.
-    function vinculacionPendienteDeCliente(codigo, clienteId, negocioId) {
+    // Exige que el token activo de la ficha siga PENDIENTE, del propio
+    // negocio y apuntando a ese cliente, antes de limpiar su campo en el
+    // mismo Batch que elimina el documento de vinculacion.
+    function revocacionTokenValida(token, clienteId, negocioId) {
       let vinculo = get(
-        /databases/$(database)/documents/vinculaciones/$(codigo)
+        /databases/$(database)/documents/vinculaciones/$(token)
       ).data;
       return vinculo.estado == "PENDIENTE"
         && vinculo.clienteId == clienteId
         && vinculo.negocioId == negocioId;
+    }
+
+    // Valida atomicamente la creacion directa de la ficha por parte de un
+    // CLIENTE mediante el codigo maestro (Via A): la misma operacion debe
+    // crear la ficha ligada al UID autenticado y dejar usuarios/{uid}
+    // apuntando al cliente y al negocio correctos. Realiza 2 getAfter.
+    function creacionDirectaValida(clienteId, negocioId) {
+      let clienteDespues = getAfter(
+        /databases/$(database)/documents/clientes/$(clienteId)
+      ).data;
+      let usuarioDespues = getAfter(
+        /databases/$(database)/documents/usuarios/$(request.auth.uid)
+      ).data;
+      return clienteDespues.firebaseUid == request.auth.uid
+        && clienteDespues.negocioId == negocioId
+        && clienteDespues.idCliente == clienteId
+        && usuarioDespues.clienteId == clienteId
+        && usuarioDespues.negocioId == negocioId;
     }
 
     function sesionDelNegocio(sesionId) {
@@ -164,9 +174,12 @@ service cloud.firestore {
         && resource.data.adminUid == request.auth.uid;
 
       // Debe formar parte del mismo Batch que actualiza usuarios/{uid}.
+      // El negocio nace con su codigo maestro; no existe contadorClientes:
+      // los idCliente se generan como enteros aleatorios unicos en clientes.
       allow create: if esAdmin()
         && usuarioActual().negocioId == null
         && request.resource.data.adminUid == request.auth.uid
+        && request.resource.data.codigoMaestro is string
         && getAfter(
           /databases/$(database)/documents/usuarios/$(request.auth.uid)
         ).data.negocioId == negocioId;
@@ -175,6 +188,37 @@ service cloud.firestore {
         && usuarioActual().negocioId == negocioId
         && resource.data.adminUid == request.auth.uid
         && request.resource.data.adminUid == request.auth.uid;
+
+      allow delete: if false;
+    }
+
+
+    // =========================================================
+    // NEGOCIOS PUBLICOS
+    // =========================================================
+
+    // Unica informacion visible para localizar el negocio a traves del
+    // codigo maestro, sin exponer adminUid ni otros datos sensibles.
+    match /negocios_publicos/{negocioId} {
+      allow get, list: if autenticado();
+
+      // Debe crearse en el mismo Batch que negocios/{id} y usuarios/{uid}.
+      allow create: if esAdmin()
+        && request.resource.data.keys()
+            .hasOnly(["codigoMaestro", "nombre"])
+        && usuarioActual().negocioId == null
+        && request.resource.data.codigoMaestro is string
+        && request.resource.data.nombre is string
+        && getAfter(
+          /databases/$(database)/documents/usuarios/$(request.auth.uid)
+        ).data.negocioId == negocioId;
+
+      // Solo el ADMIN propietario actualiza el codigo maestro (y el nombre).
+      allow update: if esAdmin()
+        && usuarioActual().negocioId == negocioId
+        && request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly(["codigoMaestro", "nombre"]);
 
       allow delete: if false;
     }
@@ -232,6 +276,25 @@ service cloud.firestore {
              request.resource.data.negocioId
            );
 
+      // Via A: el CLIENTE se vincula creando su propia ficha con el codigo
+      // maestro; la misma operacion crea clientes/{idCliente} y deja los
+      // dos documentos coherentes entre si. Sin vinculacion que consumir.
+      allow update: if esCliente()
+        && request.auth.uid == uid
+        && resource.data.clienteId == null
+        && resource.data.negocioId == null
+        && request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly(["clienteId", "negocioId"])
+        && request.resource.data.clienteId is int
+        && request.resource.data.negocioId is string
+        && request.resource.data.rol == resource.data.rol
+        && request.resource.data.activo == resource.data.activo
+        && creacionDirectaValida(
+             request.resource.data.clienteId,
+             request.resource.data.negocioId
+           );
+
       allow delete: if false;
     }
 
@@ -283,6 +346,46 @@ service cloud.firestore {
           || request.resource.data.codigoVinculacion == null)
         && request.resource.data.serviciosContratados is list;
 
+      // Via A: el CLIENTE crea su propia ficha con el codigo maestro.
+      // El identificador es un entero aleatorio unico en toda la coleccion;
+      // create solo alcanza documentos que aun no existen, por lo que una
+      // colision falla y la app reintenta con otro id. La operacion debe
+      // formar parte de la misma Transaction que actualiza usuarios/{uid}.
+      allow create: if esCliente()
+        && request.resource.data.keys().hasOnly([
+           "idCliente",
+           "negocioId",
+           "firebaseUid",
+           "codigoVinculacion",
+           "nombre",
+           "apellidos",
+           "dni",
+           "telefono",
+           "email",
+           "foto",
+           "fechaNacimiento",
+           "fechaRegistro",
+           "fechaAlta",
+           "fechaBaja",
+           "estado",
+           "tieneLlave",
+           "observaciones",
+           "serviciosContratados",
+           "fechaInicioActual",
+           "fechaFinActual"
+         ])
+        && request.resource.data.negocioId is string
+        && request.resource.data.idCliente is int
+        && string(request.resource.data.idCliente) == clienteId
+        && request.resource.data.firebaseUid == request.auth.uid
+        && (!("codigoVinculacion" in request.resource.data)
+          || request.resource.data.codigoVinculacion == null)
+        && request.resource.data.serviciosContratados is list
+        && creacionDirectaValida(
+             request.resource.data.idCliente,
+             request.resource.data.negocioId
+           );
+
       // El cliente solo puede completar su vinculacion con su UID y dentro
       // del Batch que consume el codigo correcto. El negocio escrito debe
       // coincidir con el del codigo y con el que recibe usuarios/{uid}.
@@ -331,8 +434,12 @@ service cloud.firestore {
               "observaciones"
             ]);
 
-      // La asignacion del codigo al cliente debe ser atomica con la creacion
-      // del documento de vinculacion en el mismo Batch.
+      // SE ELIMINAN las reglas generales de asignacion y revocacion de
+      // codigos; quedan sustituidas por los dos bloques estrechos siguientes.
+
+      // Asignar o regenerar el token de vinculacion (Via B) sobre una ficha
+      // que aun no tiene UID: atomico con la creacion de vinculaciones/{token}
+      // en el mismo Batch (validado por asignacionTokenValida).
       allow update: if esAdmin()
         && usuarioActual().negocioId is string
         && resource.data.negocioId == usuarioActual().negocioId
@@ -342,18 +449,18 @@ service cloud.firestore {
         && request.resource.data.idCliente == resource.data.idCliente
         && resource.data.firebaseUid == null
         && request.resource.data.firebaseUid == null
-        && resource.data.codigoVinculacion == null
         && request.resource.data.diff(resource.data)
             .affectedKeys()
             .hasOnly(["codigoVinculacion"])
-        && asignacionDeVinculacionValida(
+        && asignacionTokenValida(
              request.resource.data.codigoVinculacion,
              resource.data.idCliente,
              resource.data.negocioId
            );
 
-      // Revocar un codigo pendiente exige limpiar tambien la ficha del
-      // cliente y eliminar la vinculacion en el mismo Batch.
+      // Revocar el enlace activo de una ficha sin UID: limpia el campo a null
+      // en el mismo Batch que elimina vinculaciones/{token} (delete permitido
+      // por su propia regla mientras siga PENDIENTE).
       allow update: if esAdmin()
         && usuarioActual().negocioId is string
         && resource.data.negocioId == usuarioActual().negocioId
@@ -368,7 +475,7 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data)
             .affectedKeys()
             .hasOnly(["codigoVinculacion"])
-        && vinculacionPendienteDeCliente(
+        && revocacionTokenValida(
              resource.data.codigoVinculacion,
              resource.data.idCliente,
              resource.data.negocioId
