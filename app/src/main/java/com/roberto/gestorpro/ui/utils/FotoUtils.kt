@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import androidx.core.content.FileProvider
 import java.io.File
 import java.io.FileOutputStream
 
@@ -15,6 +16,61 @@ import java.io.FileOutputStream
  */
 internal const val MAX_FOTO_DIMENSION = 1024
 internal const val FOTO_CALIDAD = 85
+
+/**
+ * Nombre de la carpeta dentro del directorio de caché donde se crean los
+ * archivos temporales que la app de cámara rellena al hacer una foto.
+ */
+internal const val CARPETA_FOTOS_TEMPORALES = "fotos_camara"
+
+/**
+ * Crear un archivo temporal vacío para que la app de cámara escriba la foto.
+ *
+ * @param context Contexto de la actividad
+ * @return El archivo temporal creado, o null si no se pudo crear
+ */
+internal fun crearFotoTemporal(context: Context): File? {
+    val dir = File(context.cacheDir, CARPETA_FOTOS_TEMPORALES).apply { mkdirs() }
+    return try {
+        File.createTempFile("foto_camara_", ".jpg", dir)
+    } catch (e: Exception) {
+        null
+    }
+}
+
+/**
+ * Convierte el archivo temporal de cámara en un Uri accesible para la app
+ * de cámara mediante FileProvider.
+ *
+ * @param context Contexto de la actividad
+ * @param archivo Archivo temporal de la foto
+ * @return Uri de contenido listo para lanzar TakePicture
+ */
+internal fun uriDeFotoTemporal(context: Context, archivo: File): Uri {
+    return FileProvider.getUriForFile(
+        context,
+        context.packageName + ".fileprovider",
+        archivo
+    )
+}
+
+/**
+ * Procesa la foto tomada con la cámara: la copia al almacenamiento interno
+ * mediante [guardaFotoEnInterna] y borra el archivo temporal.
+ *
+ * @param context Contexto de la actividad
+ * @param archivoTemporal Archivo temporal donde la cámara escribió la foto
+ * @return Ruta absoluta de la foto guardada, o null si falla
+ */
+internal fun guardarFotoDeCamara(context: Context, archivoTemporal: File?): String? {
+    val ruta = if (archivoTemporal != null && archivoTemporal.exists()) {
+        guardaFotoEnInterna(context, uriDeFotoTemporal(context, archivoTemporal))
+    } else {
+        null
+    }
+    archivoTemporal?.delete()
+    return ruta
+}
 
 /**
  * guardaFotoEnInterna

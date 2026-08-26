@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -46,25 +45,24 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
-import android.net.Uri
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.result.launch
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
 import com.roberto.gestorpro.model.EstadoCliente
 import com.roberto.gestorpro.navigation.Routes
+import com.roberto.gestorpro.ui.components.BotonSelectorFoto
+import com.roberto.gestorpro.ui.utils.crearFotoTemporal
 import com.roberto.gestorpro.ui.utils.guardaFotoEnInterna
+import com.roberto.gestorpro.ui.utils.guardarFotoDeCamara
+import com.roberto.gestorpro.ui.utils.uriDeFotoTemporal
 import com.roberto.gestorpro.ui.viewmodel.ClienteViewModel
 import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 import java.io.File
@@ -169,21 +167,23 @@ fun MiPerfilScreen(
      * Sirve para almacenar temporalmente la ruta de la foto seleccionada
      * y mostrarla en la vista previa antes de guardar los datos.
      */
+    var fotoSeleccionada by rememberSaveable { mutableStateOf<String?>(null) }
+
     /**
-     * fotoSeleccionada
-     * ---------------
-     * ✔ TIPO: variable con estado (var) → String?
-     * Es la ruta de la foto elegida por el usuario para cambiar el perfil.
-     * Sirve para almacenar temporalmente la ruta de la foto seleccionada
-     * y mostrarla en la vista previa antes de guardar los datos.
+     * fotoTemporal
+     * ------------
+     * ✔ TIPO: variable con estado (var) → File?
+     * Es el archivo temporal que rellena la app de cámara al hacer una foto.
+     * Sirve para guardar la referencia hasta que el resultado del lanzador
+     * de cámara devuelve el control y procesar la foto capturada.
      */
-    var fotoSeleccionada by rememberSaveable { mutableStateOf("") }
+    var fotoTemporal by remember { mutableStateOf<File?>(null) }
 
     /**
      * launcherFoto
      * ------------
      * ✔ TIPO: variable (val) → ActivityResultLauncher<PickVisualMediaRequest>
-     * Es el lanzador que abre el selector de fotos del sistema (galería o cámara).
+     * Es el lanzador que abre el selector de fotos del sistema (galería).
      * Sirve para que el usuario elija una imagen; al volver, guarda la foto en
      * el almacenamiento interno y muestra la ruta en la variable fotoSeleccionada.
      */
@@ -198,20 +198,26 @@ fun MiPerfilScreen(
         }
     }
 
+    /**
+     * launcherTomarFoto
+     * -----------------
+     * ✔ TIPO: variable (val) → ActivityResultLauncher<Uri>
+     * Es el lanzador que abre la app de cámara para hacer una foto nueva.
+     * Sirve para capturar la imagen en el archivo temporal y, si la foto se
+     * tomó correctamente, guardarla en el almacenamiento interno.
+     */
     val launcherTomarFoto = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
-    ) { success -> if (success) { guardarFotoDesdeLauncher() } }
-
-    /**
-     * LaunchedEffect(fotoSeleccionada)
-     * ---------------------------------
-     * ✔ TIPO: efecto de composición (LaunchedEffect)
-     * Se lanza cuando fotoSeleccionada cambia.
-     * Sirve para reaccionar a cambios en la foto seleccionada.
-     * La limpieza se maneja automáticamente via rememberSaveable al navegar a otra pantalla.
-     */
-    LaunchedEffect(fotoSeleccionada) {
-        // No-op: rememberSaveable reinicia el estado al navegar away
+    ) { resultado ->
+        if (resultado) {
+            val ruta = guardarFotoDeCamara(context, fotoTemporal)
+            if (ruta != null) {
+                fotoSeleccionada = ruta
+            }
+        } else {
+            fotoTemporal?.delete()
+        }
+        fotoTemporal = null
     }
 
     /**
@@ -483,23 +489,29 @@ fun MiPerfilScreen(
                         }
 
             /**
-             * OutlinedButton de la foto
-             * -------------------------
-             * ✔ TIPO: función @Composable (androidx.compose.material3.OutlinedButton)
-             * Es el botón que abre el selector de fotos del sistema.
+             * BotonSelectorFoto
+             * -----------------
+             * ✔ TIPO: componente @Composable (BotonSelectorFoto)
+             * Es el botón que despliega el menú "Elegir de galería" / "Hacer una foto".
              * Sirve para elegir la foto por primera vez o cambiarla si ya hay una seleccionada.
              */
-            OutlinedButton(
-                onClick = {
+            BotonSelectorFoto(
+                tieneFoto = !fotoSeleccionada.isNullOrBlank(),
+                onElegirGaleria = {
                     launcherFoto.launch(
                         PickVisualMediaRequest(
                             ActivityResultContracts.PickVisualMedia.ImageOnly
                         )
                     )
+                },
+                onHacerFoto = {
+                    val temporal = crearFotoTemporal(context)
+                    if (temporal != null) {
+                        fotoTemporal = temporal
+                        launcherTomarFoto.launch(uriDeFotoTemporal(context, temporal))
+                    }
                 }
-            ) {
-                Text(if (fotoSeleccionada.isNotBlank()) "Cambiar foto" else "Seleccionar foto")
-            }
+            )
 
                         Spacer(modifier = Modifier.height(12.dp))
 

@@ -4,9 +4,6 @@
 package com.roberto.gestorpro.ui.clientes
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -77,10 +74,14 @@ import coil3.compose.AsyncImage
 import com.roberto.gestorpro.data.entity.ClienteEntity
 import com.roberto.gestorpro.model.EstadoCliente
 import com.roberto.gestorpro.navigation.Routes
+import com.roberto.gestorpro.ui.components.BotonSelectorFoto
+import com.roberto.gestorpro.ui.utils.crearFotoTemporal
+import com.roberto.gestorpro.ui.utils.guardaFotoEnInterna
+import com.roberto.gestorpro.ui.utils.guardarFotoDeCamara
+import com.roberto.gestorpro.ui.utils.uriDeFotoTemporal
 import com.roberto.gestorpro.ui.viewmodel.ClienteViewModel
 import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 import java.io.File
-import java.io.FileOutputStream
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -484,6 +485,16 @@ fun AñadirClienteScreen(
     var foto by rememberSaveable { mutableStateOf("") }
 
     /**
+     * fotoTemporal
+     * ------------
+     * ✔ TIPO: variable con estado (var) → File?
+     * Es el archivo temporal que rellena la app de cámara al hacer una foto.
+     * Sirve para guardar la referencia hasta que el resultado del lanzador
+     * de cámara devuelve el control y procesar la foto capturada.
+     */
+    var fotoTemporal by remember { mutableStateOf<File?>(null) }
+
+    /**
      * launcherGaleria
      * ---------------
      * ✔ TIPO: variable (val) → ActivityResultLauncher<PickVisualMediaRequest>
@@ -495,11 +506,33 @@ fun AñadirClienteScreen(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
-            val ruta = guardarFotoEnInterna(context, uri)
+            val ruta = guardaFotoEnInterna(context, uri)
             if (ruta != null) {
                 foto = ruta
             }
         }
+    }
+
+    /**
+     * launcherTomarFoto
+     * -----------------
+     * ✔ TIPO: variable (val) → ActivityResultLauncher<Uri>
+     * Es el lanzador que abre la app de cámara para hacer una foto nueva.
+     * Sirve para capturar la imagen en el archivo temporal y, si la foto se
+     * tomó correctamente, guardarla en el almacenamiento interno.
+     */
+    val launcherTomarFoto = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { resultado ->
+        if (resultado) {
+            val ruta = guardarFotoDeCamara(context, fotoTemporal)
+            if (ruta != null) {
+                foto = ruta
+            }
+        } else {
+            fotoTemporal?.delete()
+        }
+        fotoTemporal = null
     }
 
     /**
@@ -871,24 +904,31 @@ fun AñadirClienteScreen(
             }
 
             /**
-             * OutlinedButton de la foto
-             * -------------------------
-             * ✔ TIPO: función @Composable (androidx.compose.material3.OutlinedButton)
-             * Es el botón que abre el selector de fotos del sistema.
+             * BotonSelectorFoto
+             * -----------------
+             * ✔ TIPO: componente @Composable (BotonSelectorFoto)
+             * Es el botón que despliega el menú "Elegir de galería" / "Hacer una foto".
              * Sirve para elegir la foto por primera vez o cambiarla si ya hay una seleccionada.
              */
-            OutlinedButton(
-                onClick = {
+            BotonSelectorFoto(
+                tieneFoto = foto.isNotEmpty(),
+                onElegirGaleria = {
                     launcherGaleria.launch(
                         PickVisualMediaRequest(
                             ActivityResultContracts.PickVisualMedia.ImageOnly
                         )
                     )
                     errorFoto = false
+                },
+                onHacerFoto = {
+                    val temporal = crearFotoTemporal(context)
+                    if (temporal != null) {
+                        fotoTemporal = temporal
+                        launcherTomarFoto.launch(uriDeFotoTemporal(context, temporal))
+                        errorFoto = false
+                    }
                 }
-            ) {
-                Text(if (foto.isEmpty()) "Seleccionar foto" else "Cambiar foto")
-            }
+            )
 
             if (errorFoto) {
                 Text(
@@ -1265,98 +1305,6 @@ private fun millisUtcAMedianocheLocal(utcMillis: Long): Long {
 }
 
 /**
- * guardarFotoEnInterna
- * --------------------
- * ✔ TIPO: función privada (private fun) → String?
- * Es la función que copia la imagen elegida en la galería al almacenamiento interno de la app.
- * Sirve para que la foto no dependa del permiso temporal de lectura del URI,
- * comprimiéndola a JPEG y devolviendo la ruta absoluta del archivo guardado.
- */
-private fun guardarFotoEnInterna(context: Context, uri: Uri): String? {
-    return try {
-
-        /**
-         * bounds
-         * ------
-         * ✔ TIPO: variable (val) → BitmapFactory.Options
-         * Es la configuración que solo lee las dimensiones de la imagen sin cargarla completa.
-         * Sirve para conocer el tamaño real de la foto y decidir cuánto reducirla después.
-         */
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            BitmapFactory.decodeStream(input, null, bounds)
-        }
-
-        /**
-         * sample
-         * ------
-         * ✔ TIPO: variable (var) → Int
-         * Es el factor de reducción que se aplica al decodificar la imagen.
-         * Sirve para que el sistema no cargue en memoria una foto gigante antes de redimensionarla.
-         */
-        var sample = 1
-        while (bounds.outWidth / (sample * 2) >= MAX_FOTO_DIMENSION ||
-            bounds.outHeight / (sample * 2) >= MAX_FOTO_DIMENSION
-        ) {
-            sample *= 2
-        }
-
-        /**
-         * bitmap
-         * ------
-         * ✔ TIPO: variable (val) → Bitmap
-         * Es la imagen ya decodificada desde el URI con el tamaño reducido.
-         * Sirve para redimensionarla a la dimensión máxima y comprimirla después.
-         */
-        val bitmap = context.contentResolver.openInputStream(uri)?.use { input ->
-            BitmapFactory.decodeStream(input, null, BitmapFactory.Options().apply { inSampleSize = sample })
-        } ?: return null
-
-        /**
-         * escala / redimensionada
-         * -----------------------
-         * ✔ TIPO: variables (val) → Float / Bitmap
-         * Son el factor de escala y la imagen ajustada a la dimensión máxima permitida.
-         * Sirve para limitar el peso final de la foto y que ocupe poco en el dispositivo.
-         */
-        val escala = minOf(
-            1f,
-            MAX_FOTO_DIMENSION / maxOf(bounds.outWidth, bounds.outHeight).toFloat()
-        )
-        val ancho = (bitmap.width * escala).toInt()
-        val alto = (bitmap.height * escala).toInt()
-        val redimensionada = if (escala < 1f) {
-            Bitmap.createScaledBitmap(bitmap, ancho, alto, true)
-        } else {
-            bitmap
-        }
-
-        /**
-         * dir / archivo
-         * -------------
-         * ✔ TIPO: variables (val) → File
-         * Son la carpeta de fotos del almacenamiento interno y el archivo JPEG final.
-         * Sirven para guardar la foto de forma permanente con un nombre único por cliente.
-         */
-        val dir = File(context.filesDir, "fotos").apply { mkdirs() }
-        val archivo = File(dir, "foto_${System.currentTimeMillis()}.jpg")
-
-        FileOutputStream(archivo).use { output ->
-            redimensionada.compress(Bitmap.CompressFormat.JPEG, FOTO_CALIDAD, output)
-        }
-
-        if (redimensionada != bitmap) {
-            bitmap.recycle()
-        }
-        redimensionada.recycle()
-
-        archivo.absolutePath
-    } catch (e: Exception) {
-        null
-    }
-}
-
-/**
  * esDniValido
  * -----------
  * ✔ TIPO: función privada (private fun) → Boolean
@@ -1391,24 +1339,3 @@ private fun esEmailValido(email: String): Boolean {
         .matcher(email)
         .matches()
 }
-
-/* ============================================================
- * ============ BLOQUE 11: CONSTANTES =========================
- * ============================================================ */
-/**
- * MAX_FOTO_DIMENSION
- * ------------------
- * ✔ TIPO: constante (private const val) → Int
- * Es la dimensión máxima en píxeles que puede tener la foto guardada.
- * Sirve para redimensionar imágenes grandes y evitar que ocupen demasiado espacio.
- */
-private const val MAX_FOTO_DIMENSION = 1024
-
-/**
- * FOTO_CALIDAD
- * ------------
- * ✔ TIPO: constante (private const val) → Int
- * Es el nivel de compresión JPEG que se aplica al guardar la foto.
- * Sirve para mantener un equilibrio entre calidad de imagen y tamaño de archivo.
- */
-private const val FOTO_CALIDAD = 85
