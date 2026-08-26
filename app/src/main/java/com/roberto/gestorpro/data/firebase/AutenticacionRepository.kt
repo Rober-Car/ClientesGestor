@@ -1,6 +1,7 @@
 package com.roberto.gestorpro.data.firebase
 
 import com.google.android.gms.tasks.Task
+import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
@@ -49,6 +50,14 @@ class AutenticacionRepository @Inject constructor(
         const val ROL_CLIENTE = "CLIENTE"
 
         private const val COLECCION_USUARIOS = "usuarios"
+
+        /**
+         * Mensaje de éxito genérico del correo de recuperación. Se muestra
+         * siempre, esté o no el email registrado, para no revelar qué cuentas
+         * existen en Firebase.
+         */
+        private const val MENSAJE_RECUPERACION_ENVIADO =
+            "Si el email existe, recibirás un enlace para restablecer tu contraseña"
     }
 
     /**
@@ -181,6 +190,42 @@ class AutenticacionRepository @Inject constructor(
      */
     fun cerrarSesion() {
         auth.signOut()
+    }
+
+    /**
+     * enviarCorreoRecuperacion
+     * ------------------------
+     * ✔ TIPO: método (fun) suspend de Kotlin → ResultadoAutenticacion
+     * Envía el correo de restablecimiento de contraseña con
+     * FirebaseAuth.sendPasswordResetEmail. Siguiendo la política de no revelar
+     * si un email está registrado, ante cualquier error de autenticación se
+     * responde con el mismo mensaje genérico de éxito; solo se comunica un
+     * fallo real de la operación (p. ej. sin conexión a Internet).
+     * Sirve a la pantalla de recuperación de contraseña accesible desde el Login.
+     */
+    suspend fun enviarCorreoRecuperacion(email: String): ResultadoAutenticacion {
+        return try {
+            auth.sendPasswordResetEmail(email).esperar()
+            ResultadoAutenticacion(true, MENSAJE_RECUPERACION_ENVIADO)
+        } catch (e: Exception) {
+            when (e) {
+                is FirebaseAuthInvalidUserException,
+                is FirebaseAuthInvalidCredentialsException,
+                is FirebaseAuthUserCollisionException,
+                is FirebaseAuthWeakPasswordException ->
+                    ResultadoAutenticacion(true, MENSAJE_RECUPERACION_ENVIADO)
+                is FirebaseNetworkException ->
+                    ResultadoAutenticacion(
+                        false,
+                        "No hay conexión con Firebase. Comprueba tu conexión a Internet"
+                    )
+                else ->
+                    ResultadoAutenticacion(
+                        false,
+                        "No se pudo enviar el correo. Inténtalo de nuevo"
+                    )
+            }
+        }
     }
 
     /**

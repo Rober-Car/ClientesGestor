@@ -309,6 +309,17 @@ fun LoginScreen(
                         fontSize = 14.sp
                     )
                 }
+
+                TextButton(
+                    onClick = { navController.navigate(Routes.RECUPERAR_PASSWORD) },
+                    enabled = !autenticando
+                ) {
+                    Text(
+                        text = "¿Has olvidado tu contraseña?",
+                        color = azulPrincipal,
+                        fontSize = 14.sp
+                    )
+                }
             }
         }
 

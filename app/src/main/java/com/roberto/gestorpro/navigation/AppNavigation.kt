@@ -18,6 +18,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.roberto.gestorpro.ui.auth.LoginScreen
+import com.roberto.gestorpro.ui.auth.RecuperarPasswordScreen
 import com.roberto.gestorpro.ui.auth.RegistroScreen
 import com.roberto.gestorpro.ui.auth.SeleccionTipoUsuarioScreen
 import com.roberto.gestorpro.ui.auth.VincularClienteScreen
@@ -184,6 +185,18 @@ fun AppNavigation() {
          */
         composable(Routes.REGISTRO) {
             RegistroScreen(navController)
+        }
+
+        /**
+         * Ruta RECUPERAR_PASSWORD
+         * -----------------------
+         * ✔ TIPO: ruta de navegación (composable)
+         * Es la ruta de la pantalla de recuperación de contraseña.
+         * Sirve para que el usuario introduzca su email y reciba el correo de
+         * Firebase; al volver, regresa al Login.
+         */
+        composable(Routes.RECUPERAR_PASSWORD) {
+            RecuperarPasswordScreen(navController)
         }
 
         /**

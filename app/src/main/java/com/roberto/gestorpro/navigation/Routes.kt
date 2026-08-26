@@ -37,6 +37,16 @@ object Routes {
     const val REGISTRO = "registro"
 
     /**
+     * RECUPERAR_PASSWORD
+     * ------------------
+     * ✔ TIPO: constante (const val) → String
+     * Es la ruta de la pantalla de recuperación de contraseña.
+     * Sirve para que desde el Login el usuario introduzca su email y reciba
+     * el correo de Firebase para restablecer la contraseña.
+     */
+    const val RECUPERAR_PASSWORD = "recuperar_password"
+
+    /**
      * SELECCION_TIPO_USUARIO
      * ----------------------
      * ✔ TIPO: constante (const val) → String

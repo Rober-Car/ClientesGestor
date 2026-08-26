@@ -1,5 +1,6 @@
 package com.roberto.gestorpro.ui.viewmodel
 
+import android.util.Patterns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.roberto.gestorpro.data.firebase.AutenticacionRepository
@@ -154,6 +155,32 @@ class MainViewModel @Inject constructor(
             } else {
                 resultado.mensaje
             }
+        } finally {
+            _autenticando.value = false
+        }
+    }
+
+    /**
+     * enviarCorreoRecuperacion
+     * ------------------------
+     * ✔ TIPO: método (fun) suspend de Kotlin → String?
+     * Valida el email antes de llamar a Firebase y delega el envío del correo
+     * de restablecimiento en AutenticacionRepository, reutilizando el estado
+     * _autenticando para el indicador de carga. Devuelve null si todo fue bien
+     * o el mensaje de error para mostrar en la UI.
+     */
+    suspend fun enviarCorreoRecuperacion(email: String): String? {
+        if (email.isBlank()) {
+            return "Introduce tu email"
+        }
+        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+            return "El email no tiene un formato válido"
+        }
+
+        _autenticando.value = true
+        try {
+            val resultado = autenticacionRepository.enviarCorreoRecuperacion(email.trim())
+            return if (resultado.exito) null else resultado.mensaje
         } finally {
             _autenticando.value = false
         }
