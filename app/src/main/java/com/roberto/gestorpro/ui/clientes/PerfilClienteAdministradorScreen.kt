@@ -78,12 +78,15 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
 import com.roberto.gestorpro.model.EstadoCliente
 import com.roberto.gestorpro.navigation.Routes
+import com.roberto.gestorpro.ui.utils.guardaFotoEnInterna
 import com.roberto.gestorpro.ui.components.MovimientoItem
 import com.roberto.gestorpro.ui.components.ServicioItem
 import com.roberto.gestorpro.ui.viewmodel.ClienteViewModel
@@ -241,6 +244,49 @@ fun PerfilClienteScreen(
     }
 
     val context = LocalContext.current
+
+    /**
+     * fotoSeleccionada
+     * ---------------
+     * ✔ TIPO: variable con estado (var) → String?
+     * Es la ruta de la foto elegida por el usuario para cambiar el perfil del cliente.
+     * Sirve para almacenar temporalmente la ruta de la foto seleccionada
+     * y mostrarla en la vista previa antes de guardar los datos.
+     */
+    var fotoSeleccionada by rememberSaveable { mutableStateOf<String?>(null) }
+
+    /**
+     * launcherFoto
+     * ------------
+     * ✔ TIPO: variable (val) → ActivityResultLauncher<PickVisualMediaRequest>
+     * Es el lanzador que abre el selector de fotos del sistema (galería o cámara).
+     * Sirve para que el usuario elija una imagen; al volver, guarda la foto en
+     * el almacenamiento interno y muestra la ruta en la variable fotoSeleccionada.
+     */
+    val launcherFoto = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            val ruta = guardaFotoEnInterna(context, uri)
+            if (ruta != null) {
+                fotoSeleccionada = ruta
+            }
+        }
+    }
+
+    /**
+     * LaunchedEffect(fotoSeleccionada)
+     * ---------------------------------
+     * ✔ TIPO: efecto de composición (LaunchedEffect)
+     * Se lanza cuando fotoSeleccionada cambia.
+     * Sirve para limpiar el estado al navegar Away y evitar que la foto
+     * temporal se conserve en sesiones posteriores inesperadamente.
+     */
+    LaunchedEffect(fotoSeleccionada) {
+        if (fotoSeleccionada == null) {
+            onDispose { }
+        }
+    }
 
     /**
      * pestañaSeleccionada
@@ -557,7 +603,9 @@ fun PerfilClienteScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
 
-                if (cliente?.foto.isNullOrEmpty()) {
+                val fotoMostrar = fotoSeleccionada ?: cliente?.foto ?: null
+
+                if (fotoMostrar == null) {
                     /**
                      * Box del placeholder de la foto
                      * ------------------------------
@@ -582,7 +630,7 @@ fun PerfilClienteScreen(
                     }
                 } else {
                     AsyncImage(
-                        model = File(cliente?.foto.orEmpty()),
+                        model = fotoMostrar?.let { File(it) } ?: null,
                         contentDescription = "Foto del cliente",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
@@ -591,6 +639,25 @@ fun PerfilClienteScreen(
                             .border(3.dp, colorEstado, CircleShape)
                     )
                 }
+
+            /**
+             * OutlinedButton de la foto
+             * -------------------------
+             * ✔ TIPO: función @Composable (androidx.compose.material3.OutlinedButton)
+             * Es el botón que abre el selector de fotos del sistema.
+             * Sirve para elegir la foto por primera vez o cambiarla si ya hay una seleccionada.
+             */
+            OutlinedButton(
+                onClick = {
+                    launcherFoto.launch(
+                        PickVisualMediaRequest(
+                            ActivityResultContracts.PickVisualMedia.ImageOnly
+                        )
+                    )
+                }
+            ) {
+                Text(if (fotoSeleccionada.isNotBlank()) "Cambiar foto" else "Seleccionar foto")
+            }
 
                 Spacer(modifier = Modifier.height(12.dp))
 

@@ -43,13 +43,23 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
 import com.roberto.gestorpro.model.EstadoCliente
 import com.roberto.gestorpro.navigation.Routes
+import com.roberto.gestorpro.ui.utils.guardaFotoEnInterna
 import com.roberto.gestorpro.ui.viewmodel.ClienteViewModel
 import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 import java.io.File
@@ -126,6 +136,15 @@ fun MiPerfilScreen(
     val cliente by viewModel.clienteSeleccionado.collectAsState()
 
     /**
+     * context
+     * -------
+     * ✔ TIPO: variable (val) → Context
+     * Es el contexto de la actividad obtenido a través de LocalContext.
+     * Sirve para acceder al almacenamiento interno de la app y guardar la foto copiada.
+     */
+    val context = LocalContext.current
+
+    /**
      * idActual / clienteCargado
      * -------------------------
      * ✔ TIPO: variables locales inmutables (val) → Int? / Cliente?
@@ -136,6 +155,71 @@ fun MiPerfilScreen(
      */
     val idActual = idSesion
     val clienteCargado = cliente
+
+    /**
+     * fotoSeleccionada
+     * ---------------
+     * ✔ TIPO: variable con estado (var) → String?
+     * Es la ruta de la foto elegida por el usuario para cambiar el perfil.
+     * Sirve para almacenar temporalmente la ruta de la foto seleccionada
+     * y mostrarla en la vista previa antes de guardar los datos.
+     */
+    /**
+     * fotoSeleccionada
+     * ---------------
+     * ✔ TIPO: variable con estado (var) → String?
+     * Es la ruta de la foto elegida por el usuario para cambiar el perfil.
+     * Sirve para almacenar temporalmente la ruta de la foto seleccionada
+     * y mostrarla en la vista previa antes de guardar los datos.
+     */
+    var fotoSeleccionada by rememberSaveable { mutableStateOf("") }
+
+    /**
+     * launcherFoto
+     * ------------
+     * ✔ TIPO: variable (val) → ActivityResultLauncher<PickVisualMediaRequest>
+     * Es el lanzador que abre el selector de fotos del sistema (galería o cámara).
+     * Sirve para que el usuario elija una imagen; al volver, guarda la foto en
+     * el almacenamiento interno y muestra la ruta en la variable fotoSeleccionada.
+     */
+    val launcherFoto = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            val ruta = guardaFotoEnInterna(context, uri)
+            if (ruta != null) {
+                fotoSeleccionada = ruta
+            }
+        }
+    }
+
+    /**
+     * LaunchedEffect(fotoSeleccionada)
+     * ---------------------------------
+     * ✔ TIPO: efecto de composición (LaunchedEffect)
+     * Se lanza cuando fotoSeleccionada cambia.
+     * Sirve para limpiar el estado al navegar Away y evitar que la foto
+     * temporal se conserve en sesiones posteriores inesperadamente.
+     */
+    /**
+     * DisposableEffect(fotoSeleccionada)
+     * ---------------------------------
+     * ✔ TIPO: efecto de composición (DisposableEffect)
+     * Se ejecuta cuando fotoSeleccionada cambia y se desecha al navegar away.
+     * Sirve para limpiar el estado al navegar Away y evitar que la foto
+     * temporal se conserve en sesiones posteriores inesperadamente.
+     */
+    /**
+     * LaunchedEffect(fotoSeleccionada)
+     * ---------------------------------
+     * ✔ TIPO: efecto de composición (LaunchedEffect)
+     * Se lanza cuando fotoSeleccionada cambia.
+     * Sirve para limpiar el estado al navegar Away y evitar que la foto
+     * temporal se conserve en sesiones posteriores inesperadamente.
+     */
+    LaunchedEffect(fotoSeleccionada) {
+        // No-op: la fotoSeleccionada se limpiará al navegar a otra pantalla
+    }
 
     /**
      * LifecycleResumeEffect(idActual)
@@ -375,9 +459,11 @@ fun MiPerfilScreen(
                             .padding(top = 8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        if (clienteActual.foto.isNotBlank()) {
+                        val fotoMostrar = fotoSeleccionada ?: clienteActual.foto
+
+                        if (fotoMostrar.isNotBlank()) {
                             AsyncImage(
-                                model = File(clienteActual.foto),
+                                model = File(fotoMostrar),
                                 contentDescription = "Foto del cliente",
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
@@ -402,6 +488,25 @@ fun MiPerfilScreen(
                                 )
                             }
                         }
+
+            /**
+             * OutlinedButton de la foto
+             * -------------------------
+             * ✔ TIPO: función @Composable (androidx.compose.material3.OutlinedButton)
+             * Es el botón que abre el selector de fotos del sistema.
+             * Sirve para elegir la foto por primera vez o cambiarla si ya hay una seleccionada.
+             */
+            OutlinedButton(
+                onClick = {
+                    launcherFoto.launch(
+                        PickVisualMediaRequest(
+                            ActivityResultContracts.PickVisualMedia.ImageOnly
+                        )
+                    )
+                }
+            ) {
+                Text(if (fotoSeleccionada.isNotBlank()) "Cambiar foto" else "Seleccionar foto")
+            }
 
                         Spacer(modifier = Modifier.height(12.dp))
 
