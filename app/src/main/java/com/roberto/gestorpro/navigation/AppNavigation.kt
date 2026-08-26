@@ -117,7 +117,7 @@ fun AppNavigation() {
             mainViewModel.obtenerTipoUsuario() == TipoUsuario.CLIENTE &&
             mainViewModel.haySesionActiva()
         ) {
-            navController.navigate("${Routes.VINCULAR_CLIENTE}?codigo=$token")
+            navController.navigate(Routes.VINCULAR_CLIENTE.replace("{codigo}", token))
         }
     }
 

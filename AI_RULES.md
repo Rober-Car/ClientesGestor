@@ -70,6 +70,8 @@ Estas reglas se aplican al trabajo de agentes de IA sobre GestorPro.
 - `negocios_publicos/{id}` permite `get/list` a cualquier autenticado; `create/update` solo el ADMIN del negocio.
 - Una reserva de cliente debe comprobar la sesión referenciada por `sesionId`, su `negocioId` y la autorización del UID en `clientesPermitidos`.
 - Las solicitudes remotas solo usan `ALTA` y `BAJA`; no usar `CLASE` para solicitar una plaza.
+- La recuperación de contraseña usa exclusivamente `FirebaseAuth.sendPasswordResetEmail`, con mensaje de éxito genérico (no revelar si el email existe) y validación de email antes de llamar a Firebase.
+- Las rutas con parámetros de query se construyen sustituyendo el placeholder (`Routes.VINCULAR_CLIENTE.replace("{codigo}", token)`); nunca concatenando un segundo `?param=` a una ruta que ya lo contiene.
 - No usar identificadores reales, UIDs, códigos de vinculación ni datos de prueba concretos en documentación versionada; usar placeholders.
 
 ## 8. Advertencias técnicas

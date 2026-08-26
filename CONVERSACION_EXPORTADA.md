@@ -622,3 +622,112 @@ Despues: edicion de perfil, regeneracion y revocacion del enlace.
 npm --prefix firestore-tests test      # pruebas Rules (emulador)
 & ".\firestore-tests\node_modules\.bin\firebase.cmd" deploy --only firestore:rules   # despliegue
 ```
+
+---
+
+---
+
+# ACTUALIZACION 2026-08-26 (SESION VI) — CAMBIO DE PC, FOTOS+CAMARA, RECUPERACION DE CONTRASEÑA Y FIX DE RUTA VIA B
+
+> Bloque vigente. Sesiones anteriores quedan como historico. Se trabajo en un PC nuevo
+> (se hizo un commit para continuar); este bloque resume la auditoria, las features
+> terminadas, los commits hechos por el desarrollador y los pendientes abiertos.
+
+## Arranque: cambio de PC y commit con errores
+
+- Se retomo el proyecto en un PC nuevo con el commit `c7ff21c` "CONMIT CON ERRORES DE OPENCODE".
+- Auditoria inicial (sin cambios): git limpio, HEAD = `856ea89`; build fallaba en
+  `MiPerfilScreen.kt` (4 errores); funcionalidades de Sesion III/V presentes (auth,
+  creacion de negocio, Via A/B, deep link, replica, Rules 17/17 en emulador).
+- Basura versionada: `build_*.txt` en raiz y `firestore-tests/firestore-debug.log`.
+
+## Feature 1: fotos galeria/camara (corregida y terminada)
+
+- Corregidos los 4 errores de `MiPerfilScreen.kt` (import duplicado de
+  `ActivityResultContracts`, import duplicado de `getValue`, `rememberSaveable` sin import,
+  `guardarFotoDesdeLauncher` inexistente).
+- Implementado el selector "Seleccionar/Cambiar foto" → "Elegir de galeria" / "Hacer una foto"
+  en las 3 pantallas de perfil (MiPerfil, PerfilClienteAdministrador, AñadirCliente).
+- Nuevo componente reutilizable `ui/components/BotonSelectorFoto.kt` (DropdownMenu).
+- `ui/utils/FotoUtils.kt` ampliado: `crearFotoTemporal`, `uriDeFotoTemporal`,
+  `guardarFotoDeCamara`; ambas vias terminan en `guardaFotoEnInterna(context, uri)`.
+- Camara con `TakePicture()` y `FileProvider` (`${applicationId}.fileprovider`) +
+  `res/xml/file_paths.xml` (cache-path `fotos_camara`). El guardado ocurre solo en el
+  callback del resultado, nunca tras `launch()`.
+- `AñadirClienteScreen` elimina su copia privada de `guardarFotoEnInterna` y reutiliza
+  `FotoUtils.kt`.
+
+## Feature 2: recuperacion de contrasena (Firebase)
+
+- `AutenticacionRepository.enviarCorreoRecuperacion(email)` → solo
+  `FirebaseAuth.sendPasswordResetEmail`; mensaje de exito generico (no revela existencia);
+  ante errores de auth responde el mismo generico; solo fallos reales (p. ej. sin conexion).
+- `MainViewModel.enviarCorreoRecuperacion(email): String?` valida email vacio/formato
+  (`android.util.Patterns.EMAIL_ADDRESS`) y reutiliza `_autenticando`.
+- Nueva `ui/auth/RecuperarPasswordScreen.kt` (estilo Login), ruta `RECUPERAR_PASSWORD`
+  en `Routes`/`AppNavigation`, enlace "¿Has olvidado tu contrasena?" en Login.
+
+## Commits hechos por el desarrollador (fuera de sesion, ya en origin/master)
+
+- `d764587` "Foto con camara implementado": fotos (7 archivos: Manifest, FotoUtils,
+  BotonSelectorFoto, file_paths.xml, MiPerfilScreen, PerfilClienteAdministradorScreen,
+  AñadirClienteScreen).
+- `856ea89` "Foto con camara implementado": recuperacion de contrasena (6 archivos:
+  AutenticacionRepository, MainViewModel, Routes, AppNavigation, LoginScreen,
+  RecuperarPasswordScreen).
+
+## Diagnostico: replica Room→Firestore de clientes NO llega
+
+- Cliente creado por ADMIN aparece en Room pero no en `clientes` de Firestore; "Vinculacion
+  en la nube" dice "ficha no sincronizada"; reintento no cambia.
+- Causa: las Rules de `clientes` (create/get/update) exigen `usuarioActual().negocioId is
+  string`. Con `usuarios/{uid}.negocioId == null` todo queda DENEGADO. No es bug del mapa de
+  replica: el ADMIN debe tener negocio creado (o la sesion no se autentica, ver abajo).
+
+## Diagnostico: creacion de negocio PERMISSION_DENIED (ABIERTO)
+
+- Datos confirmados: `usuarios/{uid}` con rol ADMIN, activo true, clienteId null,
+  negocioId null; `negocios/{uid}` NO existe; `negocios_publicos` no existe; Rules
+  desplegadas = actuales = 17/17.
+- Evaluando el Batch de `NegocioRepository.crearNegocio()` (set negocios/{uid},
+  set negocios_publicos/{uid}, update usuarios/{uid} negocioId=uid) contra las Rules,
+  las 3 operaciones son logicamente PERMITIDAS. La unica condicion que podria ser false
+  es `esAdmin()` (firestore.rules) → solo ocurre si la peticion llega sin `request.auth`
+  valido (token de sesion caducado/invalido) o `usuarios/{request.auth.uid}` no es ADMIN.
+- Pendiente de verificar: cerrar sesion y re-login (renovar token), diff de reglas
+  desplegadas vs `firestore.rules`, `project_id` de la APK instalada, y que no exista
+  `negocios_publicos/{uid}` huerfano. NO modificar Rules ni el diseno `negocioId = uid`.
+
+## Diagnostico y FIX: Via B "No tienes permisos" (bug de ruta)
+
+- La reclamacion fallaba con PERMISSION_DENIED. Trazado: `MainActivity` extrae el token
+  limpio a `EnlacePendiente.codigo`; luego `destinoSegunTipo()`/`AppNavigation` construian
+  la ruta como `"${Routes.VINCULAR_CLIENTE}?codigo=$token"`. Como
+  `Routes.VINCULAR_CLIENTE = "vincular_cliente?codigo={codigo}"`, el resultado era
+  `"vincular_cliente?codigo={codigo}?codigo=TOKEN"` (doble query) y Navigation extraia
+  `codigoPrecargado = "{codigo}?codigo=TOKEN"` (basura). El `get()` de
+  `vinculaciones/{basura}` no existe → la regla `allow get` de `vinculaciones` (exige
+  estado PENDIENTE y fecha futura) lo deniega → PERMISSION_DENIED.
+- **Fix aplicado y compilado (BUILD SUCCESSFUL):** en `MainViewModel.kt` y
+  `AppNavigation.kt` usar `Routes.VINCULAR_CLIENTE.replace("{codigo}", token)`.
+  Ahora `codigoPrecargado` recibe el token limpio. (2 archivos SIN commitear.)
+
+## Pendiente para continuar
+
+1. Probar en dispositivo: Via B reclamar ficha con enlace tras el fix de ruta.
+2. Resolver creacion de negocio PERMISSION_DENIED (probar re-login; diff de reglas;
+   verificar project_id de la APK; descartar `negocios_publicos/{uid}` huerfano).
+3. Tras crear el negocio, "Reintentar sincronizacion" del cliente ya creado y probar la
+   generacion del enlace (Vía B exige ficha remota).
+4. Probar en dispositivo: recuperacion de contrasena (correo real) y camara de fotos.
+5. Commit pendiente de los 2 archivos del fix de ruta (y de los cambios de esta sesion).
+6. Limpieza: `build_*.txt` en raiz y `firestore-tests/firestore-debug.log`.
+
+## Comandos utiles (este PC nuevo)
+
+```powershell
+.\gradlew.bat assembleDebug            # compilar APK debug
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" devices
+npm --prefix firestore-tests test      # pruebas Rules (emulador)
+& ".\firestore-tests\node_modules\.bin\firebase.cmd" deploy --only firestore:rules
+```

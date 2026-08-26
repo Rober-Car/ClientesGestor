@@ -101,7 +101,7 @@ class MainViewModel @Inject constructor(
             // Reclamación automática: si llegó un deep link pendiente,
             // el cliente va directo a reclamar su ficha tras autenticarse.
             EnlacePendiente.codigo?.let { token ->
-                return "${Routes.VINCULAR_CLIENTE}?codigo=$token"
+                return Routes.VINCULAR_CLIENTE.replace("{codigo}", token)
             }
             return Routes.HOME_CLIENTE
         }

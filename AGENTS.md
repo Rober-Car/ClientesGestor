@@ -107,6 +107,9 @@ app/src/main/java/com/roberto/gestorpro/
 - Gestión de clases, sesiones y reservas.
 - Gestión de movimientos, cuotas y gastos.
 - Configuración del negocio, logo, tema, cuenta y datos.
+- Selección de foto de perfil desde galería o cámara (perfil propio, perfil de cliente y formulario de cliente).
+- Inicio y cierre de sesión con Firebase Authentication.
+- Recuperación de contraseña con el correo de Firebase (solo `FirebaseAuth.sendPasswordResetEmail`).
 - Persistencia local con Room y DataStore.
 - Vinculación de clientes con Firebase Authentication y Firestore.
 
@@ -210,7 +213,7 @@ El código actual tiene algunos usos de `!!`, `collectAsState()` y strings hardc
 
 ## Comandos del proyecto
 
-Ejecutar desde `C:\Users\polli\StudioProjects\GestorPro`:
+Ejecutar desde `C:\Users\Roberto\AndroidStudioProjects\GestorPro`:
 
 ```powershell
 # Compilar debug
@@ -235,3 +238,25 @@ Ejecutar desde `C:\Users\polli\StudioProjects\GestorPro`:
 ## Tests
 
 Los tests se mantienen para la fase final del proyecto salvo que el desarrollador los solicite expresamente antes. No crear archivos de test automáticamente durante una funcionalidad normal.
+
+## Convenciones específicas de Firebase y navegación
+
+- **Recuperación de contraseña:** usar exclusivamente `FirebaseAuth.sendPasswordResetEmail`. El mensaje de éxito debe ser **genérico** ("Si el email existe, recibirás un enlace…") para no revelar qué cuentas existen; ante errores de autenticación (usuario inexistente, email inválido…) se responde con el mismo mensaje genérico. Solo se comunican fallos reales (p. ej. sin conexión). Validar email no vacío y formato antes de llamar a Firebase (`android.util.Patterns.EMAIL_ADDRESS`).
+- **Rutas con parámetros de query:** construir siempre sustituyendo el placeholder, nunca concatenando. Ejemplo correcto: `Routes.VINCULAR_CLIENTE.replace("{codigo}", token)`. No usar `"${Routes.VINCULAR_CLIENTE}?codigo=$token"` porque `Routes.VINCULAR_CLIENTE` ya contiene `?codigo={codigo}` y produce una ruta malformada (doble query) que corrompe el argumento.
+- **Fotos:** la lógica de guardado vive en `ui/utils/FotoUtils.kt` (`guardaFotoEnInterna`, `crearFotoTemporal`, `uriDeFotoTemporal`, `guardarFotoDeCamara`). No duplicar esa función en pantallas. La cámara usa `TakePicture()` con `FileProvider` (`${applicationId}.fileprovider`, `res/xml/file_paths.xml`); el guardado se hace solo en el callback del resultado, nunca justo después de `launch()`. El selector común es el componente `ui/components/BotonSelectorFoto.kt`.
+
+## Estado actual y pendientes (2026-08-26)
+
+Implementado y compilado (BUILD SUCCESSFUL):
+
+- Selección de foto galería/cámara en `MiPerfilScreen`, `PerfilClienteAdministradorScreen` y `AñadirClienteScreen` (componente `BotonSelectorFoto`, `FotoUtils.kt` ampliado, FileProvider configurado).
+- Recuperación de contraseña (`RecuperarPasswordScreen`, `AutenticacionRepository.enviarCorreoRecuperacion`, `MainViewModel.enviarCorreoRecuperacion`, ruta `RECUPERAR_PASSWORD`, enlace en Login).
+- Fix del bug de ruta de Vía B: `MainViewModel.destinoSegunTipo()` y `AppNavigation` usan `Routes.VINCULAR_CLIENTE.replace("{codigo}", token)`. (2 archivos sin commitear.)
+
+Pendiente para continuar:
+
+1. **Creación de negocio con PERMISSION_DENIED sin resolver.** Con Rules actuales y datos confirmados (usuarios/{uid} correcto con `negocioId == null`, `negocios/{uid}` inexistente) el Batch de `NegocioRepository.crearNegocio()` es lógicamente permitido. Hipótesis principal: `esAdmin()` false porque la petición llega sin `request.auth` válido (token de sesión caducado/inválido). Verificar: cerrar sesión y volver a iniciar, diff de reglas desplegadas vs `firestore.rules`, `project_id` de la APK, y que no exista `negocios_publicos/{uid}` huérfano. No modificar `firestore.rules` ni el diseño `negocioId = uid`.
+2. **Réplica Room → Firestore de clientes** falla mientras `usuarios/{uid}.negocioId` sea null; se desbloquea al crear el negocio.
+3. **Pruebas en dispositivo pendientes:** Vía B tras el fix de ruta, recuperación de contraseña, cámara de fotos.
+4. **Commit pendiente** de los 2 archivos del fix de ruta (y de esta sesión si procede).
+5. Limpieza de basura versionada: `build_*.txt` en raíz y `firestore-tests/firestore-debug.log`.
