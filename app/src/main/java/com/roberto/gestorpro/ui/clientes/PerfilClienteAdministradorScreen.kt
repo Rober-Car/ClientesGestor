@@ -78,6 +78,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -283,9 +284,7 @@ fun PerfilClienteScreen(
      * temporal se conserve en sesiones posteriores inesperadamente.
      */
     LaunchedEffect(fotoSeleccionada) {
-        if (fotoSeleccionada == null) {
-            onDispose { }
-        }
+        // Cleanup se maneja mediante rememberSaveable que se reinicia al navegar
     }
 
     /**
@@ -656,7 +655,7 @@ fun PerfilClienteScreen(
                     )
                 }
             ) {
-                Text(if (fotoSeleccionada.isNotBlank()) "Cambiar foto" else "Seleccionar foto")
+                Text(if (fotoSeleccionada?.isNotBlank() == true) "Cambiar foto" else "Seleccionar foto")
             }
 
                 Spacer(modifier = Modifier.height(12.dp))

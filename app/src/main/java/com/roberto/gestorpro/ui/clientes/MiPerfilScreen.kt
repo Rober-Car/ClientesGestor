@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -43,6 +44,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.activity.result.PickVisualMediaRequest
@@ -51,6 +53,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -198,27 +201,11 @@ fun MiPerfilScreen(
      * ---------------------------------
      * ✔ TIPO: efecto de composición (LaunchedEffect)
      * Se lanza cuando fotoSeleccionada cambia.
-     * Sirve para limpiar el estado al navegar Away y evitar que la foto
-     * temporal se conserve en sesiones posteriores inesperadamente.
-     */
-    /**
-     * DisposableEffect(fotoSeleccionada)
-     * ---------------------------------
-     * ✔ TIPO: efecto de composición (DisposableEffect)
-     * Se ejecuta cuando fotoSeleccionada cambia y se desecha al navegar away.
-     * Sirve para limpiar el estado al navegar Away y evitar que la foto
-     * temporal se conserve en sesiones posteriores inesperadamente.
-     */
-    /**
-     * LaunchedEffect(fotoSeleccionada)
-     * ---------------------------------
-     * ✔ TIPO: efecto de composición (LaunchedEffect)
-     * Se lanza cuando fotoSeleccionada cambia.
-     * Sirve para limpiar el estado al navegar Away y evitar que la foto
-     * temporal se conserve en sesiones posteriores inesperadamente.
+     * Sirve para reaccionar a cambios en la foto seleccionada.
+     * La limpieza se maneja automáticamente via rememberSaveable al navegar a otra pantalla.
      */
     LaunchedEffect(fotoSeleccionada) {
-        // No-op: la fotoSeleccionada se limpiará al navegar a otra pantalla
+        // No-op: rememberSaveable reinicia el estado al navegar away
     }
 
     /**
