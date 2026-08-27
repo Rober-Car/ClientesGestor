@@ -1,5 +1,13 @@
 # AUDITORÍA PROYECTO MIGRACIÓN KMP — GestorPro
 
+> **⚠️ DOCUMENTO HISTÓRICO / OBSOLETO (2026-08-27):** este informe describe el
+> proyecto ANTES de la arquitectura definitiva de dos aplicaciones. A partir de la
+> Sesión VIII, GestorPro se divide en **`:app` (Admin)** y **`:appCliente` (Cliente)**,
+> la **Vía B (enlace/deep link) está DESCARTADA** y `firestore.rules` se reescribió
+> (`indices_clientes`, `perfiles_pendientes`, `clientes_privados`, VÍA 1/VÍA 2 por
+> código maestro + DNI). La migración a KMP/CMP no está activa; si se retoma, debe
+> auditarse de nuevo sobre la arquitectura vigente. Ver `AGENTS.md`.
+
 > **Fecha:** 2026-08-26
 > **Objetivo:** inventario técnico completo y verificado del proyecto Android GestorPro, como base para diseñar una estrategia de migración a **Kotlin Multiplatform (KMP) + Compose Multiplatform (CMP)** conservando la app Android actual.
 > **Alcance:** solo análisis y documentación. No se ha modificado ningún archivo del proyecto.

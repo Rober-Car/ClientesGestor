@@ -80,7 +80,6 @@ import com.roberto.gestorpro.ui.utils.guardaFotoEnInterna
 import com.roberto.gestorpro.ui.utils.guardarFotoDeCamara
 import com.roberto.gestorpro.ui.utils.uriDeFotoTemporal
 import com.roberto.gestorpro.ui.viewmodel.ClienteViewModel
-import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 import java.io.File
 import java.time.Instant
 import java.time.LocalDate
@@ -125,35 +124,13 @@ fun AñadirClienteScreen(
      */
     idCliente: Int? = null,
     /**
-     * modoRegistroCliente
-     * -------------------
-     * ✔ TIPO: parámetro (param) → Boolean (false por defecto)
-     * Es la marca de que la pantalla se usa para el registro del propio cliente
-     * desde "Mi perfil" y no por el administrador.
-     * Sirve para ocultar los campos exclusivos del administrador (tiene llave,
-     * activo/baja y observaciones), cambiar los títulos ("Completa tu registro",
-     * "Modificar mis datos") y, al crear el cliente, guardar su id en DataStore
-     * como sesión activa antes de navegar a Mi perfil.
-     */
-    modoRegistroCliente: Boolean = false,
-    /**
      * viewModel
      * ---------
      * ✔ TIPO: parámetro (param) → ClienteViewModel (inyectado por Hilt)
      * Es el ViewModel de clientes que recibe la pantalla.
      * Sirve para guardar el nuevo cliente en la base de datos cuando se complete el formulario.
      */
-    viewModel: ClienteViewModel = hiltViewModel(),
-    /**
-     * mainViewModel
-     * -------------
-     * ✔ TIPO: parámetro (param) → MainViewModel (inyectado por Hilt)
-     * Es el ViewModel de preferencias de la app.
-     * Sirve para guardar en DataStore el id del cliente registrado cuando el alta
-     * se hace en modo registro de cliente (modoRegistroCliente = true).
-     */
-    mainViewModel: MainViewModel = hiltViewModel()
-
+    viewModel: ClienteViewModel = hiltViewModel()
 
 ) {
 
@@ -651,11 +628,7 @@ fun AñadirClienteScreen(
              * y "Modificar mis datos") en lugar de los del administrador.
              */
             Text(
-                text = when {
-                    idCliente != null -> if (modoRegistroCliente) "Modificar mis datos" else "Modificar cliente"
-                    modoRegistroCliente -> "Completa tu registro"
-                    else -> "Añadir cliente"
-                },
+                text = if (idCliente != null) "Modificar cliente" else "Añadir cliente",
                 style = MaterialTheme.typography.titleLarge
             )
         }
@@ -946,13 +919,10 @@ fun AñadirClienteScreen(
         /**
          * Sección "Otros datos" (solo administrador)
          * ------------------------------------------
-         * ✔ TIPO: bloque condicional (if) que agrupa llave, estado y observaciones.
-         * Sirve para ocultar estos campos cuando la pantalla se usa como registro del
-         * propio cliente (modoRegistroCliente): son decisiones del administrador, no
-         * del cliente; sus valores se conservan sin cambios al editar (se precargan
-         * del cliente original) o toman valores por defecto al crear.
+         * ✔ TIPO: bloque de la UI que agrupa llave, estado y observaciones.
+         * Son decisiones del administrador; sus valores se conservan sin cambios
+         * al editar (se precargan del cliente original).
          */
-        if (!modoRegistroCliente) {
 
             /**
              * Row de "Tiene llave"
@@ -1009,7 +979,6 @@ fun AñadirClienteScreen(
                 minLines = 3,
                 modifier = Modifier.fillMaxWidth()
             )
-        }
 
         /**
          * Button de Guardar cliente
@@ -1102,11 +1071,7 @@ fun AñadirClienteScreen(
                                 email = email,
                                 foto = foto,
                                 fechaNacimiento = fechaNacimiento!!,
-                                estado = when {
-                                    modoRegistroCliente -> EstadoCliente.REGISTRADO
-                                    esActivo -> EstadoCliente.ACTIVO
-                                    else -> EstadoCliente.BAJA
-                                },
+                                estado = if (esActivo) EstadoCliente.ACTIVO else EstadoCliente.BAJA,
                                 tieneLlave = tieneLlave,
                                 observaciones = observaciones.ifBlank { null },
                                 // Un cliente nuevo empieza sin servicios contratados;
@@ -1114,19 +1079,8 @@ fun AñadirClienteScreen(
                                 serviciosContratados = emptyList()
                             )
 
-                            viewModel.insertarCliente(cliente) { idGenerado ->
-                                if (modoRegistroCliente) {
-                                    // REGISTRO DESDE MI PERFIL: se guarda el id del cliente
-                                    // creado en DataStore para que este dispositivo recuerde
-                                    // su ficha, y se navega a Mi perfil limpiando el registro
-                                    // del historial para que atrás no vuelva al formulario.
-                                    mainViewModel.guardarIdClienteSesion(idGenerado)
-                                    navController.navigate(Routes.MIPERFIL) {
-                                        popUpTo(Routes.REGISTRO_CLIENTE) { inclusive = true }
-                                    }
-                                } else {
-                                    navController.popBackStack()
-                                }
+                            viewModel.insertarCliente(cliente) { _ ->
+                                navController.popBackStack()
                             }
                         }
                     }
@@ -1142,11 +1096,7 @@ fun AñadirClienteScreen(
             )
         ) {
             Text(
-                when {
-                    idCliente != null -> "Guardar cambios"
-                    modoRegistroCliente -> "Completar registro"
-                    else -> "Guardar cliente"
-                }
+                if (idCliente != null) "Guardar cambios" else "Guardar cliente"
             )
         }
 
@@ -1197,7 +1147,7 @@ fun AñadirClienteScreen(
          * flotante (SnackbarHost) y, si el error es del DNI, también bajo el propio campo DNI.
          */
     }
-}
+    }
     /* ============================================================
      * ============ BLOQUE 9: UI - SELECTOR DE FECHA ==============
      * ============================================================ */

@@ -25,6 +25,43 @@ const {
 const PROJECT_ID = "gestorpro-rules-test";
 const CLIENTE_UID = "Vnyht6hlR5EYJ1G0vxxl";
 const OTRO_CLIENTE_UID = "otro-cliente-de-prueba";
+const NEGOCIO_A = "negocio-a";
+const NEGOCIO_B = "negocio-b";
+
+// Campos completos de la ficha publica de un cliente.
+function fichaCliente(
+    idCliente,
+    negocioId,
+    firebaseUid,
+    dni,
+    extra = {}
+) {
+    return {
+        idCliente,
+        negocioId,
+        firebaseUid,
+        nombre: extra.nombre ?? "Cliente",
+        apellidos: extra.apellidos ?? "De Prueba",
+        dni,
+        telefono: extra.telefono ?? "600000000",
+        email: extra.email ?? "cliente@test.com",
+        foto: extra.foto ?? "",
+        fechaNacimiento: extra.fechaNacimiento ?? 0,
+        fechaRegistro: extra.fechaRegistro ?? 1,
+        fechaAlta: extra.fechaAlta ?? null,
+        fechaBaja: extra.fechaBaja ?? null,
+        estado: extra.estado ?? "ACTIVO",
+        tieneLlave: extra.tieneLlave ?? false,
+        serviciosContratados: extra.serviciosContratados ?? [],
+        fechaInicioActual: extra.fechaInicioActual ?? null,
+        fechaFinActual: extra.fechaFinActual ?? null,
+        ...extra
+    };
+}
+
+function indiceId(negocioId, dni) {
+    return `${negocioId}_${dni}`;
+}
 
 let testEnvironment;
 
@@ -42,6 +79,7 @@ before(async () => {
     await testEnvironment.withSecurityRulesDisabled(async (context) => {
         const database = context.firestore();
 
+        // CLIENTE sin vínculo (para pruebas de aislamiento).
         await setDoc(doc(database, "usuarios", CLIENTE_UID), {
             rol: "CLIENTE",
             activo: true,
@@ -49,11 +87,11 @@ before(async () => {
             negocioId: null
         });
 
-        await setDoc(doc(database, "clientes", "1"), {
-            idCliente: 1,
-            firebaseUid: OTRO_CLIENTE_UID,
-            negocioId: "negocio-de-prueba"
-        });
+        // Ficha ajena ya vinculada.
+        await setDoc(
+            doc(database, "clientes", "1"),
+            fichaCliente(1, NEGOCIO_A, OTRO_CLIENTE_UID, "12345678A")
+        );
     });
 });
 
@@ -104,28 +142,26 @@ test("PRUEBA 3: un ADMIN solo puede leer datos de su negocio", async () => {
             rol: "ADMIN",
             activo: true,
             clienteId: null,
-            negocioId: "negocio-a"
+            negocioId: NEGOCIO_A
         });
 
-        await setDoc(doc(database, "negocios", "negocio-a"), {
+        await setDoc(doc(database, "negocios", NEGOCIO_A), {
             adminUid
         });
 
-        await setDoc(doc(database, "negocios", "negocio-b"), {
+        await setDoc(doc(database, "negocios", NEGOCIO_B), {
             adminUid: "admin-negocio-b"
         });
 
-        await setDoc(doc(database, "clientes", "10"), {
-            idCliente: 10,
-            firebaseUid: "cliente-negocio-a",
-            negocioId: "negocio-a"
-        });
+        await setDoc(
+            doc(database, "clientes", "10"),
+            fichaCliente(10, NEGOCIO_A, "cliente-negocio-a", "11111111A")
+        );
 
-        await setDoc(doc(database, "clientes", "20"), {
-            idCliente: 20,
-            firebaseUid: "cliente-negocio-b",
-            negocioId: "negocio-b"
-        });
+        await setDoc(
+            doc(database, "clientes", "20"),
+            fichaCliente(20, NEGOCIO_B, "cliente-negocio-b", "22222222B")
+        );
     });
 
     const database = testEnvironment.authenticatedContext(adminUid).firestore();
@@ -139,11 +175,11 @@ test("PRUEBA 3: un ADMIN solo puede leer datos de su negocio", async () => {
     );
 
     await assertFails(
-        getDoc(doc(database, "negocios", "negocio-b"))
+        getDoc(doc(database, "negocios", NEGOCIO_B))
     );
 
     await assertSucceeds(
-        getDoc(doc(database, "negocios", "negocio-a"))
+        getDoc(doc(database, "negocios", NEGOCIO_A))
     );
 });
 
@@ -155,18 +191,18 @@ test("PRUEBA 4: un CLIENTE no puede leer movimientos y un ADMIN sí", async () =
             rol: "CLIENTE",
             activo: true,
             clienteId: 2,
-            negocioId: "negocio-a"
+            negocioId: NEGOCIO_A
         });
 
         await setDoc(doc(database, "usuarios", "admin-economico-test"), {
             rol: "ADMIN",
             activo: true,
             clienteId: null,
-            negocioId: "negocio-a"
+            negocioId: NEGOCIO_A
         });
 
         await setDoc(doc(database, "movimientos", "movimiento-test"), {
-            negocioId: "negocio-a"
+            negocioId: NEGOCIO_A
         });
     });
 
@@ -187,16 +223,14 @@ test("PRUEBA 4: un CLIENTE no puede leer movimientos y un ADMIN sí", async () =
     );
 });
 
-test("PRUEBA 5: Via A - un CLIENTE se vincula mediante el codigo maestro creando su propia ficha", async () => {
-    const clienteUid = "cliente-via-a-test";
-    const otroUid = "cliente-via-a-otro-test";
-    const negocioId = "negocio-maestro-5";
-    const codigoMaestro = "MAESTRO-5";
-
-    // Identificadores enteros aleatorios grandes, como los que genera la app
-    // con Random.nextLong(1, Long.MAX_VALUE) convertidos a ruta de documento.
+test("PRUEBA 5: VIA 2 - un CLIENTE crea su ficha con codigo maestro + DNI", async () => {
+    const clienteUid = "cliente-via2-test";
+    const otroUid = "cliente-via2-otro-test";
+    const dni = "11111111A";
+    const dniOtro = "22222222B";
     const idLibre = 74000000001;
     const idOcupado = 74000000002;
+    const negocioId = "negocio-via2-5";
 
     await testEnvironment.withSecurityRulesDisabled(async (context) => {
         const database = context.firestore();
@@ -215,33 +249,56 @@ test("PRUEBA 5: Via A - un CLIENTE se vincula mediante el codigo maestro creando
             negocioId: null
         });
 
-        // Ficha ya ocupada para el caso de colision/sobrescritura.
-        await setDoc(doc(database, "clientes", String(idOcupado)), {
-            idCliente: idOcupado,
-            firebaseUid: otroUid,
-            negocioId,
-            serviciosContratados: [],
-            codigoVinculacion: null
+        // Perfil pendiente con el DNI del cliente.
+        await setDoc(doc(database, "perfiles_pendientes", clienteUid), {
+            nombre: "Ana",
+            apellidos: "Lopez",
+            dni,
+            telefono: "611111111",
+            email: "ana@test.com",
+            foto: "",
+            fechaNacimiento: 0
+        });
+
+        await setDoc(doc(database, "perfiles_pendientes", otroUid), {
+            nombre: "Pepe",
+            apellidos: "Perez",
+            dni: dniOtro,
+            telefono: "622222222",
+            email: "pepe@test.com",
+            foto: "",
+            fechaNacimiento: 0
         });
 
         await setDoc(doc(database, "negocios_publicos", negocioId), {
             nombre: "Gimnasio Prueba",
-            codigoMaestro
+            codigoMaestro: "MAESTRO-5"
         });
+
+        // Ficha ocupada con OTRO DNI (indice propio), para no interferir con
+        // el DNI que el cliente usara en el caso valido.
+        await setDoc(
+            doc(database, "clientes", String(idOcupado)),
+            fichaCliente(idOcupado, negocioId, otroUid, "99999999Z")
+        );
+        await setDoc(
+            doc(database, "indices_clientes", indiceId(negocioId, "99999999Z")),
+            { negocioId, dni: "99999999Z", clienteId: idOcupado }
+        );
     });
 
     const database = testEnvironment.authenticatedContext(clienteUid).firestore();
 
-    // Caso valido: Transaction completa ficha nueva + usuarios/{uid}.
+    // Caso valido: Transaction crea ficha + indice + actualiza usuarios.
     const batchValido = writeBatch(database);
-    batchValido.set(doc(database, "clientes", String(idLibre)), {
-        idCliente: idLibre,
-        negocioId,
-        firebaseUid: clienteUid,
-        codigoVinculacion: null,
-        serviciosContratados: [],
-        estado: "ACTIVO"
-    });
+    batchValido.set(
+        doc(database, "clientes", String(idLibre)),
+        fichaCliente(idLibre, negocioId, clienteUid, dni, { estado: "REGISTRADO" })
+    );
+    batchValido.set(
+        doc(database, "indices_clientes", indiceId(negocioId, dni)),
+        { negocioId, dni, clienteId: idLibre }
+    );
     batchValido.update(doc(database, "usuarios", clienteUid), {
         clienteId: idLibre,
         negocioId
@@ -257,197 +314,265 @@ test("PRUEBA 5: Via A - un CLIENTE se vincula mediante el codigo maestro creando
         assert.strictEqual(usuario.data().clienteId, idLibre);
         assert.strictEqual(usuario.data().negocioId, negocioId);
         assert.strictEqual(ficha.data().firebaseUid, clienteUid);
-        assert.strictEqual(ficha.data().negocioId, negocioId);
+        assert.strictEqual(ficha.data().dni, dni);
     });
 
-    // Caso invalido: la ficha se crea con el UID de otra persona.
-    const databaseOtro = testEnvironment.authenticatedContext(otroUid).firestore();
-    const idSuplantacion = 74000000003;
-
-    const batchSuplantacion = writeBatch(databaseOtro);
-    batchSuplantacion.set(doc(databaseOtro, "clientes", String(idSuplantacion)), {
-        idCliente: idSuplantacion,
-        negocioId,
-        firebaseUid: clienteUid,
-        serviciosContratados: []
-    });
-    batchSuplantacion.update(doc(databaseOtro, "usuarios", otroUid), {
-        clienteId: idSuplantacion,
+    // Caso invalido: ya existe un indice para ese negocio+DNI (duplicado).
+    const batchDuplicado = writeBatch(database);
+    batchDuplicado.set(
+        doc(database, "clientes", String(idLibre + 100)),
+        fichaCliente(idLibre + 100, negocioId, clienteUid, dni)
+    );
+    batchDuplicado.set(
+        doc(database, "indices_clientes", indiceId(negocioId, dni)),
+        { negocioId, dni, clienteId: idLibre + 100 }
+    );
+    batchDuplicado.update(doc(database, "usuarios", clienteUid), {
+        clienteId: idLibre + 100,
         negocioId
     });
 
-    await assertFails(batchSuplantacion.commit());
+    await assertFails(batchDuplicado.commit());
 
-    // Caso invalido: crear la ficha sin actualizar usuarios/{uid} en la
-    // misma operacion atomica (quedarian documentos incoherentes).
-    const idHuerfano = 74000000004;
-
-    await assertFails(
-        setDoc(doc(databaseOtro, "clientes", String(idHuerfano)), {
-            idCliente: idHuerfano,
-            negocioId,
-            firebaseUid: otroUid,
-            serviciosContratados: []
-        })
+    // Caso invalido: crear la ficha con un DNI distinto del perfil pendiente.
+    const databaseOtro = testEnvironment.authenticatedContext(otroUid).firestore();
+    const batchDniAjeno = writeBatch(databaseOtro);
+    const idDniAjeno = 74000000003;
+    batchDniAjeno.set(
+        doc(databaseOtro, "clientes", String(idDniAjeno)),
+        fichaCliente(idDniAjeno, negocioId, otroUid, dni) // dni de otro
     );
+    batchDniAjeno.set(
+        doc(databaseOtro, "indices_clientes", indiceId(negocioId, dni)),
+        { negocioId, dni, clienteId: idDniAjeno }
+    );
+    batchDniAjeno.update(doc(databaseOtro, "usuarios", otroUid), {
+        clienteId: idDniAjeno,
+        negocioId
+    });
 
-    // Caso de colision/sobrescritura: setDoc sobre un id existente es un
-    // update y ninguna regla lo permite; la app reintenta con otro id.
+    await assertFails(batchDniAjeno.commit());
+
+    // Caso invalido: crear la ficha sin crear el indice en el mismo Batch.
+    const idHuerfano = 74000000004;
     await assertFails(
-        setDoc(doc(databaseOtro, "clientes", String(idOcupado)), {
-            idCliente: idOcupado,
-            negocioId,
-            firebaseUid: otroUid,
-            serviciosContratados: []
-        })
+        setDoc(
+            doc(databaseOtro, "clientes", String(idHuerfano)),
+            fichaCliente(idHuerfano, negocioId, otroUid, dniOtro)
+        )
     );
 });
 
-test("PRUEBA 6: un CLIENTE vinculado solo puede acceder a sus propios datos", async () => {
+test("PRUEBA 6: VIA 1 - un CLIENTE vincula una ficha creada por el ADMIN", async () => {
+    const adminUid = "admin-via1-test";
+    const clienteUid = "cliente-via1-test";
+    const dni = "33333333C";
+    const idFicha = 741;
+    const negocioId = "negocio-via1-6";
+
     await testEnvironment.withSecurityRulesDisabled(async (context) => {
         const database = context.firestore();
 
-        await setDoc(doc(database, "usuarios", "cliente-propio-test"), {
+        await setDoc(doc(database, "usuarios", adminUid), {
+            rol: "ADMIN",
+            activo: true,
+            clienteId: null,
+            negocioId
+        });
+
+        await setDoc(doc(database, "usuarios", clienteUid), {
             rol: "CLIENTE",
             activo: true,
-            clienteId: 10,
-            negocioId: "negocio-a"
+            clienteId: null,
+            negocioId: null
         });
 
-        await setDoc(doc(database, "usuarios", "cliente-inactivo-test"), {
-            rol: "CLIENTE",
-            activo: false,
-            clienteId: 30,
-            negocioId: "negocio-a"
+        await setDoc(doc(database, "negocios_publicos", negocioId), {
+            nombre: "Gimnasio Via1",
+            codigoMaestro: "MAESTRO-6"
         });
 
-        await setDoc(doc(database, "clientes", "10"), {
-            idCliente: 10,
-            firebaseUid: "cliente-propio-test",
-            negocioId: "negocio-a",
-            estado: "ACTIVO",
-            fechaAlta: 1,
-            fechaBaja: null,
-            fechaInicioActual: 1,
-            fechaFinActual: 2,
-            serviciosContratados: ["Servicio A"],
-            codigoVinculacion: null,
-            nombre: "Cliente",
-            apellidos: "Propio",
-            dni: "11111111A",
-            telefono: "600000000",
-            email: "cliente@test.com",
-            foto: "",
-            fechaNacimiento: 0,
-            observaciones: null
-        });
+        // Ficha creada por el ADMIN: sin UID y con su indice.
+        await setDoc(
+            doc(database, "clientes", String(idFicha)),
+            fichaCliente(idFicha, negocioId, null, dni)
+        );
+        await setDoc(
+            doc(database, "indices_clientes", indiceId(negocioId, dni)),
+            { negocioId, dni, clienteId: idFicha }
+        );
 
-        await setDoc(doc(database, "clientes", "20"), {
-            idCliente: 20,
-            firebaseUid: "cliente-otro-test",
-            negocioId: "negocio-a",
-            estado: "ACTIVO",
-            fechaAlta: 1,
-            fechaBaja: null,
-            fechaInicioActual: 1,
-            fechaFinActual: 2,
-            serviciosContratados: ["Servicio B"],
-            codigoVinculacion: null,
-            nombre: "Otro",
-            apellidos: "Cliente",
-            dni: "22222222B",
-            telefono: "611111111",
-            email: "otro@test.com",
-            foto: "",
-            fechaNacimiento: 0,
-            observaciones: null
-        });
+        // Ficha ya vinculada (no reclamable).
+        await setDoc(
+            doc(database, "clientes", "742"),
+            fichaCliente(742, negocioId, "cliente-ya-vinculado", "44444444D")
+        );
+        await setDoc(
+            doc(database, "indices_clientes", indiceId(negocioId, "44444444D")),
+            { negocioId, dni: "44444444D", clienteId: 742 }
+        );
 
-        await setDoc(doc(database, "clientes", "30"), {
-            idCliente: 30,
-            firebaseUid: "cliente-inactivo-test",
-            negocioId: "negocio-a",
-            estado: "ACTIVO",
-            fechaAlta: 1,
-            fechaBaja: null,
-            fechaInicioActual: 1,
-            fechaFinActual: 2,
-            serviciosContratados: ["Servicio C"],
-            codigoVinculacion: null,
-            nombre: "Cliente inactivo",
-            apellidos: "Prueba",
-            dni: "33333333C",
-            telefono: "622222222",
-            email: "inactivo@test.com",
-            foto: "",
-            fechaNacimiento: 0,
-            observaciones: null
+        // Indice del MISMO dni pero en OTRO negocio (existe, para probar DENY).
+        await setDoc(
+            doc(database, "indices_clientes", indiceId("otro-negocio", dni)),
+            { negocioId: "otro-negocio", dni, clienteId: 743 }
+        );
+    });
+
+    // El CLIENTE declara su perfil pendiente con DNI + negocioId (VÍA 1) para
+    // poder consultar el indice y reclamar su ficha.
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "perfiles_pendientes", clienteUid), {
+            dni,
+            negocioId
         });
     });
 
-    const database = testEnvironment
-        .authenticatedContext("cliente-propio-test")
-        .firestore();
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+
+    // Puede leer el indice de SU DNI + SU negocio (VÍA 1 declarado).
+    await assertSucceeds(
+        getDoc(doc(database, "indices_clientes", indiceId(negocioId, dni)))
+    );
+    // No puede leer el indice de otro DNI (mismo negocio).
+    await assertFails(
+        getDoc(doc(database, "indices_clientes", indiceId(negocioId, "44444444D")))
+    );
+    // No puede leer el indice del mismo DNI en OTRO negocio.
+    await assertFails(
+        getDoc(doc(database, "indices_clientes", indiceId("otro-negocio", dni)))
+    );
+    // No puede listar indices.
+    await assertFails(
+        getDocs(collection(database, "indices_clientes"))
+    );
+
+    // Caso invalido: vincularse sin actualizar usuarios/{uid} en el Batch
+    // (la ficha sigue libre, el batch dejaria documentos incoherentes).
+    const batchSinUsuario = writeBatch(database);
+    batchSinUsuario.update(doc(database, "clientes", String(idFicha)), {
+        firebaseUid: clienteUid,
+        negocioId
+    });
+    await assertFails(batchSinUsuario.commit());
+
+    // Caso invalido: reclamar una ficha que ya tiene UID.
+    const batchYaVinculada = writeBatch(database);
+    batchYaVinculada.update(doc(database, "clientes", "742"), {
+        firebaseUid: clienteUid,
+        negocioId
+    });
+    batchYaVinculada.update(doc(database, "usuarios", clienteUid), {
+        clienteId: 742,
+        negocioId
+    });
+    await assertFails(batchYaVinculada.commit());
+
+    // Vinculacion valida: ficha libre + usuarios/{uid}.
+    const batchVinculacion = writeBatch(database);
+    batchVinculacion.update(doc(database, "clientes", String(idFicha)), {
+        firebaseUid: clienteUid,
+        negocioId
+    });
+    batchVinculacion.update(doc(database, "usuarios", clienteUid), {
+        clienteId: idFicha,
+        negocioId
+    });
+
+    await assertSucceeds(batchVinculacion.commit());
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        const ficha = await getDoc(doc(database, "clientes", String(idFicha)));
+        assert.strictEqual(ficha.data().firebaseUid, clienteUid);
+    });
+});
+
+test("PRUEBA 7: un CLIENTE vinculado solo puede editar sus datos personales", async () => {
+    const clienteUid = "cliente-personal-test";
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE",
+            activo: true,
+            clienteId: 10,
+            negocioId: NEGOCIO_A
+        });
+
+        await setDoc(
+            doc(database, "clientes", "10"),
+            fichaCliente(10, NEGOCIO_A, clienteUid, "11111111A", {
+                estado: "ACTIVO",
+                fechaAlta: 1,
+                fechaBaja: null,
+                fechaInicioActual: 1,
+                fechaFinActual: 2,
+                serviciosContratados: ["Servicio A"],
+                nombre: "Cliente",
+                apellidos: "Propio",
+                dni: "11111111A",
+                telefono: "600000000",
+                email: "cliente@test.com",
+                foto: "",
+                fechaNacimiento: 0
+            })
+        );
+
+        await setDoc(
+            doc(database, "clientes", "20"),
+            fichaCliente(20, NEGOCIO_A, "cliente-otro-test", "22222222B")
+        );
+    });
+
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
 
     await assertSucceeds(
         getDoc(doc(database, "clientes", "10"))
     );
-
     await assertFails(
         getDoc(doc(database, "clientes", "20"))
     );
-
     await assertFails(
         getDocs(collection(database, "clientes"))
     );
-
     await assertFails(
-        updateDoc(
-            doc(database, "clientes", "20"),
-            { nombre: "Intento de modificación" }
-        )
+        updateDoc(doc(database, "clientes", "20"), { nombre: "Intento" })
     );
 
     const camposProtegidos = [
         { firebaseUid: "uid-alterado" },
         { negocioId: "otro-negocio" },
         { idCliente: 99 },
+        { dni: "99999999Z" },
         { estado: "BAJA" },
         { fechaAlta: 3 },
         { fechaBaja: 4 },
         { fechaInicioActual: 3 },
         { fechaFinActual: 4 },
-        { serviciosContratados: ["Servicio no contratado"] },
-        { codigoVinculacion: "codigo-alterado" }
+        { serviciosContratados: ["No contratado"] },
+        { tieneLlave: true },
+        { observaciones: "Intento de ver/editar observaciones" }
     ];
 
     for (const cambios of camposProtegidos) {
         await assertFails(
-            updateDoc(
-                doc(database, "clientes", "10"),
-                cambios
-            )
+            updateDoc(doc(database, "clientes", "10"), cambios)
         );
     }
 
     await assertSucceeds(
-        updateDoc(
-            doc(database, "clientes", "10"),
-            { nombre: "Nombre actualizado" }
-        )
+        updateDoc(doc(database, "clientes", "10"), { nombre: "Nombre actualizado" })
     );
-
-    const databaseClienteInactivo = testEnvironment
-        .authenticatedContext("cliente-inactivo-test")
-        .firestore();
-
-    await assertFails(
-        getDoc(doc(databaseClienteInactivo, "clientes", "30"))
+    await assertSucceeds(
+        updateDoc(doc(database, "clientes", "10"), { telefono: "699999999" })
     );
 });
 
-test("PRUEBA 7: un CLIENTE solo puede usar sesiones de servicios contratados", async () => {
-    const clienteUid = "cliente-servicios-test";
+test("PRUEBA 8: un CLIENTE no accede a clientes_privados ni a perfiles ajenos", async () => {
+    const clienteUid = "cliente-privado-test";
 
     await testEnvironment.withSecurityRulesDisabled(async (context) => {
         const database = context.firestore();
@@ -456,680 +581,131 @@ test("PRUEBA 7: un CLIENTE solo puede usar sesiones de servicios contratados", a
             rol: "CLIENTE",
             activo: true,
             clienteId: 10,
-            negocioId: "negocio-a"
+            negocioId: NEGOCIO_A
         });
 
-        await setDoc(doc(database, "clientes", "10"), {
-            idCliente: 10,
-            firebaseUid: clienteUid,
-            negocioId: "negocio-a",
-            serviciosContratados: ["yoga"]
+        await setDoc(doc(database, "clientes_privados", "10"), {
+            negocioId: NEGOCIO_A,
+            observaciones: "Nota interna del gimnasio"
         });
 
-        await setDoc(doc(database, "clases", "clase-yoga"), {
-            negocioId: "negocio-a",
-            servicio: "yoga"
-        });
-
-        await setDoc(doc(database, "sesiones", "sesion-yoga"), {
-            sesionId: 201,
-            idClase: 1,
-            negocioId: "negocio-a",
-            servicio: "yoga",
-            fecha: 1,
-            plazasDisponibles: 10,
-            clientesPermitidos: [clienteUid]
-        });
-
-        await setDoc(doc(database, "sesiones", "sesion-spinning"), {
-            sesionId: 202,
-            idClase: 2,
-            negocioId: "negocio-a",
-            servicio: "spinning",
-            fecha: 1,
-            plazasDisponibles: 10,
-            clientesPermitidos: [clienteUid]
-        });
-
-        await setDoc(doc(database, "sesiones", "sesion-yoga-otro-cliente"), {
-            sesionId: 203,
-            idClase: 1,
-            negocioId: "negocio-a",
-            servicio: "yoga",
-            fecha: 1,
-            plazasDisponibles: 10,
-            clientesPermitidos: ["otro-cliente-test"]
-        });
-
-        await setDoc(doc(database, "sesiones", "sesion-otro-negocio"), {
-            sesionId: 204,
-            idClase: 1,
-            negocioId: "negocio-b",
-            servicio: "yoga",
-            fecha: 1,
-            plazasDisponibles: 10,
-            clientesPermitidos: [clienteUid]
-        });
-
-        await setDoc(doc(database, "sesiones", "101"), {
-            sesionId: 101,
-            idClase: 1,
-            negocioId: "negocio-a",
-            servicio: "yoga",
-            fecha: 1,
-            plazasDisponibles: 10,
-            clientesPermitidos: [clienteUid]
-        });
-
-        await setDoc(doc(database, "sesiones", "102"), {
-            sesionId: 102,
-            idClase: 2,
-            negocioId: "negocio-a",
-            servicio: "spinning",
-            fecha: 1,
-            plazasDisponibles: 10,
-            clientesPermitidos: [clienteUid]
+        await setDoc(doc(database, "perfiles_pendientes", "cliente-ajeno"), {
+            nombre: "Ajeno",
+            dni: "11111111A"
         });
     });
 
-    const database = testEnvironment
-        .authenticatedContext(clienteUid)
-        .firestore();
-
-    await assertSucceeds(
-        getDoc(doc(database, "sesiones", "sesion-yoga"))
-    );
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
 
     await assertFails(
-        getDoc(doc(database, "sesiones", "sesion-spinning"))
+        getDoc(doc(database, "clientes_privados", "10"))
     );
-
     await assertFails(
-        getDoc(doc(database, "sesiones", "sesion-yoga-otro-cliente"))
+        updateDoc(doc(database, "clientes_privados", "10"), { observaciones: "x" })
     );
-
     await assertFails(
-        getDoc(doc(database, "sesiones", "sesion-otro-negocio"))
-    );
-
-    await assertSucceeds(
-        getDocs(
-            query(
-                collection(database, "sesiones"),
-                where("negocioId", "==", "negocio-a"),
-                where("clientesPermitidos", "array-contains", clienteUid),
-                where("servicio", "in", ["yoga"])
-            )
-        )
-    );
-
-    await assertFails(
-        getDocs(
-            query(
-                collection(database, "sesiones"),
-                where("negocioId", "==", "negocio-a"),
-                where("clientesPermitidos", "array-contains", clienteUid),
-                where("servicio", "in", ["spinning"])
-            )
-        )
-    );
-
-    await assertSucceeds(
-        setDoc(doc(database, "reservas", "reserva-yoga"), {
-            negocioId: "negocio-a",
-            clienteId: 10,
-            sesionId: 101,
-            fechaReserva: 1
-        })
-    );
-
-    await assertFails(
-        setDoc(doc(database, "reservas", "reserva-spinning"), {
-            negocioId: "negocio-a",
-            clienteId: 10,
-            sesionId: 102,
-            fechaReserva: 1
-        })
-    );
-
-    await assertFails(
-        setDoc(doc(database, "clases", "clase-nueva"), {
-            negocioId: "negocio-a",
-            servicio: "yoga"
-        })
-    );
-
-    await assertFails(
-        updateDoc(
-            doc(database, "clases", "clase-yoga"),
-            { servicio: "spinning" }
-        )
-    );
-
-    await assertFails(
-        deleteDoc(doc(database, "clases", "clase-yoga"))
-    );
-
-    await assertFails(
-        setDoc(doc(database, "sesiones", "sesion-nueva"), {
-            negocioId: "negocio-a",
-            servicio: "yoga",
-            clientesPermitidos: [clienteUid]
-        })
-    );
-
-    await assertFails(
-        updateDoc(
-            doc(database, "sesiones", "sesion-yoga"),
-            { servicio: "spinning" }
-        )
-    );
-
-    await assertFails(
-        deleteDoc(doc(database, "sesiones", "sesion-yoga"))
+        getDoc(doc(database, "perfiles_pendientes", "cliente-ajeno"))
     );
 });
 
-test("PRUEBA 8: un ADMIN solo puede escribir dentro de su negocio", async () => {
-    const adminUid = "admin-negocio-a";
-    const adminInactivoUid = "admin-inactivo-test";
+test("PRUEBA 9: el ADMIN gestiona clientes e indices de su negocio", async () => {
+    const adminUid = "admin-escritura-test";
+    const adminOtroUid = "admin-otro-escritura-test";
 
     await testEnvironment.withSecurityRulesDisabled(async (context) => {
         const database = context.firestore();
-        const fechaExpiracion = Timestamp.fromMillis(
-            Date.now() + 60 * 60 * 1000
-        );
 
         await setDoc(doc(database, "usuarios", adminUid), {
             rol: "ADMIN",
             activo: true,
             clienteId: null,
-            negocioId: "negocio-a"
+            negocioId: NEGOCIO_A
         });
 
-        await setDoc(doc(database, "usuarios", adminInactivoUid), {
+        await setDoc(doc(database, "usuarios", adminOtroUid), {
             rol: "ADMIN",
-            activo: false,
+            activo: true,
             clienteId: null,
-            negocioId: "negocio-a"
+            negocioId: NEGOCIO_B
         });
 
-        await setDoc(doc(database, "negocios", "negocio-a"), {
+        await setDoc(doc(database, "negocios", NEGOCIO_A), {
             adminUid,
             nombre: "Negocio A"
         });
 
-        await setDoc(doc(database, "negocios", "negocio-b"), {
-            adminUid: "admin-negocio-b",
-            nombre: "Negocio B"
-        });
-
-        await setDoc(doc(database, "clases", "clase-a"), {
-            negocioId: "negocio-a",
-            nombre: "Clase A",
-            servicio: "yoga"
-        });
-
-        await setDoc(doc(database, "clases", "clase-b"), {
-            negocioId: "negocio-b",
-            nombre: "Clase B",
-            servicio: "yoga"
-        });
-
-        await setDoc(doc(database, "sesiones", "301"), {
-            sesionId: 301,
-            idClase: 1,
-            negocioId: "negocio-a",
-            servicio: "yoga",
-            fecha: 1,
-            plazasDisponibles: 10,
-            clientesPermitidos: []
-        });
-
-        await setDoc(doc(database, "sesiones", "302"), {
-            sesionId: 302,
-            idClase: 2,
-            negocioId: "negocio-b",
-            servicio: "yoga",
-            fecha: 1,
-            plazasDisponibles: 10,
-            clientesPermitidos: []
-        });
-
-        await setDoc(doc(database, "reservas", "reserva-a"), {
-            negocioId: "negocio-a",
-            clienteId: 10,
-            sesionId: 301,
-            fechaReserva: 1
-        });
-
-        await setDoc(doc(database, "reservas", "reserva-b"), {
-            negocioId: "negocio-b",
-            clienteId: 20,
-            sesionId: 302,
-            fechaReserva: 1
-        });
-
-        await setDoc(doc(database, "clientes", "cliente-a"), {
-            idCliente: 10,
-            firebaseUid: "cliente-a",
-            negocioId: "negocio-a",
-            serviciosContratados: []
-        });
-
-        await setDoc(doc(database, "clientes", "cliente-b"), {
-            idCliente: 20,
-            firebaseUid: "cliente-b",
-            negocioId: "negocio-b",
-            serviciosContratados: []
-        });
-
-        await setDoc(doc(database, "movimientos", "movimiento-a"), {
-            negocioId: "negocio-a",
-            servicio: "yoga",
-            importe: 50
-        });
-
-        await setDoc(doc(database, "movimientos", "movimiento-b"), {
-            negocioId: "negocio-b",
-            servicio: "yoga",
-            importe: 50
-        });
-
-        await setDoc(doc(database, "gastos", "gasto-a"), {
-            negocioId: "negocio-a",
-            concepto: "Alquiler",
-            importe: 100
-        });
-
-        await setDoc(doc(database, "vinculaciones", "codigo-a"), {
-            negocioId: "negocio-a",
-            estado: "PENDIENTE",
-            fechaExpiracion,
-            clienteId: 10
-        });
-
-        await setDoc(doc(database, "vinculaciones", "codigo-b"), {
-            negocioId: "negocio-b",
-            estado: "PENDIENTE",
-            fechaExpiracion,
-            clienteId: 20
+        await setDoc(
+            doc(database, "clientes", "31"),
+            fichaCliente(31, NEGOCIO_A, "cliente-31", "31313131X")
+        );
+        await setDoc(
+            doc(database, "indices_clientes", indiceId(NEGOCIO_A, "31313131X")),
+            { negocioId: NEGOCIO_A, dni: "31313131X", clienteId: 31 }
+        );
+        await setDoc(doc(database, "clientes_privados", "31"), {
+            negocioId: NEGOCIO_A,
+            observaciones: "Cliente 31"
         });
     });
 
-    const database = testEnvironment
-        .authenticatedContext(adminUid)
-        .firestore();
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    const databaseOtro = testEnvironment.authenticatedContext(adminOtroUid).firestore();
 
+    // Crear una ficha nueva del propio negocio: clientes + indice + privados.
+    const idNuevo = 32;
+    const dniNuevo = "32323232Y";
+    const batchCrear = writeBatch(database);
+    batchCrear.set(
+        doc(database, "clientes", String(idNuevo)),
+        fichaCliente(idNuevo, NEGOCIO_A, null, dniNuevo)
+    );
+    batchCrear.set(
+        doc(database, "indices_clientes", indiceId(NEGOCIO_A, dniNuevo)),
+        { negocioId: NEGOCIO_A, dni: dniNuevo, clienteId: idNuevo }
+    );
+    batchCrear.set(doc(database, "clientes_privados", String(idNuevo)), {
+        negocioId: NEGOCIO_A,
+        observaciones: "Nuevo"
+    });
+
+    await assertSucceeds(batchCrear.commit());
+
+    // Crear una ficha del negocio ajeno (NEGOCIO_A): denegado.
+    const batchAjeno = writeBatch(databaseOtro);
+    batchAjeno.set(
+        doc(databaseOtro, "clientes", "33"),
+        fichaCliente(33, NEGOCIO_A, null, "33333333C")
+    );
+    batchAjeno.set(
+        doc(databaseOtro, "indices_clientes", indiceId(NEGOCIO_A, "33333333C")),
+        { negocioId: NEGOCIO_A, dni: "33333333C", clienteId: 33 }
+    );
+    await assertFails(batchAjeno.commit());
+
+    // Crear una ficha SIN indice: denegado (violaria unicidad).
+    const batchSinIndice = writeBatch(database);
+    batchSinIndice.set(
+        doc(database, "clientes", "34"),
+        fichaCliente(34, NEGOCIO_A, null, "34343434D")
+    );
+    await assertFails(batchSinIndice.commit());
+
+    // Editar datos de gestion: permitido.
     await assertSucceeds(
-        setDoc(doc(database, "clases", "clase-a-nueva"), {
-            negocioId: "negocio-a",
-            nombre: "Clase nueva A",
-            servicio: "yoga"
-        })
+        updateDoc(doc(database, "clientes", "31"), { nombre: "Editado" })
     );
 
+    // Editar observaciones via clientes_privados: permitido al ADMIN.
     await assertSucceeds(
-        updateDoc(
-            doc(database, "clases", "clase-a"),
-            { nombre: "Clase A modificada" }
-        )
+        updateDoc(doc(database, "clientes_privados", "31"), { observaciones: "Nueva nota" })
     );
 
-    await assertSucceeds(
-        deleteDoc(doc(database, "clases", "clase-a-nueva"))
-    );
-
-    await assertFails(
-        setDoc(doc(database, "clases", "clase-b-nueva"), {
-            negocioId: "negocio-b",
-            nombre: "Clase nueva B",
-            servicio: "yoga"
-        })
-    );
-
-    await assertFails(
-        updateDoc(
-            doc(database, "clases", "clase-b"),
-            { nombre: "Intento clase B" }
-        )
-    );
-
-    await assertFails(
-        deleteDoc(doc(database, "clases", "clase-b"))
-    );
-
-    await assertSucceeds(
-        setDoc(doc(database, "sesiones", "sesion-a-nueva"), {
-            sesionId: 303,
-            idClase: 1,
-            negocioId: "negocio-a",
-            servicio: "yoga",
-            fecha: 1,
-            plazasDisponibles: 10,
-            clientesPermitidos: []
-        })
-    );
-
-    await assertSucceeds(
-        updateDoc(
-            doc(database, "sesiones", "301"),
-            { plazasDisponibles: 9 }
-        )
-    );
-
-    await assertSucceeds(
-        deleteDoc(doc(database, "sesiones", "sesion-a-nueva"))
-    );
-
-    await assertFails(
-        setDoc(doc(database, "sesiones", "sesion-b-nueva"), {
-            sesionId: 304,
-            idClase: 2,
-            negocioId: "negocio-b",
-            servicio: "yoga",
-            fecha: 1,
-            plazasDisponibles: 10,
-            clientesPermitidos: []
-        })
-    );
-
-    await assertFails(
-        updateDoc(
-            doc(database, "sesiones", "302"),
-            { plazasDisponibles: 9 }
-        )
-    );
-
-    await assertFails(
-        deleteDoc(doc(database, "sesiones", "302"))
-    );
-
-    await assertSucceeds(
-        setDoc(doc(database, "movimientos", "movimiento-a-nuevo"), {
-            negocioId: "negocio-a",
-            servicio: "yoga",
-            importe: 60
-        })
-    );
-
-    await assertSucceeds(
-        updateDoc(
-            doc(database, "movimientos", "movimiento-a"),
-            { importe: 55 }
-        )
-    );
-
-    await assertSucceeds(
-        deleteDoc(doc(database, "movimientos", "movimiento-a-nuevo"))
-    );
-
-    await assertFails(
-        setDoc(doc(database, "movimientos", "movimiento-b-nuevo"), {
-            negocioId: "negocio-b",
-            servicio: "yoga",
-            importe: 60
-        })
-    );
-
-    await assertFails(
-        updateDoc(
-            doc(database, "movimientos", "movimiento-b"),
-            { importe: 55 }
-        )
-    );
-
-    await assertFails(
-        deleteDoc(doc(database, "movimientos", "movimiento-b"))
-    );
-
-    await assertSucceeds(
-        setDoc(doc(database, "clientes", "cliente-a-nuevo"), {
-            idCliente: 11,
-            firebaseUid: "cliente-a-nuevo",
-            negocioId: "negocio-a",
-            serviciosContratados: []
-        })
-    );
-
-    await assertSucceeds(
-        updateDoc(
-            doc(database, "clientes", "cliente-a"),
-            { nombre: "Cliente A modificado" }
-        )
-    );
-
-    await assertFails(
-        deleteDoc(doc(database, "clientes", "cliente-a"))
-    );
-
-    await assertFails(
-        setDoc(doc(database, "clientes", "cliente-b-nuevo"), {
-            idCliente: 21,
-            firebaseUid: "cliente-b-nuevo",
-            negocioId: "negocio-b",
-            serviciosContratados: []
-        })
-    );
-
-    await assertFails(
-        updateDoc(
-            doc(database, "clientes", "cliente-b"),
-            { nombre: "Intento cliente B" }
-        )
-    );
-
-    await assertFails(
-        deleteDoc(doc(database, "clientes", "cliente-b"))
-    );
-
-    await assertSucceeds(
-        getDoc(doc(database, "negocios", "negocio-a"))
-    );
-
-    await assertFails(
-        getDoc(doc(database, "negocios", "negocio-b"))
-    );
-
-    await assertSucceeds(
-        updateDoc(
-            doc(database, "negocios", "negocio-a"),
-            { nombre: "Negocio A modificado" }
-        )
-    );
-
-    await assertFails(
-        updateDoc(
-            doc(database, "negocios", "negocio-b"),
-            { nombre: "Intento negocio B" }
-        )
-    );
-
-    await assertFails(
-        deleteDoc(doc(database, "negocios", "negocio-a"))
-    );
-
-    await assertFails(
-        setDoc(doc(database, "negocios", "negocio-segundo"), {
-            adminUid
-        })
-    );
-
-    await assertSucceeds(
-        setDoc(doc(database, "reservas", "reserva-a-nueva"), {
-            negocioId: "negocio-a",
-            clienteId: 10,
-            sesionId: 301,
-            fechaReserva: 1
-        })
-    );
-
-    await assertSucceeds(
-        updateDoc(
-            doc(database, "reservas", "reserva-a"),
-            { fechaReserva: 2 }
-        )
-    );
-
-    await assertSucceeds(
-        deleteDoc(doc(database, "reservas", "reserva-a-nueva"))
-    );
-
-    await assertFails(
-        setDoc(doc(database, "reservas", "reserva-b-nueva"), {
-            negocioId: "negocio-b",
-            clienteId: 20,
-            sesionId: 302,
-            fechaReserva: 1
-        })
-    );
-
-    await assertFails(
-        updateDoc(
-            doc(database, "reservas", "reserva-b"),
-            { fechaReserva: 2 }
-        )
-    );
-
-    await assertFails(
-        deleteDoc(doc(database, "reservas", "reserva-b"))
-    );
-
-    await assertFails(
-        getDoc(doc(database, "gastos", "gasto-a"))
-    );
-
-    await assertFails(
-        setDoc(doc(database, "gastos", "gasto-a-nuevo"), {
-            negocioId: "negocio-a",
-            concepto: "Intento gasto",
-            importe: 20
-        })
-    );
-
-    await assertSucceeds(
-        setDoc(doc(database, "vinculaciones", "codigo-a-nuevo"), {
-            negocioId: "negocio-a",
-            estado: "PENDIENTE",
-            fechaExpiracion: Timestamp.fromMillis(
-                Date.now() + 60 * 60 * 1000
-            ),
-            clienteId: 11
-        })
-    );
-
-    // ADMIN no puede consumir vinculaciones; PENDIENTE -> USADA corresponde al CLIENTE mediante Batch.
-    await assertFails(
-        updateDoc(
-            doc(database, "vinculaciones", "codigo-a"),
-            { estado: "USADA" }
-        )
-    );
-
-    await assertSucceeds(
-        deleteDoc(doc(database, "vinculaciones", "codigo-a-nuevo"))
-    );
-
-    await assertFails(
-        setDoc(doc(database, "vinculaciones", "codigo-b-nuevo"), {
-            negocioId: "negocio-b",
-            estado: "PENDIENTE",
-            fechaExpiracion: Timestamp.fromMillis(
-                Date.now() + 60 * 60 * 1000
-            ),
-            clienteId: 21
-        })
-    );
-
-    await assertFails(
-        updateDoc(
-            doc(database, "vinculaciones", "codigo-b"),
-            { estado: "USADA" }
-        )
-    );
-
-    await assertFails(
-        deleteDoc(doc(database, "vinculaciones", "codigo-b"))
-    );
-
-    const databaseInactivo = testEnvironment
-        .authenticatedContext(adminInactivoUid)
-        .firestore();
-
-    await assertFails(
-        setDoc(doc(databaseInactivo, "clases", "clase-inactivo"), {
-            negocioId: "negocio-a",
-            servicio: "yoga"
-        })
-    );
-
-    await assertFails(
-        setDoc(doc(databaseInactivo, "sesiones", "sesion-inactivo"), {
-            sesionId: 305,
-            negocioId: "negocio-a",
-            servicio: "yoga",
-            clientesPermitidos: []
-        })
-    );
-
-    await assertFails(
-        setDoc(doc(databaseInactivo, "movimientos", "movimiento-inactivo"), {
-            negocioId: "negocio-a",
-            importe: 10
-        })
-    );
-
-    await assertFails(
-        setDoc(doc(databaseInactivo, "clientes", "cliente-inactivo"), {
-            idCliente: 30,
-            negocioId: "negocio-a"
-        })
-    );
-
-    await assertFails(
-        updateDoc(
-            doc(databaseInactivo, "negocios", "negocio-a"),
-            { nombre: "Intento inactivo" }
-        )
-    );
-
-    await assertFails(
-        setDoc(doc(databaseInactivo, "gastos", "gasto-inactivo"), {
-            negocioId: "negocio-a",
-            importe: 10
-        })
-    );
-
-    await assertFails(
-        setDoc(doc(databaseInactivo, "vinculaciones", "codigo-inactivo"), {
-            negocioId: "negocio-a",
-            estado: "PENDIENTE",
-            fechaExpiracion: Timestamp.fromMillis(
-                Date.now() + 60 * 60 * 1000
-            ),
-            clienteId: 30
-        })
-    );
+    // Borrar clientes: prohibido (baja logica).
+    await assertFails(deleteDoc(doc(database, "clientes", "31")));
 });
 
-test("PRUEBA 9: ciclo de vida seguro de las vinculaciones", async () => {
-    const adminUid = "admin-vinculaciones-test";
-    const otroAdminUid = "admin-vinculaciones-otro-test";
-    const adminInactivoUid = "admin-vinculaciones-inactivo-test";
-    const clienteUid = "cliente-vinculacion-9-test";
-    const clienteUsadaUid = "cliente-vinculacion-usada-9-test";
-    const clienteCaducadaUid = "cliente-vinculacion-caducada-9-test";
-    const negocioId = "negocio-vinculaciones-a-9";
-    const otroNegocioId = "negocio-vinculaciones-b-9";
-    const fechaFutura = Timestamp.fromMillis(
-        Date.now() + 60 * 60 * 1000
-    );
-    const otraFechaFutura = Timestamp.fromMillis(
-        Date.now() + 2 * 60 * 60 * 1000
-    );
-    const fechaPasada = Timestamp.fromMillis(
-        Date.now() - 60 * 60 * 1000
-    );
+test("PRUEBA 10: el ADMIN cambia el DNI manteniendo el indice atomico", async () => {
+    const adminUid = "admin-cambiodni-test";
 
     await testEnvironment.withSecurityRulesDisabled(async (context) => {
         const database = context.firestore();
@@ -1138,338 +714,256 @@ test("PRUEBA 9: ciclo de vida seguro de las vinculaciones", async () => {
             rol: "ADMIN",
             activo: true,
             clienteId: null,
-            negocioId
+            negocioId: NEGOCIO_A
         });
 
-        await setDoc(doc(database, "usuarios", otroAdminUid), {
-            rol: "ADMIN",
-            activo: true,
-            clienteId: null,
-            negocioId: otroNegocioId
-        });
+        await setDoc(
+            doc(database, "clientes", "41"),
+            fichaCliente(41, NEGOCIO_A, null, "41414141A")
+        );
+        await setDoc(
+            doc(database, "indices_clientes", indiceId(NEGOCIO_A, "41414141A")),
+            { negocioId: NEGOCIO_A, dni: "41414141A", clienteId: 41 }
+        );
+    });
 
-        await setDoc(doc(database, "usuarios", adminInactivoUid), {
-            rol: "ADMIN",
-            activo: false,
-            clienteId: null,
-            negocioId
-        });
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
 
+    // Cambiar el DNI sin tocar el indice: denegado.
+    await assertFails(
+        updateDoc(doc(database, "clientes", "41"), { dni: "42424242B" })
+    );
+
+    // Cambiar el DNI con el indice atomico (borra el viejo, crea el nuevo).
+    const batchCambioDni = writeBatch(database);
+    batchCambioDni.update(doc(database, "clientes", "41"), { dni: "42424242B" });
+    batchCambioDni.delete(
+        doc(database, "indices_clientes", indiceId(NEGOCIO_A, "41414141A"))
+    );
+    batchCambioDni.set(
+        doc(database, "indices_clientes", indiceId(NEGOCIO_A, "42424242B")),
+        { negocioId: NEGOCIO_A, dni: "42424242B", clienteId: 41 }
+    );
+
+    await assertSucceeds(batchCambioDni.commit());
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        const nuevo = await getDoc(
+            doc(database, "indices_clientes", indiceId(NEGOCIO_A, "42424242B"))
+        );
+        const viejo = await getDoc(
+            doc(database, "indices_clientes", indiceId(NEGOCIO_A, "41414141A"))
+        );
+        assert.strictEqual(nuevo.data().clienteId, 41);
+        assert.ok(!viejo.exists());
+    });
+});
+
+test("PRUEBA 11: un CLIENTE registrado gestiona su perfil pendiente", async () => {
+    const clienteUid = "cliente-perfilpendiente-test";
+    const otroUid = "cliente-perfilpendiente-otro";
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
         await setDoc(doc(database, "usuarios", clienteUid), {
             rol: "CLIENTE",
             activo: true,
             clienteId: null,
             negocioId: null
         });
-
-        await setDoc(doc(database, "usuarios", clienteUsadaUid), {
+        await setDoc(doc(database, "usuarios", otroUid), {
             rol: "CLIENTE",
             activo: true,
             clienteId: null,
             negocioId: null
         });
-
-        await setDoc(doc(database, "usuarios", clienteCaducadaUid), {
-            rol: "CLIENTE",
-            activo: true,
-            clienteId: null,
-            negocioId: null
-        });
-
-        await setDoc(doc(database, "clientes", "901"), {
-            idCliente: 901,
-            firebaseUid: null,
-            negocioId: null,
-            codigoVinculacion: "codigo-consumo-9"
-        });
-
-        await setDoc(doc(database, "clientes", "902"), {
-            idCliente: 902,
-            firebaseUid: null,
-            negocioId: null,
-            codigoVinculacion: "codigo-usada-9"
-        });
-
-        await setDoc(doc(database, "clientes", "903"), {
-            idCliente: 903,
-            firebaseUid: null,
-            negocioId: null,
-            codigoVinculacion: "codigo-caducada-9"
-        });
-
-        await setDoc(doc(database, "vinculaciones", "codigo-pendiente-9"), {
-            negocioId,
-            estado: "PENDIENTE",
-            fechaExpiracion: fechaFutura,
-            clienteId: 904
-        });
-
-        await setDoc(doc(database, "vinculaciones", "codigo-pendiente-borrar-9"), {
-            negocioId,
-            estado: "PENDIENTE",
-            fechaExpiracion: fechaFutura,
-            clienteId: 905
-        });
-
-        await setDoc(doc(database, "vinculaciones", "codigo-consumo-9"), {
-            negocioId,
-            estado: "PENDIENTE",
-            fechaExpiracion: fechaFutura,
-            clienteId: 901
-        });
-
-        await setDoc(doc(database, "vinculaciones", "codigo-usada-9"), {
-            negocioId,
-            estado: "USADA",
-            fechaExpiracion: fechaFutura,
-            clienteId: 902
-        });
-
-        await setDoc(doc(database, "vinculaciones", "codigo-caducada-9"), {
-            negocioId,
-            estado: "PENDIENTE",
-            fechaExpiracion: fechaPasada,
-            clienteId: 903
-        });
-
-        await setDoc(doc(database, "vinculaciones", "codigo-admin-otro-9"), {
-            negocioId,
-            estado: "PENDIENTE",
-            fechaExpiracion: fechaFutura,
-            clienteId: 906
-        });
     });
 
-    const databaseAdmin = testEnvironment
-        .authenticatedContext(adminUid)
-        .firestore();
-
-    const databaseOtroAdmin = testEnvironment
-        .authenticatedContext(otroAdminUid)
-        .firestore();
-
-    const databaseAdminInactivo = testEnvironment
-        .authenticatedContext(adminInactivoUid)
-        .firestore();
-
-    const databaseCliente = testEnvironment
-        .authenticatedContext(clienteUid)
-        .firestore();
-
-    const databaseClienteUsada = testEnvironment
-        .authenticatedContext(clienteUsadaUid)
-        .firestore();
-
-    const databaseClienteCaducada = testEnvironment
-        .authenticatedContext(clienteCaducadaUid)
-        .firestore();
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
 
     await assertSucceeds(
-        setDoc(doc(databaseAdmin, "vinculaciones", "codigo-creado-9"), {
-            negocioId,
-            estado: "PENDIENTE",
-            fechaExpiracion: fechaFutura,
-            clienteId: 907
-        })
-    );
-
-    await assertFails(
-        setDoc(doc(databaseAdmin, "vinculaciones", "codigo-otro-negocio-9"), {
-            negocioId: otroNegocioId,
-            estado: "PENDIENTE",
-            fechaExpiracion: fechaFutura,
-            clienteId: 908
-        })
-    );
-
-    await assertFails(
-        setDoc(doc(databaseAdminInactivo, "vinculaciones", "codigo-inactivo-9"), {
-            negocioId,
-            estado: "PENDIENTE",
-            fechaExpiracion: fechaFutura,
-            clienteId: 909
-        })
-    );
-
-    await assertFails(
-        setDoc(doc(databaseAdmin, "vinculaciones", "codigo-sin-cliente-9"), {
-            negocioId,
-            estado: "PENDIENTE",
-            fechaExpiracion: fechaFutura
-        })
-    );
-
-    await assertFails(
-        setDoc(doc(databaseAdmin, "vinculaciones", "codigo-cliente-string-9"), {
-            negocioId,
-            estado: "PENDIENTE",
-            fechaExpiracion: fechaFutura,
-            clienteId: "910"
-        })
-    );
-
-    await assertFails(
-        setDoc(doc(databaseAdmin, "vinculaciones", "codigo-sin-fecha-9"), {
-            negocioId,
-            estado: "PENDIENTE",
-            clienteId: 911
-        })
-    );
-
-    await assertFails(
-        setDoc(doc(databaseAdmin, "vinculaciones", "codigo-caducado-9"), {
-            negocioId,
-            estado: "PENDIENTE",
-            fechaExpiracion: fechaPasada,
-            clienteId: 912
-        })
-    );
-
-    await assertFails(
-        setDoc(doc(databaseAdmin, "vinculaciones", "codigo-campo-extra-9"), {
-            negocioId,
-            estado: "PENDIENTE",
-            fechaExpiracion: fechaFutura,
-            clienteId: 913,
-            campoExtra: true
+        setDoc(doc(database, "perfiles_pendientes", clienteUid), {
+            nombre: "Ana",
+            apellidos: "Lopez",
+            dni: "11111111A",
+            telefono: "611111111",
+            email: "ana@test.com",
+            foto: "",
+            fechaNacimiento: 0
         })
     );
 
     await assertSucceeds(
-        updateDoc(
-            doc(databaseAdmin, "vinculaciones", "codigo-pendiente-9"),
-            { fechaExpiracion: otraFechaFutura }
-        )
+        updateDoc(doc(database, "perfiles_pendientes", clienteUid), {
+            telefono: "699999999"
+        })
     );
 
+    // No puede escribir el perfil pendiente de otro usuario.
     await assertFails(
-        updateDoc(
-            doc(databaseAdmin, "vinculaciones", "codigo-pendiente-9"),
-            { clienteId: 914 }
-        )
+        setDoc(doc(database, "perfiles_pendientes", otroUid), {
+            nombre: "Hack",
+            dni: "11111111A"
+        })
     );
 
+    // No puede listar perfiles pendientes.
     await assertFails(
-        updateDoc(
-            doc(databaseAdmin, "vinculaciones", "codigo-pendiente-9"),
-            { negocioId: otroNegocioId }
-        )
-    );
-
-    await assertFails(
-        updateDoc(
-            doc(databaseAdmin, "vinculaciones", "codigo-pendiente-9"),
-            { estado: "USADA" }
-        )
-    );
-
-    await assertFails(
-        updateDoc(
-            doc(databaseAdmin, "vinculaciones", "codigo-usada-9"),
-            { fechaExpiracion: otraFechaFutura }
-        )
-    );
-
-    await assertFails(
-        updateDoc(
-            doc(databaseAdmin, "vinculaciones", "codigo-usada-9"),
-            { estado: "PENDIENTE" }
-        )
+        getDocs(collection(database, "perfiles_pendientes"))
     );
 
     await assertSucceeds(
-        deleteDoc(
-            doc(databaseAdmin, "vinculaciones", "codigo-pendiente-borrar-9")
-        )
-    );
-
-    await assertFails(
-        deleteDoc(doc(databaseAdmin, "vinculaciones", "codigo-usada-9"))
-    );
-
-    const batchCliente = writeBatch(databaseCliente);
-    batchCliente.update(doc(databaseCliente, "usuarios", clienteUid), {
-        clienteId: 901,
-        negocioId
-    });
-    batchCliente.update(doc(databaseCliente, "clientes", "901"), {
-        firebaseUid: clienteUid,
-        negocioId
-    });
-    batchCliente.update(
-        doc(databaseCliente, "vinculaciones", "codigo-consumo-9"),
-        { estado: "USADA" }
-    );
-
-    await assertSucceeds(batchCliente.commit());
-
-    const batchClienteUsada = writeBatch(databaseClienteUsada);
-    batchClienteUsada.update(
-        doc(databaseClienteUsada, "usuarios", clienteUsadaUid),
-        {
-            clienteId: 902,
-            negocioId
-        }
-    );
-    batchClienteUsada.update(
-        doc(databaseClienteUsada, "clientes", "902"),
-        {
-            firebaseUid: clienteUsadaUid,
-            negocioId
-        }
-    );
-    batchClienteUsada.update(
-        doc(databaseClienteUsada, "vinculaciones", "codigo-usada-9"),
-        { estado: "USADA" }
-    );
-
-    await assertFails(batchClienteUsada.commit());
-
-    const batchClienteCaducada = writeBatch(databaseClienteCaducada);
-    batchClienteCaducada.update(
-        doc(databaseClienteCaducada, "usuarios", clienteCaducadaUid),
-        {
-            clienteId: 903,
-            negocioId
-        }
-    );
-    batchClienteCaducada.update(
-        doc(databaseClienteCaducada, "clientes", "903"),
-        {
-            firebaseUid: clienteCaducadaUid,
-            negocioId
-        }
-    );
-    batchClienteCaducada.update(
-        doc(databaseClienteCaducada, "vinculaciones", "codigo-caducada-9"),
-        { estado: "USADA" }
-    );
-
-    await assertFails(batchClienteCaducada.commit());
-
-    await assertFails(
-        updateDoc(
-            doc(databaseOtroAdmin, "vinculaciones", "codigo-admin-otro-9"),
-            { fechaExpiracion: otraFechaFutura }
-        )
-    );
-
-    await assertFails(
-        deleteDoc(
-            doc(databaseOtroAdmin, "vinculaciones", "codigo-admin-otro-9")
-        )
+        deleteDoc(doc(database, "perfiles_pendientes", clienteUid))
     );
 });
 
-test("PRUEBA 10: un CLIENTE no vinculado puede leer negocios_publicos", async () => {
-    const negocioId = "negocio-publico-10";
+test("PRUEBA 12: concurrencia - dos CLIENTES con el mismo DNI no duplican ficha", async () => {
+    const clienteA = "cliente-race-a";
+    const clienteB = "cliente-race-b";
+    const dni = "55555555E";
+    const negocioId = "negocio-race-12";
 
     await testEnvironment.withSecurityRulesDisabled(async (context) => {
         const database = context.firestore();
 
+        await setDoc(doc(database, "usuarios", clienteA), {
+            rol: "CLIENTE",
+            activo: true,
+            clienteId: null,
+            negocioId: null
+        });
+        await setDoc(doc(database, "usuarios", clienteB), {
+            rol: "CLIENTE",
+            activo: true,
+            clienteId: null,
+            negocioId: null
+        });
+        await setDoc(doc(database, "perfiles_pendientes", clienteA), {
+            dni, nombre: "A"
+        });
+        await setDoc(doc(database, "perfiles_pendientes", clienteB), {
+            dni, nombre: "B"
+        });
+        await setDoc(doc(database, "negocios_publicos", negocioId), {
+            codigoMaestro: "MAESTRO-12"
+        });
+    });
+
+    const dbA = testEnvironment.authenticatedContext(clienteA).firestore();
+    const dbB = testEnvironment.authenticatedContext(clienteB).firestore();
+
+    // A crea la ficha + indice + usuarios.
+    const batchA = writeBatch(dbA);
+    batchA.set(
+        doc(dbA, "clientes", "500"),
+        fichaCliente(500, negocioId, clienteA, dni)
+    );
+    batchA.set(
+        doc(dbA, "indices_clientes", indiceId(negocioId, dni)),
+        { negocioId, dni, clienteId: 500 }
+    );
+    batchA.update(doc(dbA, "usuarios", clienteA), {
+        clienteId: 500,
+        negocioId
+    });
+    await assertSucceeds(batchA.commit());
+
+    // B intenta crear su propia ficha con el MISMO indice: denegado.
+    const batchB = writeBatch(dbB);
+    batchB.set(
+        doc(dbB, "clientes", "501"),
+        fichaCliente(501, negocioId, clienteB, dni)
+    );
+    batchB.set(
+        doc(dbB, "indices_clientes", indiceId(negocioId, dni)),
+        { negocioId, dni, clienteId: 501 }
+    );
+    batchB.update(doc(dbB, "usuarios", clienteB), {
+        clienteId: 501,
+        negocioId
+    });
+    await assertFails(batchB.commit());
+
+    // Verificar que solo existe una ficha con ese negocio+DNI.
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        const ficha = await getDoc(doc(database, "clientes", "500"));
+        const fichaB = await getDoc(doc(database, "clientes", "501"));
+        assert.strictEqual(ficha.data().firebaseUid, clienteA);
+        assert.ok(!fichaB.exists());
+    });
+});
+
+test("PRUEBA 13: un CLIENTE ya vinculado no puede volver a vincularse", async () => {
+    const clienteUid = "cliente-repetido-13";
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE",
+            activo: true,
+            clienteId: 600,
+            negocioId: NEGOCIO_A
+        });
+        await setDoc(
+            doc(database, "clientes", "600"),
+            fichaCliente(600, NEGOCIO_A, clienteUid, "66666666F")
+        );
+        await setDoc(
+            doc(database, "indices_clientes", indiceId(NEGOCIO_A, "66666666F")),
+            { negocioId: NEGOCIO_A, dni: "66666666F", clienteId: 600 }
+        );
+    });
+
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+
+    // No puede re-vincularse (usuarios/{uid}.clienteId ya no es null).
+    const batchReintento = writeBatch(database);
+    batchReintento.update(doc(database, "usuarios", clienteUid), {
+        clienteId: 601,
+        negocioId: NEGOCIO_A
+    });
+    await assertFails(batchReintento.commit());
+});
+
+test("PRUEBA 14: el ADMIN puede leer y listar clientes_privados; CLIENTE nunca", async () => {
+    const adminUid = "admin-privados-test";
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", adminUid), {
+            rol: "ADMIN",
+            activo: true,
+            clienteId: null,
+            negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "clientes_privados", "70"), {
+            negocioId: NEGOCIO_A,
+            observaciones: "Nota"
+        });
+        await setDoc(doc(database, "clientes_privados", "71"), {
+            negocioId: NEGOCIO_B,
+            observaciones: "Nota B"
+        });
+    });
+
+    const dbAdmin = testEnvironment.authenticatedContext(adminUid).firestore();
+    const dbCliente = testEnvironment.authenticatedContext(CLIENTE_UID).firestore();
+
+    await assertSucceeds(getDoc(doc(dbAdmin, "clientes_privados", "70")));
+    await assertFails(getDoc(doc(dbAdmin, "clientes_privados", "71")));
+    await assertFails(getDoc(doc(dbCliente, "clientes_privados", "70")));
+});
+
+test("PRUEBA 15: negocios_publicos es legible por cualquier autenticado", async () => {
+    const negocioId = "negocio-publico-15";
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
         await setDoc(doc(database, "negocios_publicos", negocioId), {
             nombre: "Gimnasio Publico",
-            codigoMaestro: "MAESTRO-10"
+            codigoMaestro: "MAESTRO-15"
         });
     });
 
@@ -1480,47 +974,46 @@ test("PRUEBA 10: un CLIENTE no vinculado puede leer negocios_publicos", async ()
     );
 
     const databaseAnonima = testEnvironment.unauthenticatedContext().firestore();
-
     await assertFails(
         getDoc(doc(databaseAnonima, "negocios_publicos", negocioId))
     );
 });
 
-test("PRUEBA 11: un CLIENTE no puede modificar negocios_publicos", async () => {
-    const negocioId = "negocio-publico-11";
+test("PRUEBA 16: un CLIENTE no puede modificar negocios_publicos", async () => {
+    const negocioId = "negocio-publico-16";
 
     await testEnvironment.withSecurityRulesDisabled(async (context) => {
         const database = context.firestore();
-
         await setDoc(doc(database, "negocios_publicos", negocioId), {
             nombre: "Gimnasio Ajeno",
-            codigoMaestro: "MAESTRO-11"
+            codigoMaestro: "MAESTRO-16"
         });
     });
 
     const database = testEnvironment.authenticatedContext(CLIENTE_UID).firestore();
 
     await assertFails(
-        updateDoc(
-            doc(database, "negocios_publicos", negocioId),
-            { codigoMaestro: "CODIGO-MALICIOSO" }
-        )
+        updateDoc(doc(database, "negocios_publicos", negocioId), {
+            codigoMaestro: "CODIGO-MALICIOSO"
+        })
     );
-
     await assertFails(
-        setDoc(doc(database, "negocios_publicos", "negocio-falso-11"), {
-            nombre: "Negocio Falso",
+        setDoc(doc(database, "negocios_publicos", "negocio-falso-16"), {
+            nombre: "Falso",
             codigoMaestro: "FALSO"
         })
     );
-
     await assertFails(
         deleteDoc(doc(database, "negocios_publicos", negocioId))
     );
 });
 
-test("PRUEBA 12: un enlace individual caducado no funciona", async () => {
-    const clienteUid = "cliente-caducado-12-test";
+test("PRUEBA 17: VIA 1 - la lectura del indice exige dni y negocioId declarados en perfiles_pendientes", async () => {
+    const clienteUid = "cliente-via1-decl-test";
+    const negocioId = "negocio-via1-decl";
+    const otroNegocioId = "otro-negocio-via1-decl";
+    const dni = "77777777G";
+    const idFicha = 780;
 
     await testEnvironment.withSecurityRulesDisabled(async (context) => {
         const database = context.firestore();
@@ -1532,48 +1025,82 @@ test("PRUEBA 12: un enlace individual caducado no funciona", async () => {
             negocioId: null
         });
 
-        await setDoc(doc(database, "vinculaciones", "codigo-caducado-12"), {
-            negocioId: "negocio-a",
-            estado: "PENDIENTE",
-            fechaExpiracion: Timestamp.fromMillis(Date.now() - 60 * 1000),
-            clienteId: 120
-        });
-
-        await setDoc(doc(database, "clientes", "120"), {
-            idCliente: 120,
-            firebaseUid: null,
-            negocioId: null,
-            codigoVinculacion: "codigo-caducado-12"
-        });
+        await setDoc(
+            doc(database, "clientes", String(idFicha)),
+            fichaCliente(idFicha, negocioId, null, dni)
+        );
+        await setDoc(
+            doc(database, "indices_clientes", indiceId(negocioId, dni)),
+            { negocioId, dni, clienteId: idFicha }
+        );
+        await setDoc(
+            doc(database, "indices_clientes", indiceId(otroNegocioId, dni)),
+            { negocioId: otroNegocioId, dni, clienteId: 781 }
+        );
+        // Indice existente con OTRO dni en el mismo negocio (para probar DENY).
+        await setDoc(
+            doc(database, "indices_clientes", indiceId(negocioId, "88888888H")),
+            { negocioId, dni: "88888888H", clienteId: 782 }
+        );
     });
 
-    // La lectura del enlace ya esta bloqueada para codigos caducados.
     const database = testEnvironment.authenticatedContext(clienteUid).firestore();
 
-    await assertFails(
-        getDoc(doc(database, "vinculaciones", "codigo-caducado-12"))
+    // 1. VIA 1 valida: declara { dni, negocioId } y puede leer el indice.
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), "perfiles_pendientes", clienteUid), {
+            dni,
+            negocioId
+        });
+    });
+    await assertSucceeds(
+        getDoc(doc(database, "indices_clientes", indiceId(negocioId, dni)))
     );
 
-    // Y el Batch de consumo tambien debe fallar aunque se intente a ciegas.
-    const batch = writeBatch(database);
-    batch.update(doc(database, "usuarios", clienteUid), {
-        clienteId: 120,
-        negocioId: "negocio-a"
-    });
-    batch.update(doc(database, "clientes", "120"), {
-        firebaseUid: clienteUid,
-        negocioId: "negocio-a"
-    });
-    batch.update(doc(database, "vinculaciones", "codigo-caducado-12"), {
-        estado: "USADA"
-    });
+    // 2. DNI distinto al declarado -> DENY.
+    await assertFails(
+        getDoc(doc(database, "indices_clientes", indiceId(negocioId, "88888888H")))
+    );
 
-    await assertFails(batch.commit());
+    // 3/4. indice del MISMO dni pero de OTRO negocio (no declarado) -> DENY.
+    await assertFails(
+        getDoc(doc(database, "indices_clientes", indiceId(otroNegocioId, dni)))
+    );
+
+    // 5. list de indices_clientes -> DENY.
+    await assertFails(
+        getDocs(collection(database, "indices_clientes"))
+    );
+
+    // 6. Cambiar la declaracion a otro negocio permite leer ese indice (no el anterior).
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), "perfiles_pendientes", clienteUid), {
+            dni,
+            negocioId: otroNegocioId
+        });
+    });
+    await assertSucceeds(
+        getDoc(doc(database, "indices_clientes", indiceId(otroNegocioId, dni)))
+    );
+    await assertFails(
+        getDoc(doc(database, "indices_clientes", indiceId(negocioId, dni)))
+    );
+
+    // 7. El CLIENTE puede borrar su perfil pendiente (tras vincular o rechazar).
+    await assertSucceeds(
+        deleteDoc(doc(database, "perfiles_pendientes", clienteUid))
+    );
 });
 
-test("PRUEBA 13: un enlace individual ya usado no funciona", async () => {
-    const clienteUid = "cliente-usado-13-test";
-    const futuro = Timestamp.fromMillis(Date.now() + 60 * 60 * 1000);
+test("PRUEBA 18: VIA 1 - el CLIENTE no vinculado solo lee la ficha que declaro", async () => {
+    const clienteUid = "cliente-via1-lectura-test";
+    const clienteVinculadoUid = "cliente-via1-vinculado-test";
+    const negocioId = "negocio-via1-lectura";
+    const otroNegocioId = "otro-negocio-via1-lectura";
+    const dni = "99999999Z";
+    const idFicha = 800;
+    const idOtraFicha = 801;
+    const idFichaVinculado = 802;
 
     await testEnvironment.withSecurityRulesDisabled(async (context) => {
         const database = context.firestore();
@@ -1584,362 +1111,91 @@ test("PRUEBA 13: un enlace individual ya usado no funciona", async () => {
             clienteId: null,
             negocioId: null
         });
-
-        await setDoc(doc(database, "vinculaciones", "codigo-usado-13"), {
-            negocioId: "negocio-a",
-            estado: "USADA",
-            fechaExpiracion: futuro,
-            clienteId: 130
+        await setDoc(doc(database, "usuarios", clienteVinculadoUid), {
+            rol: "CLIENTE",
+            activo: true,
+            clienteId: idFichaVinculado,
+            negocioId
         });
 
-        await setDoc(doc(database, "clientes", "130"), {
-            idCliente: 130,
-            firebaseUid: null,
-            negocioId: null,
-            codigoVinculacion: "codigo-usado-13"
+        // Ficha libre del negocio declarado.
+        await setDoc(
+            doc(database, "clientes", String(idFicha)),
+            fichaCliente(idFicha, negocioId, null, dni)
+        );
+        // Ficha de OTRO DNI en el mismo negocio.
+        await setDoc(
+            doc(database, "clientes", String(idOtraFicha)),
+            fichaCliente(idOtraFicha, negocioId, null, "88888888X")
+        );
+        // Ficha de otro negocio con el mismo DNI.
+        await setDoc(
+            doc(database, "clientes", "805"),
+            fichaCliente(805, otroNegocioId, null, dni)
+        );
+        // Ficha propia de un CLIENTE ya vinculado.
+        await setDoc(
+            doc(database, "clientes", String(idFichaVinculado)),
+            fichaCliente(idFichaVinculado, negocioId, clienteVinculadoUid, "77777777W")
+        );
+    });
+
+    // CLIENTE sin vínculo con declaracion correcta.
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), "perfiles_pendientes", clienteUid), {
+            dni,
+            negocioId
         });
     });
 
     const database = testEnvironment.authenticatedContext(clienteUid).firestore();
 
-    // La lectura exige PENDIENTE y no caducado.
-    await assertFails(
-        getDoc(doc(database, "vinculaciones", "codigo-usado-13"))
+    // 1. Declaracion correcta + ficha correspondiente -> ALLOW.
+    await assertSucceeds(
+        getDoc(doc(database, "clientes", String(idFicha)))
     );
 
-    // El intento de re-consumo del enlace usado tampoco puede pasar.
-    const batch = writeBatch(database);
-    batch.update(doc(database, "usuarios", clienteUid), {
-        clienteId: 130,
-        negocioId: "negocio-a"
-    });
-    batch.update(doc(database, "clientes", "130"), {
-        firebaseUid: clienteUid,
-        negocioId: "negocio-a"
-    });
-    batch.update(doc(database, "vinculaciones", "codigo-usado-13"), {
-        estado: "USADA"
-    });
+    // 2. Ficha de OTRO DNI en el mismo negocio -> DENY.
+    await assertFails(
+        getDoc(doc(database, "clientes", String(idOtraFicha)))
+    );
 
-    await assertFails(batch.commit());
-});
+    // 3. Ficha del MISMO dni en OTRO negocio -> DENY.
+    await assertFails(
+        getDoc(doc(database, "clientes", "805"))
+    );
 
-test("PRUEBA 14: un CLIENTE ya vinculado no puede reclamar otra ficha", async () => {
-    const clienteUid = "cliente-repetido-14-test";
-    const futuro = Timestamp.fromMillis(Date.now() + 60 * 60 * 1000);
+    // 4. CLIENTE ya vinculado intentando leer ficha ajena -> DENY.
+    const dbVinculado = testEnvironment.authenticatedContext(clienteVinculadoUid).firestore();
+    await assertFails(
+        getDoc(doc(dbVinculado, "clientes", String(idFicha)))
+    );
 
+    // 5. CLIENTE no vinculado SIN perfiles_pendientes -> DENY.
+    const clienteSinDeclaracion = "cliente-via1-sin-declaracion-test";
     await testEnvironment.withSecurityRulesDisabled(async (context) => {
-        const database = context.firestore();
-
-        await setDoc(doc(database, "usuarios", clienteUid), {
+        await setDoc(doc(context.firestore(), "usuarios", clienteSinDeclaracion), {
             rol: "CLIENTE",
             activo: true,
-            clienteId: 140,
-            negocioId: "negocio-a"
-        });
-
-        // Ficha libre creada por el ADMIN con su enlace PENDIENTE.
-        await setDoc(doc(database, "clientes", "141"), {
-            idCliente: 141,
-            firebaseUid: null,
-            negocioId: null,
-            codigoVinculacion: "codigo-14"
-        });
-
-        await setDoc(doc(database, "vinculaciones", "codigo-14"), {
-            negocioId: "negocio-a",
-            estado: "PENDIENTE",
-            fechaExpiracion: futuro,
-            clienteId: 141
-        });
-    });
-
-    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
-
-    // No puede reclamar la ficha por Via B.
-    const batchViaB = writeBatch(database);
-    batchViaB.update(doc(database, "usuarios", clienteUid), {
-        clienteId: 141,
-        negocioId: "negocio-a"
-    });
-    batchViaB.update(doc(database, "clientes", "141"), {
-        firebaseUid: clienteUid,
-        negocioId: "negocio-a"
-    });
-    batchViaB.update(doc(database, "vinculaciones", "codigo-14"), {
-        estado: "USADA"
-    });
-
-    await assertFails(batchViaB.commit());
-
-    // Y tampoco puede crear una ficha nueva por Via A.
-    const idNuevo = 74000000005;
-
-    await assertFails(
-        setDoc(doc(database, "clientes", String(idNuevo)), {
-            idCliente: idNuevo,
-            negocioId: "negocio-a",
-            firebaseUid: clienteUid,
-            serviciosContratados: []
-        })
-    );
-});
-
-test("PRUEBA 15: el ADMIN puede revocar un enlace pendiente de una ficha sin UID", async () => {
-    const adminUid = "admin-revocar-15-test";
-    const otroAdminUid = "admin-revocar-15-otro-test";
-    const futuro = Timestamp.fromMillis(Date.now() + 60 * 60 * 1000);
-
-    await testEnvironment.withSecurityRulesDisabled(async (context) => {
-        const database = context.firestore();
-
-        await setDoc(doc(database, "usuarios", adminUid), {
-            rol: "ADMIN",
-            activo: true,
             clienteId: null,
-            negocioId: "negocio-a"
-        });
-
-        await setDoc(doc(database, "usuarios", otroAdminUid), {
-            rol: "ADMIN",
-            activo: true,
-            clienteId: null,
-            negocioId: "negocio-b"
-        });
-
-        // Ficha sin UID con su token activo asignado.
-        await setDoc(doc(database, "clientes", "150"), {
-            idCliente: 150,
-            firebaseUid: null,
-            negocioId: "negocio-a",
-            codigoVinculacion: "codigo-revoca-15"
-        });
-
-        await setDoc(doc(database, "vinculaciones", "codigo-revoca-15"), {
-            negocioId: "negocio-a",
-            estado: "PENDIENTE",
-            fechaExpiracion: futuro,
-            clienteId: 150
-        });
-
-        await setDoc(doc(database, "vinculaciones", "codigo-ajeno-15"), {
-            negocioId: "negocio-a",
-            estado: "PENDIENTE",
-            fechaExpiracion: futuro,
-            clienteId: 151
+            negocioId: null
         });
     });
-
-    const database = testEnvironment.authenticatedContext(adminUid).firestore();
-
-    // Caso invalido: limpiar el campo sin eliminar el documento en el mismo Batch.
+    const dbSinDecl = testEnvironment.authenticatedContext(clienteSinDeclaracion).firestore();
     await assertFails(
-        updateDoc(
-            doc(database, "clientes", "150"),
-            { codigoVinculacion: null }
-        )
+        getDoc(doc(dbSinDecl, "clientes", String(idFicha)))
     );
 
-    // Caso valido: revocacion atomica campo a null + borrado del documento.
-    const batchRevocacion = writeBatch(database);
-    batchRevocacion.update(doc(database, "clientes", "150"), {
-        codigoVinculacion: null
-    });
-    batchRevocacion.delete(doc(database, "vinculaciones", "codigo-revoca-15"));
-
-    await assertSucceeds(batchRevocacion.commit());
-
-    await testEnvironment.withSecurityRulesDisabled(async (context) => {
-        const database = context.firestore();
-        const ficha = await getDoc(doc(database, "clientes", "150"));
-        const vinculo = await getDoc(
-            doc(database, "vinculaciones", "codigo-revoca-15")
-        );
-
-        assert.strictEqual(ficha.data().codigoVinculacion, null);
-        assert.ok(!vinculo.exists());
-    });
-
-    // Un ADMIN de otro negocio no puede revocar enlaces ajenos.
-    const databaseOtroAdmin = testEnvironment
-        .authenticatedContext(otroAdminUid)
-        .firestore();
-
+    // 6. list de clientes -> DENY (el CLIENTE no puede enumerar).
     await assertFails(
-        deleteDoc(doc(databaseOtroAdmin, "vinculaciones", "codigo-ajeno-15"))
-    );
-});
-
-test("PRUEBA 16: el ADMIN puede generar y regenerar el enlace de una ficha sin UID", async () => {
-    const adminUid = "admin-regenerar-16-test";
-    const futuro = Timestamp.fromMillis(Date.now() + 60 * 60 * 1000);
-
-    await testEnvironment.withSecurityRulesDisabled(async (context) => {
-        const database = context.firestore();
-
-        await setDoc(doc(database, "usuarios", adminUid), {
-            rol: "ADMIN",
-            activo: true,
-            clienteId: null,
-            negocioId: "negocio-a"
-        });
-
-        // Ficha remota creada por el ADMIN, aun sin UID ni token.
-        await setDoc(doc(database, "clientes", "160"), {
-            idCliente: 160,
-            firebaseUid: null,
-            negocioId: "negocio-a",
-            codigoVinculacion: null
-        });
-
-        // Ficha ya reclamada por su CLIENTE: su token no se puede tocar.
-        await setDoc(doc(database, "clientes", "161"), {
-            idCliente: 161,
-            firebaseUid: "cliente-ya-vinculado-16",
-            negocioId: "negocio-a",
-            codigoVinculacion: null
-        });
-    });
-
-    const database = testEnvironment.authenticatedContext(adminUid).firestore();
-
-    // Caso invalido: escribir un token cuyo documento no se crea en el mismo Batch.
-    await assertFails(
-        updateDoc(doc(database, "clientes", "160"), {
-            codigoVinculacion: "token-huerfano-16"
-        })
+        getDocs(collection(database, "clientes"))
     );
 
-    // Caso invalido: tocar el token de una ficha que ya tiene UID.
-    const batchFichaConUid = writeBatch(database);
-    batchFichaConUid.set(doc(database, "vinculaciones", "token-con-uid-16"), {
-        negocioId: "negocio-a",
-        estado: "PENDIENTE",
-        fechaExpiracion: futuro,
-        clienteId: 161
-    });
-    batchFichaConUid.update(doc(database, "clientes", "161"), {
-        codigoVinculacion: "token-con-uid-16"
-    });
-
-    await assertFails(batchFichaConUid.commit());
-
-    // Caso valido: asignacion atomica del primer token.
-    const batchAsignacion = writeBatch(database);
-    batchAsignacion.set(doc(database, "vinculaciones", "token-original-16"), {
-        negocioId: "negocio-a",
-        estado: "PENDIENTE",
-        fechaExpiracion: futuro,
-        clienteId: 160
-    });
-    batchAsignacion.update(doc(database, "clientes", "160"), {
-        codigoVinculacion: "token-original-16"
-    });
-
-    await assertSucceeds(batchAsignacion.commit());
-
-    // Caso valido: regeneracion atomica (borra el anterior, crea el nuevo).
-    const batchRegeneracion = writeBatch(database);
-    batchRegeneracion.delete(doc(database, "vinculaciones", "token-original-16"));
-    batchRegeneracion.set(doc(database, "vinculaciones", "token-nuevo-16"), {
-        negocioId: "negocio-a",
-        estado: "PENDIENTE",
-        fechaExpiracion: futuro,
-        clienteId: 160
-    });
-    batchRegeneracion.update(doc(database, "clientes", "160"), {
-        codigoVinculacion: "token-nuevo-16"
-    });
-
-    await assertSucceeds(batchRegeneracion.commit());
-
-    await testEnvironment.withSecurityRulesDisabled(async (context) => {
-        const database = context.firestore();
-        const ficha = await getDoc(doc(database, "clientes", "160"));
-        const anterior = await getDoc(
-            doc(database, "vinculaciones", "token-original-16")
-        );
-        const nuevo = await getDoc(
-            doc(database, "vinculaciones", "token-nuevo-16")
-        );
-
-        assert.strictEqual(ficha.data().codigoVinculacion, "token-nuevo-16");
-        assert.ok(!anterior.exists());
-        assert.strictEqual(nuevo.data().estado, "PENDIENTE");
-        assert.strictEqual(nuevo.data().clienteId, 160);
-    });
-});
-
-test("PRUEBA 17: cambiar el codigo maestro no rompe los vinculos existentes", async () => {
-    const adminUid = "admin-maestro-17-test";
-    const clienteUid = "cliente-maestro-17-test";
-    const negocioId = "negocio-maestro-17";
-
-    await testEnvironment.withSecurityRulesDisabled(async (context) => {
-        const database = context.firestore();
-
-        await setDoc(doc(database, "usuarios", adminUid), {
-            rol: "ADMIN",
-            activo: true,
-            clienteId: null,
-            negocioId
-        });
-
-        await setDoc(doc(database, "negocios", negocioId), {
-            adminUid,
-            nombre: "Gimnasio Maestro",
-            codigoMaestro: "VIEJO-17"
-        });
-
-        await setDoc(doc(database, "negocios_publicos", negocioId), {
-            nombre: "Gimnasio Maestro",
-            codigoMaestro: "VIEJO-17"
-        });
-
-        await setDoc(doc(database, "usuarios", clienteUid), {
-            rol: "CLIENTE",
-            activo: true,
-            clienteId: 170,
-            negocioId
-        });
-
-        await setDoc(doc(database, "clientes", "170"), {
-            idCliente: 170,
-            firebaseUid: clienteUid,
-            negocioId,
-            serviciosContratados: [],
-            codigoVinculacion: null
-        });
-    });
-
-    const databaseAdmin = testEnvironment.authenticatedContext(adminUid).firestore();
-    const databaseCliente = testEnvironment
-        .authenticatedContext(clienteUid)
-        .firestore();
-
-    // El ADMIN cambia el codigo maestro en los dos documentos.
+    // 7. CLIENTE vinculado sigue leyendo SOLO su propia ficha.
     await assertSucceeds(
-        updateDoc(doc(databaseAdmin, "negocios", negocioId), {
-            codigoMaestro: "NUEVO-17"
-        })
+        getDoc(doc(dbVinculado, "clientes", String(idFichaVinculado)))
     );
-
-    await assertSucceeds(
-        updateDoc(doc(databaseAdmin, "negocios_publicos", negocioId), {
-            codigoMaestro: "NUEVO-17"
-        })
+    await assertFails(
+        getDoc(doc(dbVinculado, "clientes", "805"))
     );
-
-    // El cliente ya vinculado conserva el acceso a su ficha sin cambios.
-    await assertSucceeds(
-        getDoc(doc(databaseCliente, "clientes", "170"))
-    );
-
-    await testEnvironment.withSecurityRulesDisabled(async (context) => {
-        const database = context.firestore();
-        const ficha = await getDoc(doc(database, "clientes", "170"));
-
-        assert.strictEqual(ficha.data().firebaseUid, clienteUid);
-        assert.strictEqual(ficha.data().negocioId, negocioId);
-    });
 });

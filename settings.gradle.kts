@@ -24,3 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "GestorPro"
 include(":app")
+include(":appCliente")

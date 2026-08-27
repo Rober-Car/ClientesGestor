@@ -74,9 +74,8 @@ fun RegistroScreen(
 
     LaunchedEffect(Unit) {
         tipoGuardado = when (mainViewModel.obtenerTipoUsuario()) {
-            TipoUsuario.CLIENTE -> "Cliente"
             TipoUsuario.ADMINISTRADOR -> "Administrador"
-            null -> null
+            TipoUsuario.CLIENTE -> "Cliente"
         }
     }
 

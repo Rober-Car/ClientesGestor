@@ -42,102 +42,78 @@ service cloud.firestore {
         && servicio in servicios;
     }
 
-    // Valida atomicamente el Batch completo de consumicion de una
-    // vinculacion: el codigo pasa de PENDIENTE a USADA, no esta caducado,
-    // pertenece al negocio destino y el Batch deja la ficha del cliente
-    // ligada al UID autenticado. Realiza exactamente 2 get y 2 getAfter.
-    function vinculacionValidaParaConsumo(clienteId, nuevoUid, nuevoNegocioId) {
-      let cliente = get(
-        /databases/$(database)/documents/clientes/$(clienteId)
-      ).data;
-      let codigo = cliente.codigoVinculacion;
-      let vinculo = (codigo is string)
-        ? get(
-            /databases/$(database)/documents/vinculaciones/$(codigo)
-          ).data
-        : null;
-      let vinculoDespues = (codigo is string)
-        ? getAfter(
-            /databases/$(database)/documents/vinculaciones/$(codigo)
-          ).data
-        : null;
-      let clienteDespues = getAfter(
-        /databases/$(database)/documents/clientes/$(clienteId)
-      ).data;
-      return codigo is string
-        && cliente.idCliente == clienteId
-        && cliente.firebaseUid == null
-        && vinculo != null
-        && vinculo.estado == "PENDIENTE"
-        && vinculo.fechaExpiracion > request.time
-        && vinculo.negocioId == nuevoNegocioId
-        && vinculoDespues.estado == "USADA"
-        && vinculoDespues.clienteId == cliente.idCliente
-        && vinculoDespues.negocioId == vinculo.negocioId
-        && clienteDespues.firebaseUid == nuevoUid
-        && clienteDespues.negocioId == vinculo.negocioId;
-    }
-
-    // Comprueba que el mismo Batch deja usuarios/{uid} apuntando al
-    // cliente y al negocio de la vinculacion consumida.
-    function usuarioApuntaACliente(clienteId, negocioId) {
-      let usuarioDespues = getAfter(
-        /databases/$(database)/documents/usuarios/$(request.auth.uid)
-      ).data;
-      return usuarioDespues.clienteId == clienteId
-        && usuarioDespues.negocioId == negocioId;
-    }
-
-    // Valida el Batch de asignacion/regeneracion de un token individual
-    // (Via B): el documento vinculaciones/{token} nace en el mismo Batch,
-    // PENDIENTE, sin caducar y apuntando a la ficha y negocio indicados.
-    function asignacionTokenValida(token, clienteId, negocioId) {
-      return token is string
-        && !exists(
-          /databases/$(database)/documents/vinculaciones/$(token)
-        )
-        && getAfter(
-            /databases/$(database)/documents/vinculaciones/$(token)
-          ).data.estado == "PENDIENTE"
-        && getAfter(
-            /databases/$(database)/documents/vinculaciones/$(token)
-          ).data.clienteId == clienteId
-        && getAfter(
-            /databases/$(database)/documents/vinculaciones/$(token)
-          ).data.negocioId == negocioId
-        && getAfter(
-            /databases/$(database)/documents/vinculaciones/$(token)
-          ).data.fechaExpiracion > request.time;
-    }
-
-    // Exige que el token activo de la ficha siga PENDIENTE, del propio
-    // negocio y apuntando a ese cliente, antes de limpiar su campo en el
-    // mismo Batch que elimina el documento de vinculacion.
-    function revocacionTokenValida(token, clienteId, negocioId) {
-      let vinculo = get(
-        /databases/$(database)/documents/vinculaciones/$(token)
-      ).data;
-      return vinculo.estado == "PENDIENTE"
-        && vinculo.clienteId == clienteId
-        && vinculo.negocioId == negocioId;
-    }
-
-    // Valida atomicamente la creacion directa de la ficha por parte de un
-    // CLIENTE mediante el codigo maestro (Via A): la misma operacion debe
-    // crear la ficha ligada al UID autenticado y dejar usuarios/{uid}
-    // apuntando al cliente y al negocio correctos. Realiza 2 getAfter.
+    // VIA 2: un CLIENTE crea su propia ficha con el codigo maestro + DNI.
+    // El Batch crea clientes/{idCliente}, indices_clientes/{negocioId}_{dni}
+    // y deja usuarios/{uid} apuntando al cliente y negocio correctos.
+    // La ficha debe llevar el DNI del propio perfil pendiente del usuario.
     function creacionDirectaValida(clienteId, negocioId) {
-      let clienteDespues = getAfter(
-        /databases/$(database)/documents/clientes/$(clienteId)
-      ).data;
-      let usuarioDespues = getAfter(
-        /databases/$(database)/documents/usuarios/$(request.auth.uid)
-      ).data;
-      return clienteDespues.firebaseUid == request.auth.uid
-        && clienteDespues.negocioId == negocioId
-        && clienteDespues.idCliente == clienteId
-        && usuarioDespues.clienteId == clienteId
-        && usuarioDespues.negocioId == negocioId;
+      let perfilRef = /databases/$(database)/documents/perfiles_pendientes/$(request.auth.uid);
+      let clienteRef = /databases/$(database)/documents/clientes/$(clienteId);
+      let usuarioRef = /databases/$(database)/documents/usuarios/$(request.auth.uid);
+      return exists(perfilRef)
+        && get(perfilRef).data.dni is string
+        && existsAfter(clienteRef)
+        && getAfter(clienteRef).data.firebaseUid == request.auth.uid
+        && getAfter(clienteRef).data.negocioId == negocioId
+        && getAfter(clienteRef).data.idCliente == clienteId
+        && getAfter(clienteRef).data.dni == get(perfilRef).data.dni
+        && getAfter(usuarioRef).data.clienteId == clienteId
+        && getAfter(usuarioRef).data.negocioId == negocioId;
+    }
+
+    // VIA 1: un CLIENTE vincula su UID a una ficha existente creada por el
+    // ADMIN (identificada por codigo maestro + DNI). El Batch escribe el UID
+    // en clientes/{clienteId} y deja usuarios/{uid} apuntando al mismo cliente
+    // y negocio. La ficha debe estar libre (firebaseUid == null), pertenecer
+    // al negocio indicado y tener exactamente el DNI del perfil pendiente.
+    function vinculacionDniValida(clienteId, nuevoUid, nuevoNegocioId) {
+      let perfilRef = /databases/$(database)/documents/perfiles_pendientes/$(request.auth.uid);
+      let clienteRef = /databases/$(database)/documents/clientes/$(clienteId);
+      let usuarioRef = /databases/$(database)/documents/usuarios/$(request.auth.uid);
+      return exists(perfilRef)
+        && get(perfilRef).data.dni is string
+        && exists(clienteRef)
+        && existsAfter(clienteRef)
+        && get(clienteRef).data.idCliente == clienteId
+        && get(clienteRef).data.firebaseUid == null
+        && get(clienteRef).data.negocioId == nuevoNegocioId
+        && get(clienteRef).data.dni == get(perfilRef).data.dni
+        && getAfter(clienteRef).data.firebaseUid == nuevoUid
+        && getAfter(clienteRef).data.negocioId == nuevoNegocioId
+        && getAfter(usuarioRef).data.clienteId == clienteId
+        && getAfter(usuarioRef).data.negocioId == nuevoNegocioId;
+    }
+
+    // El documento del indice solo enlaza negocio+DNI -> ficha.
+    function indiceBienFormado(indiceId) {
+      return request.resource.data.keys().hasOnly(["negocioId", "dni", "clienteId"])
+        && request.resource.data.negocioId is string
+        && request.resource.data.dni is string
+        && request.resource.data.clienteId is int
+        && indiceId == request.resource.data.negocioId + "_" + request.resource.data.dni;
+    }
+
+    // El ADMIN crea el indice en el mismo Batch que crea la ficha de su negocio.
+    function indiceCreadoPorAdmin(indiceId) {
+      let clienteRef = /databases/$(database)/documents/clientes/$(request.resource.data.clienteId);
+      return esAdmin()
+        && indiceBienFormado(indiceId)
+        && request.resource.data.negocioId == usuarioActual().negocioId
+        && existsAfter(clienteRef)
+        && getAfter(clienteRef).data.negocioId == usuarioActual().negocioId;
+    }
+
+    // El CLIENTE crea el indice en el mismo Batch que crea su propia ficha
+    // (VIA 2). El DNI del indice debe ser el del perfil pendiente.
+    function indiceCreadoPorCliente(indiceId) {
+      let clienteRef = /databases/$(database)/documents/clientes/$(request.resource.data.clienteId);
+      let perfilRef = /databases/$(database)/documents/perfiles_pendientes/$(request.auth.uid);
+      return esCliente()
+        && indiceBienFormado(indiceId)
+        && existsAfter(clienteRef)
+        && getAfter(clienteRef).data.firebaseUid == request.auth.uid
+        && exists(perfilRef)
+        && request.resource.data.dni == get(perfilRef).data.dni;
     }
 
     function sesionDelNegocio(sesionId) {
@@ -167,15 +143,10 @@ service cloud.firestore {
         && usuarioActual().negocioId == negocioId
         && resource.data.adminUid == request.auth.uid;
 
-      // Las consultas deben filtrar por documentId/negocioId para que
-      // Firestore pueda demostrar que solo devuelven el negocio propio.
       allow list: if esAdmin()
         && usuarioActual().negocioId == negocioId
         && resource.data.adminUid == request.auth.uid;
 
-      // Debe formar parte del mismo Batch que actualiza usuarios/{uid}.
-      // El negocio nace con su codigo maestro; no existe contadorClientes:
-      // los idCliente se generan como enteros aleatorios unicos en clientes.
       allow create: if esAdmin()
         && usuarioActual().negocioId == null
         && request.resource.data.adminUid == request.auth.uid
@@ -197,12 +168,9 @@ service cloud.firestore {
     // NEGOCIOS PUBLICOS
     // =========================================================
 
-    // Unica informacion visible para localizar el negocio a traves del
-    // codigo maestro, sin exponer adminUid ni otros datos sensibles.
     match /negocios_publicos/{negocioId} {
       allow get, list: if autenticado();
 
-      // Debe crearse en el mismo Batch que negocios/{id} y usuarios/{uid}.
       allow create: if esAdmin()
         && request.resource.data.keys()
             .hasOnly(["codigoMaestro", "nombre"])
@@ -213,7 +181,6 @@ service cloud.firestore {
           /databases/$(database)/documents/usuarios/$(request.auth.uid)
         ).data.negocioId == negocioId;
 
-      // Solo el ADMIN propietario actualiza el codigo maestro (y el nombre).
       allow update: if esAdmin()
         && usuarioActual().negocioId == negocioId
         && request.resource.data.diff(resource.data)
@@ -257,8 +224,7 @@ service cloud.firestore {
           /databases/$(database)/documents/negocios/$(request.resource.data.negocioId)
         ).data.adminUid == request.auth.uid;
 
-      // La vinculacion de un CLIENTE solo es valida dentro del Batch completo
-      // que consume el codigo, marca la ficha del cliente y deja el codigo USADA.
+      // VIA 1: vincularse a una ficha existente identificada por codigo+Dni.
       allow update: if esCliente()
         && request.auth.uid == uid
         && resource.data.clienteId == null
@@ -270,15 +236,14 @@ service cloud.firestore {
         && request.resource.data.negocioId is string
         && request.resource.data.rol == resource.data.rol
         && request.resource.data.activo == resource.data.activo
-        && vinculacionValidaParaConsumo(
+        && vinculacionDniValida(
              request.resource.data.clienteId,
              request.auth.uid,
              request.resource.data.negocioId
            );
 
-      // Via A: el CLIENTE se vincula creando su propia ficha con el codigo
-      // maestro; la misma operacion crea clientes/{idCliente} y deja los
-      // dos documentos coherentes entre si. Sin vinculacion que consumir.
+      // VIA 2: un CLIENTE se vincula creando su propia ficha con el codigo
+      // maestro; la misma operacion crea clientes/{idCliente} y el indice.
       allow update: if esCliente()
         && request.auth.uid == uid
         && resource.data.clienteId == null
@@ -307,20 +272,48 @@ service cloud.firestore {
       allow get: if esAdmin()
         && resource.data.negocioId == usuarioActual().negocioId;
 
+      // CLIENTE ya vinculado: solo puede leer su propia ficha.
       allow get: if esCliente()
         && string(usuarioActual().clienteId) == clienteId
         && resource.data.negocioId == usuarioActual().negocioId
         && resource.data.firebaseUid == request.auth.uid;
 
+      // VIA 1: CLIENTE aun sin vincular (clienteId/negocioId null) declara en
+      // perfiles_pendientes/{uid} la combinacion { dni, negocioId } que quiere
+      // vincular. Solo puede leer la ficha cuyo DNI y negocioId coinciden con
+      // esa declaracion y cuyo documentId corresponde a su idCliente. No puede
+      // leer fichas arbitrarias, de otros negocios ni de otros DNIs.
+      allow get: if esCliente()
+        && usuarioActual().clienteId == null
+        && usuarioActual().negocioId == null
+        && exists(
+             /databases/$(database)/documents/perfiles_pendientes/$(request.auth.uid)
+           )
+        && get(
+             /databases/$(database)/documents/perfiles_pendientes/$(request.auth.uid)
+           ).data.dni is string
+        && get(
+             /databases/$(database)/documents/perfiles_pendientes/$(request.auth.uid)
+           ).data.negocioId is string
+        && get(
+             /databases/$(database)/documents/perfiles_pendientes/$(request.auth.uid)
+           ).data.dni == resource.data.dni
+        && get(
+             /databases/$(database)/documents/perfiles_pendientes/$(request.auth.uid)
+           ).data.negocioId == resource.data.negocioId
+        && string(resource.data.idCliente) == clienteId;
+
       allow list: if esAdmin()
         && resource.data.negocioId == usuarioActual().negocioId;
 
+      // Alta por el ADMIN: la ficha nace sin UID y sin indice propio hasta
+      // que se replica; el indice se crea en el mismo Batch (Vía 1).
+      // observaciones NO vive aqui: esta en clientes_privados/{idCliente}.
       allow create: if esAdmin()
         && request.resource.data.keys().hasOnly([
            "idCliente",
            "negocioId",
            "firebaseUid",
-           "codigoVinculacion",
            "nombre",
            "apellidos",
            "dni",
@@ -333,7 +326,6 @@ service cloud.firestore {
            "fechaBaja",
            "estado",
            "tieneLlave",
-           "observaciones",
            "serviciosContratados",
            "fechaInicioActual",
            "fechaFinActual"
@@ -342,21 +334,23 @@ service cloud.firestore {
         && request.resource.data.negocioId is string
         && request.resource.data.negocioId == usuarioActual().negocioId
         && request.resource.data.idCliente is int
-        && (!("codigoVinculacion" in request.resource.data)
-          || request.resource.data.codigoVinculacion == null)
-        && request.resource.data.serviciosContratados is list;
+        && request.resource.data.dni is string
+        && request.resource.data.serviciosContratados is list
+        && existsAfter(
+             /databases/$(database)/documents/indices_clientes/$(request.resource.data.negocioId + "_" + request.resource.data.dni)
+           )
+        && getAfter(
+             /databases/$(database)/documents/indices_clientes/$(request.resource.data.negocioId + "_" + request.resource.data.dni)
+           ).data.clienteId == request.resource.data.idCliente;
 
-      // Via A: el CLIENTE crea su propia ficha con el codigo maestro.
-      // El identificador es un entero aleatorio unico en toda la coleccion;
-      // create solo alcanza documentos que aun no existen, por lo que una
-      // colision falla y la app reintenta con otro id. La operacion debe
-      // formar parte de la misma Transaction que actualiza usuarios/{uid}.
+      // VIA 2: el CLIENTE crea su propia ficha con el codigo maestro + DNI.
+      // La operacion debe formar parte de la misma Transaction que crea el
+      // indice y actualiza usuarios/{uid} (validado por creacionDirectaValida).
       allow create: if esCliente()
         && request.resource.data.keys().hasOnly([
            "idCliente",
            "negocioId",
            "firebaseUid",
-           "codigoVinculacion",
            "nombre",
            "apellidos",
            "dni",
@@ -369,7 +363,6 @@ service cloud.firestore {
            "fechaBaja",
            "estado",
            "tieneLlave",
-           "observaciones",
            "serviciosContratados",
            "fechaInicioActual",
            "fechaFinActual"
@@ -378,35 +371,39 @@ service cloud.firestore {
         && request.resource.data.idCliente is int
         && string(request.resource.data.idCliente) == clienteId
         && request.resource.data.firebaseUid == request.auth.uid
-        && (!("codigoVinculacion" in request.resource.data)
-          || request.resource.data.codigoVinculacion == null)
+        && request.resource.data.dni is string
         && request.resource.data.serviciosContratados is list
         && creacionDirectaValida(
              request.resource.data.idCliente,
              request.resource.data.negocioId
-           );
+           )
+        && existsAfter(
+             /databases/$(database)/documents/indices_clientes/$(request.resource.data.negocioId + "_" + request.resource.data.dni)
+           )
+        && getAfter(
+             /databases/$(database)/documents/indices_clientes/$(request.resource.data.negocioId + "_" + request.resource.data.dni)
+           ).data.clienteId == request.resource.data.idCliente;
 
-      // El cliente solo puede completar su vinculacion con su UID y dentro
-      // del Batch que consume el codigo correcto. El negocio escrito debe
-      // coincidir con el del codigo y con el que recibe usuarios/{uid}.
+      // VIA 1: el CLIENTE completa la vinculacion escribiendo su UID en una
+      // ficha libre dentro del Batch que actualiza usuarios/{uid}.
       allow update: if esCliente()
         && request.resource.data.firebaseUid == request.auth.uid
         && resource.data.firebaseUid == null
+        && resource.data.negocioId is string
+        && request.resource.data.negocioId == resource.data.negocioId
         && resource.data.idCliente is int
         && string(resource.data.idCliente) == clienteId
         && request.resource.data.diff(resource.data)
             .affectedKeys()
             .hasOnly(["firebaseUid", "negocioId"])
-        && vinculacionValidaParaConsumo(
+        && vinculacionDniValida(
              resource.data.idCliente,
              request.auth.uid,
              request.resource.data.negocioId
-           )
-        && usuarioApuntaACliente(
-             resource.data.idCliente,
-             request.resource.data.negocioId
            );
 
+      // El CLIENTE vinculado puede editar sus datos personales, pero no el
+      // DNI (identifica la ficha), ni campos administrativos ni el perfil.
       allow update: if esCliente()
         && string(usuarioActual().clienteId) == clienteId
         && resource.data.firebaseUid == request.auth.uid
@@ -414,77 +411,27 @@ service cloud.firestore {
         && request.resource.data.firebaseUid == resource.data.firebaseUid
         && request.resource.data.negocioId == resource.data.negocioId
         && request.resource.data.idCliente == resource.data.idCliente
+        && request.resource.data.dni == resource.data.dni
         && request.resource.data.estado == resource.data.estado
         && request.resource.data.fechaAlta == resource.data.fechaAlta
         && request.resource.data.fechaBaja == resource.data.fechaBaja
         && request.resource.data.fechaInicioActual == resource.data.fechaInicioActual
         && request.resource.data.fechaFinActual == resource.data.fechaFinActual
+        && request.resource.data.tieneLlave == resource.data.tieneLlave
         && request.resource.data.serviciosContratados == resource.data.serviciosContratados
-        && request.resource.data.codigoVinculacion == resource.data.codigoVinculacion
         && request.resource.data.diff(resource.data)
             .affectedKeys()
             .hasOnly([
               "nombre",
               "apellidos",
-              "dni",
               "telefono",
               "email",
               "foto",
-              "fechaNacimiento",
-              "observaciones"
+              "fechaNacimiento"
             ]);
 
-      // SE ELIMINAN las reglas generales de asignacion y revocacion de
-      // codigos; quedan sustituidas por los dos bloques estrechos siguientes.
-
-      // Asignar o regenerar el token de vinculacion (Via B) sobre una ficha
-      // que aun no tiene UID: atomico con la creacion de vinculaciones/{token}
-      // en el mismo Batch (validado por asignacionTokenValida).
-      allow update: if esAdmin()
-        && usuarioActual().negocioId is string
-        && resource.data.negocioId == usuarioActual().negocioId
-        && resource.data.negocioId is string
-        && request.resource.data.negocioId == resource.data.negocioId
-        && resource.data.idCliente is int
-        && request.resource.data.idCliente == resource.data.idCliente
-        && resource.data.firebaseUid == null
-        && request.resource.data.firebaseUid == null
-        && request.resource.data.diff(resource.data)
-            .affectedKeys()
-            .hasOnly(["codigoVinculacion"])
-        && asignacionTokenValida(
-             request.resource.data.codigoVinculacion,
-             resource.data.idCliente,
-             resource.data.negocioId
-           );
-
-      // Revocar el enlace activo de una ficha sin UID: limpia el campo a null
-      // en el mismo Batch que elimina vinculaciones/{token} (delete permitido
-      // por su propia regla mientras siga PENDIENTE).
-      allow update: if esAdmin()
-        && usuarioActual().negocioId is string
-        && resource.data.negocioId == usuarioActual().negocioId
-        && resource.data.negocioId is string
-        && request.resource.data.negocioId == resource.data.negocioId
-        && resource.data.idCliente is int
-        && request.resource.data.idCliente == resource.data.idCliente
-        && resource.data.firebaseUid == null
-        && request.resource.data.firebaseUid == null
-        && resource.data.codigoVinculacion is string
-        && request.resource.data.codigoVinculacion == null
-        && request.resource.data.diff(resource.data)
-            .affectedKeys()
-            .hasOnly(["codigoVinculacion"])
-        && revocacionTokenValida(
-             resource.data.codigoVinculacion,
-             resource.data.idCliente,
-             resource.data.negocioId
-           )
-        && !existsAfter(
-          /databases/$(database)/documents/vinculaciones/$(resource.data.codigoVinculacion)
-        );
-
-      // ADMIN solo puede modificar campos de gestion del cliente propio.
+      // El ADMIN edita la ficha. Si cambia el DNI debe mantener el indice
+      // atomico: el nuevo indice nace y el viejo se borra en el mismo Batch.
       allow update: if esAdmin()
         && usuarioActual().negocioId is string
         && resource.data.negocioId == usuarioActual().negocioId
@@ -502,7 +449,6 @@ service cloud.firestore {
               "email",
               "foto",
               "fechaNacimiento",
-              "observaciones",
               "serviciosContratados",
               "estado",
               "fechaAlta",
@@ -510,9 +456,140 @@ service cloud.firestore {
               "fechaInicioActual",
               "fechaFinActual",
               "tieneLlave"
-            ]);
+            ])
+        && (request.resource.data.dni == resource.data.dni
+            || (existsAfter(
+                  /databases/$(database)/documents/indices_clientes/$(resource.data.negocioId + "_" + request.resource.data.dni)
+                )
+                && !existsAfter(
+                     /databases/$(database)/documents/indices_clientes/$(resource.data.negocioId + "_" + resource.data.dni)
+                   )
+                && getAfter(
+                     /databases/$(database)/documents/indices_clientes/$(resource.data.negocioId + "_" + request.resource.data.dni)
+                   ).data.clienteId == resource.data.idCliente));
 
       allow delete: if false;
+    }
+
+
+    // =========================================================
+    // CLIENTES PRIVADOS (datos exclusivos del ADMIN)
+    // =========================================================
+
+    // observaciones (y cualquier dato interno) NO pertenece a clientes/{id};
+    // vive en este documento accesible solo por el ADMIN del negocio, de modo
+    // que un CLIENTE nunca pueda leerlo ni modificarlo.
+    match /clientes_privados/{idCliente} {
+      allow get, list: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+
+      allow create: if esAdmin()
+        && request.resource.data.keys().hasOnly(["negocioId", "observaciones"])
+        && request.resource.data.negocioId == usuarioActual().negocioId;
+
+      allow update: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId
+        && request.resource.data.negocioId == usuarioActual().negocioId
+        && request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly(["observaciones"]);
+
+      allow delete: if false;
+    }
+
+
+    // =========================================================
+    // PERFILES PENDIENTES (CLIENTE registrado sin negocio)
+    // =========================================================
+
+    // Datos temporales de un CLIENTE que aun no pertenece a un negocio.
+    // Admite DOS modos:
+    //   - VIA 1 (declaracion de vinculacion): solo { dni, negocioId } escritos
+    //     al introducir codigo maestro + DNI, para poder consultar el indice.
+    //   - VIA 2 (perfil completo): nombre, apellidos, dni, telefono, email,
+    //     foto, fechaNacimiento, cuando el cliente pulsa "No tengo codigo".
+    // Solo su propio uid puede leerlo, crearlo, editarlo o borrarlo.
+    // Se elimina al completar (o al rechazar) la vinculacion.
+    match /perfiles_pendientes/{uid} {
+      allow get: if autenticado()
+        && request.auth.uid == uid;
+
+      allow list: if false;
+
+      allow create: if esCliente()
+        && request.auth.uid == uid
+        && request.resource.data.dni is string
+        && request.resource.data.keys().hasOnly([
+           "nombre",
+           "apellidos",
+           "dni",
+           "telefono",
+           "email",
+           "foto",
+           "fechaNacimiento",
+           "negocioId"
+         ]);
+
+      allow update: if esCliente()
+        && request.auth.uid == uid
+        && request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly([
+              "nombre",
+              "apellidos",
+              "dni",
+              "telefono",
+              "email",
+              "foto",
+              "fechaNacimiento",
+              "negocioId"
+            ]);
+
+      allow delete: if esCliente()
+        && request.auth.uid == uid;
+    }
+
+
+    // =========================================================
+    // INDICES DE CLIENTES (unicidad negocio+DNI)
+    // =========================================================
+
+    // Localiza la ficha por negocio+DNI y garantiza que solo exista una
+    // ficha por combinacion. El documentId es {negocioId}_{dni}.
+    match /indices_clientes/{indiceId} {
+      // Un CLIENTE solo puede leer la combinacion negocio+DNI que declaro en
+      // su perfil pendiente (VÍA 1: { dni, negocioId } / VÍA 2: dni). No puede
+      // enumerar indices de otros ni leer otros negocios: se exige que el
+      // negocioId y el DNI del indice coincidan con los declarados por el uid.
+      // Un ADMIN puede leer los indices de su negocio (para mantenerlos).
+      allow get: if autenticado()
+        && (esAdmin()
+              && resource.data.negocioId == usuarioActual().negocioId
+            || resource == null
+            || (exists(
+                  /databases/$(database)/documents/perfiles_pendientes/$(request.auth.uid)
+                )
+                && get(
+                     /databases/$(database)/documents/perfiles_pendientes/$(request.auth.uid)
+                   ).data.dni == resource.data.dni
+                && get(
+                     /databases/$(database)/documents/perfiles_pendientes/$(request.auth.uid)
+                   ).data.negocioId == resource.data.negocioId));
+
+      allow list: if false;
+
+      allow create: if indiceCreadoPorAdmin(indiceId)
+        || indiceCreadoPorCliente(indiceId);
+
+      allow update: if false;
+
+      // El ADMIN solo borra un indice al cambiar el DNI de la ficha, en el
+      // mismo Batch que crea el nuevo indice.
+      allow delete: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId
+        && getAfter(
+             /databases/$(database)/documents/clientes/$(resource.data.clienteId)
+           ).data.negocioId == usuarioActual().negocioId;
     }
 
 
@@ -599,14 +676,11 @@ service cloud.firestore {
         && resource.data.negocioId == usuarioActual().negocioId
         && resource.data.clienteId == usuarioActual().clienteId;
 
-      // La sesion debe existir y pertenecer al negocio del ADMIN.
       allow create: if esAdmin()
         && request.resource.data.negocioId == usuarioActual().negocioId
         && request.resource.data.sesionId is int
         && sesionDelNegocio(request.resource.data.sesionId);
 
-      // El cliente solo puede reservar para si mismo una sesion de su
-      // negocio, autorizada para su UID y con el servicio contratado.
       allow create: if esCliente()
         && request.resource.data.negocioId == usuarioActual().negocioId
         && request.resource.data.clienteId == usuarioActual().clienteId
@@ -656,79 +730,6 @@ service cloud.firestore {
         && resource.data.negocioId == usuarioActual().negocioId;
 
       allow delete: if false;
-    }
-
-
-    // =========================================================
-    // VINCULACIONES
-    // =========================================================
-
-    match /vinculaciones/{codigo} {
-      allow get: if autenticado()
-        && resource.data.estado == "PENDIENTE"
-        && resource.data.fechaExpiracion > request.time;
-
-      // Nunca se permite listar todos los codigos.
-      allow list: if false;
-
-      // Crear un codigo solo reserva el identificador para el propio
-      // negocio; el enlace con la ficha del cliente se valida de forma
-      // atomica en la asignacion y en la consumicion.
-      allow create: if esAdmin()
-        && request.resource.data.keys().hasOnly([
-          "negocioId",
-          "estado",
-          "fechaExpiracion",
-          "clienteId"
-        ])
-        && usuarioActual().negocioId is string
-        && request.resource.data.negocioId is string
-        && request.resource.data.negocioId == usuarioActual().negocioId
-        && request.resource.data.estado == "PENDIENTE"
-        && request.resource.data.clienteId is int
-        && request.resource.data.fechaExpiracion is timestamp
-        && request.resource.data.fechaExpiracion > request.time;
-
-      // Este update solo puede ocurrir como parte del Batch de vinculacion.
-      allow update: if esCliente()
-        && request.resource.data.diff(resource.data)
-            .affectedKeys()
-            .hasOnly(["estado"])
-        && resource.data.estado == "PENDIENTE"
-        && resource.data.fechaExpiracion > request.time
-        && request.resource.data.estado == "USADA"
-        && request.resource.data.clienteId == resource.data.clienteId
-        && request.resource.data.negocioId == resource.data.negocioId
-        && vinculacionValidaParaConsumo(
-             resource.data.clienteId,
-             request.auth.uid,
-             resource.data.negocioId
-           )
-        && usuarioApuntaACliente(
-             resource.data.clienteId,
-             resource.data.negocioId
-           );
-
-      allow update: if esAdmin()
-        && usuarioActual().negocioId is string
-        && resource.data.negocioId == usuarioActual().negocioId
-        && resource.data.negocioId is string
-        && request.resource.data.negocioId == usuarioActual().negocioId
-        && resource.data.estado == "PENDIENTE"
-        && request.resource.data.estado == "PENDIENTE"
-        && request.resource.data.diff(resource.data)
-            .affectedKeys()
-            .hasOnly(["fechaExpiracion"])
-        && request.resource.data.fechaExpiracion is timestamp
-        && request.resource.data.fechaExpiracion > request.time;
-
-      // Revocar un codigo es borrarlo mientras sigue pendiente; solo el
-      // ADMIN de su negocio puede hacerlo.
-      allow delete: if esAdmin()
-        && usuarioActual().negocioId is string
-        && resource.data.negocioId == usuarioActual().negocioId
-        && resource.data.negocioId is string
-        && resource.data.estado == "PENDIENTE";
     }
 
 

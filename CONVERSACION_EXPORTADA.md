@@ -731,3 +731,341 @@ npm --prefix firestore-tests test      # pruebas Rules (emulador)
 npm --prefix firestore-tests test      # pruebas Rules (emulador)
 & ".\firestore-tests\node_modules\.bin\firebase.cmd" deploy --only firestore:rules
 ```
+
+---
+
+---
+
+# ACTUALIZACION 2026-08-27 (SESION VII) — REDISEÑO FLUJO ALTA/VINCULACION CLIENTE + BACKFILL indices_clientes
+
+> Bloque vigente. **La Vía B (enlace individual/deep link) queda DESCARTADA** en todo el
+> nuevo flujo; no se toca `vinculaciones` ni `codigoVinculacion`. Sesiones anteriores
+> quedan como historico.
+
+## Objetivo funcional acordado
+
+- **CASO 1 — ADMIN crea primero al cliente:** ADMIN crea la ficha (Room + Firestore, con
+  `firebaseUid = null`). Luego el CLIENTE entra, elige CLIENTE, y en la pantalla inicial ve
+  "¿Tu gimnasio ya te ha registrado?" con campos **código maestro** + **DNI** (botones
+  Continuar / "No tengo código"). Si introduce código+DNI: el código identifica el negocio,
+  el DNI identifica la ficha dentro de ese negocio; si existe ficha con `negocioId + dni` y
+  `firebaseUid == null`, se vincula ese UID a ESA ficha existente. **NO se crea segunda ficha.**
+- **CASO 2 — ADMIN no creó al cliente:** CLIENTE pulsa "No tengo código" → registro normal.
+  Antes de crear una ficha nueva se comprueba en Firestore si ya existe ficha con ese DNI:
+  si no existe → crear; si existe → NO crear y avisar "ese DNI ya está registrado, vincúlate
+  con el código del gimnasio".
+- **Objetivo central:** una persona nunca acaba con dos fichas del mismo negocio por haberse
+  registrado después de que el ADMIN la hubiera creado.
+
+## Auditoria de estructura de datos (solo lectura, nada modificado)
+
+- **`usuarios/{uid}`** hoy: `{rol, activo, clienteId, negocioId}`. Sin datos personales.
+  El email existe solo en Firebase Auth. Reglas obligan a `clienteId == null && negocioId == null`
+  en el create y a que el update CLIENTE ocurra en Batch validado.
+- **`clientes/{idCliente}`** hoy: `{idCliente, negocioId, firebaseUid, codigoVinculacion,
+  nombre, apellidos, dni, telefono, email, foto, fechaNacimiento, fechaRegistro, fechaAlta,
+  fechaBaja, estado, tieneLlave, observaciones, serviciosContratados, fechaInicioActual,
+  fechaFinActual}`. ADMIN crea con `firebaseUid = null` y `negocioId = uid del ADMIN`.
+  **Vía A actual crea la ficha SIN `dni` ni `nombre`** (deuda detectada).
+- **`ClienteEntity` (Room):** PK `idCliente` autoincremental Int, índice único global en `dni`.
+  Ya tiene `negocioId`, `serviciosContratados` y `firebaseUid`.
+- **Donde se guarda el perfil durante el registro:** hoy el registro de ficha del CLIENTE
+  (`AñadirClienteScreen(modoRegistroCliente=true)` → `ClienteViewModel.insertarCliente`) guarda
+  SOLO en Room con `negocioId = null`, `firebaseUid = null`; DataStore guarda `id_cliente_sesion`.
+  La replica a Firestore con `crearClienteRemoto` usa `negocioId = uid propio` → **falla para
+  CLIENTE por Rules** (quedaba local sin sincronizar). No existe almacen en Firestore para un
+  perfil "pendiente de vinculacion".
+- Conclusion: `usuarios/{uid}` debe seguir siendo solo identidad de cuenta; todo lo personal
+  pertenece a `clientes/{idCliente}`. Se propone nueva coleccion `perfiles_pendientes/{uid}`
+  como almacen temporal del perfil del CLIENTE sin negocio (borrable al vincular).
+
+## Decisiones tecnicas CERRADAS para el nuevo flujo
+
+1. **`idCliente` se mantiene como Int**: NO cambiar `ClienteEntity.idCliente`, NO migrar Room
+   a String, NO cambiar el modelo Room↔Firestore. La unicidad negocio+DNI NO se resuelve con
+   clave determinista en `clientes`, sino con una **coleccion de indice**.
+2. **Indice para localizar ficha por negocio + DNI:**
+   - Coleccion: `indices_clientes`.
+   - `documentId`: **`{negocioId}_{dni}`** (dni normalizado en mayusculas; `_` seguro porque ni
+     el UID ni un DNI lo contienen). DocumentId verificable en Rules sin hash.
+   - Campos: `{ negocioId: string, dni: string, clienteId: int }`. **Sin `firebaseUid`**
+     (el estado de vinculacion vive solo en `clientes`; evita segunda fuente de verdad).
+   - Ciclo de vida: ADMIN crea `set` del indice junto a `clientes` (mismo Batch); ADMIN que
+     cambia el DNI hace `delete` del indice antiguo + `set` del nuevo (mismo Batch); CLIENTE
+     en CASO D crea ficha + indice + `usuarios` en la **misma Transaction**; CLIENTE en CASO C
+     NO toca el indice (ya existe). `update` del indice: **prohibido**.
+   - Atomicidad: toda escritura del indice dentro del mismo Batch/Transaction que toca
+     `clientes`; Rules lo exigen con `getAfter(clientes/...)`.
+   - Rules lectura CLIENTE: `allow get` solo si `dni` del indice == `dni` de
+     `perfiles_pendientes/{uid}` (+ `resource == null` para chequear existencia en
+     Transaction); `allow list: if false` (no enumerable); `update: false`.
+   - **Concurrencia mismo DNI:** la Transaction conflictua en el mismo documentId del indice
+     → Firestore serializa, el perdedor reintenta y pasa a rama CASO C; la ficha ya tiene UID
+     → Rules deniegan → "ese DNI ya esta vinculado". **Requiere Transaction, nunca batch plano**
+     (un `batch.set` haria last-write-wins y dejaría ficha huerfana).
+
+## Analisis de migracion de datos existentes
+
+Categorias de `clientes` en Firestore:
+| Categoria | Creacion | Tiene dni | firebaseUid | Indice |
+|---|---|---|---|---|
+| A | ADMIN alta sin vincular | si | null | necesita backfill |
+| B | ADMIN alta + Via B reclamada | si | uid | necesita backfill |
+| C | Via A (codigo maestro) | **no** | uid | incompatible, se deja intacta |
+
+- Las categorias A/B con DNI requieren backfill del indice (operacion aditiva, sin tocar
+  `clientes`); sin indice un CLIENTE nuevo con ese DNI crearía duplicado.
+- La categoria C (sin DNI) se deja intacta: ya esta vinculada, no pasa por el flujo DNI.
+- Migracion segura: script Admin SDK de una sola ejecucion con pre-vuelo (dry-run) que detecta
+  colisiones `(negocioId, dni)`, backfill con `create()` (falla ante colision en lugar de
+  sobrescribir), y verificacion `count(indices) == count(clientes con dni)`.
+
+## IMPLEMENTADO EN ESTA SESION: DRY-RUN de auditoria (sin escrituras)
+
+- **Nuevo script (NO commiteado):** `firestore-tests/auditoria_backfill_indices.cjs`.
+- Autenticacion: reutiliza la sesion del CLI Firebase
+  (`~/.config/configstore/firebase-tools.json`) + `google-auth-library` 9.15.1 ya presente en
+  `firestore-tests/node_modules` (dependencia transitiva de firebase-tools) → **sin dependencias
+  nuevas**. Requiere el `clientId`/`clientSecret` publicos del CLI Firebase
+  (`563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com` /
+  `j9iVZfS8kkCEFUPaAeJV0sAi`, en `firebase-tools/lib/api.js`) para renovar el refresh_token.
+- Consulta REST paginada (`pageSize=300`) a
+  `https://firestore.googleapis.com/v1/projects/gestorpro-50e83/databases/(default)/documents/clientes`.
+- **SOLO LECTURA**: no escribe nada en Firestore, no toca la app ni Rules.
+- Ejecucion: `node firestore-tests/auditoria_backfill_indices.cjs`.
+
+### RESULTADO DEL DRY-RUN (2026-08-27, produccion gestorpro-50e83)
+
+```
+Total clientes:                  3
+Con DNI (normalizado):           2
+Sin DNI:                         1
+Sin negocioId (total):           1
+Pares unicos (negocioId, dni):   2
+Indices necesarios:              2
+Colisiones detectadas:           0
+Clientes con inconsistencias:    1
+```
+
+- **Colisiones:** ninguna.
+- **Ficha sin DNI:** `docId=2`, `idCliente=2`, sin negocioId, `firebaseUid=Vnyht6hlR5EYJ1G0vxxl`
+  (categoria C, Via A). Se deja intacta.
+- **Fichas con DNI pero sin negocioId:** ninguna (las 2 con DNI son indexables).
+- **Inconsistencia:** solo `docId=2` (sin negocioId) — no bloquea porque no genera indice.
+- **BLOQUEOS: NINGUNO.** El backfill con `create()` por par unico (2 indices) es seguro.
+
+## Pendiente para continuar (siguiente conversacion)
+
+1. **[PENDIENTE APROBACION]** Preparar el script de **backfill real**:
+   `create(indices_clientes/{negocioId}_{dni})` para los 2 pares detectados (ADMIN o Admin SDK),
+   con pre-chequeo de inexistencia y verificacion de conteos. NO ejecutar sin confirmacion.
+2. Implementar el nuevo flujo en la app (tras decisión de G0 en conversacion previa):
+   - Pantalla CLIENTE "¿Tu gimnasio ya te ha registrado?" (codigo maestro + DNI + "No tengo codigo").
+   - `perfiles_pendientes/{uid}` (Rules nuevas: solo el propio uid, `hasOnly` datos personales).
+   - Busqueda por indice `indices_clientes/{negocioId}_{dni}` (CASO C: vincular ficha existente;
+     CASO D: crear ficha + indice + `usuarios` en Transaction).
+   - Evitar duplicados: Transaction obligatoria; la ficha de Via A actual crea ficha SIN DNI
+     (debe desactivarse o migrarse).
+   - `destinoSegunTipo()` debe llevar al CLIENTE sin `clienteId` a la pantalla de vinculacion
+     (eliminando el tramo de `EnlacePendiente`/Via B).
+3. **Rules nuevas necesarias** (proposal, NO aplicadas): `indices_clientes` (get por dni propio,
+   list false, update false, create/delete atomicos con `getAfter(clientes)`), `perfiles_pendientes`,
+   regla `update` CLIENTE de vinculacion por DNI sin depender de `vinculaciones`, tercera rama en
+   `usuarios/update`. Validar con `npm --prefix firestore-tests test` antes de publicar.
+4. **Nuevo archivo sin commitear:** `firestore-tests/auditoria_backfill_indices.cjs`.
+5. Pendientes heredados de Sesion VI (siguen abiertos): creacion de negocio PERMISSION_DENIED sin
+   resolver (hipotesis token de sesion), replica Room→Firestore bloqueada con `negocioId == null`,
+   pruebas en dispositivo, commit del fix de ruta Via B (2 archivos), limpieza `build_*.txt` y
+   `firestore-tests/firestore-debug.log`.
+
+## Comandos utiles (este PC)
+
+```powershell
+node firestore-tests/auditoria_backfill_indices.cjs          # DRY-RUN de auditoria (solo lectura)
+.\gradlew.bat assembleDebug                                  # compilar APK debug
+npm --prefix firestore-tests test                            # pruebas Rules (emulador)
+& ".\firestore-tests\node_modules\.bin\firebase.cmd" deploy --only firestore:rules
+```
+
+---
+
+---
+
+# ACTUALIZACION 2026-08-27 (SESION VIII) — IMPLEMENTACION COMPLETA: DOS APLICACIONES (ADMIN + CLIENTE)
+
+> Bloque vigente. Se implementa la arquitectura definitiva de DOS aplicaciones
+> independientes sobre el mismo Firebase (`gestorpro-50e83`). **Vía B / deep link
+> DESCARTADA definitivamente** (sin `vinculaciones`, sin `codigoVinculacion`,
+> sin `EnlacePendiente`). Sesiones anteriores quedan como historico.
+
+## Decisiones de arquitectura confirmadas
+
+- **Dos módulos en el mismo proyecto Gradle:** `:app` = GestorPro Admin, `:appCliente` = GestorPro Cliente.
+- `appCliente` package `com.roberto.gestorpro.cliente`, `applicationId com.roberto.gestorpro.cliente`.
+- `google-services.json` del Cliente colocado en `appCliente/google-services.json` (registrado en la
+  consola Firebase como Android app con ese paquete); el plugin se aplica de forma incondicional
+  (igual que `:app`).
+- La app Cliente NO usa Room ni Gson: fuente de verdad = Firestore; solo DataStore para preferencias.
+- `observaciones` vive en `clientes_privados/{idCliente}` (solo ADMIN); el CLIENTE no puede leerlo.
+- `indices_clientes/{negocioId}_{dni}` garantiza unicidad negocio+DNI.
+- `perfiles_pendientes/{uid}` guarda el perfil temporal del CLIENTE sin negocio.
+
+## Implementado
+
+### Firestore Rules (`firestore.rules`) — REESCRITAS
+- Colecciones nuevas: `indices_clientes` (get por dni propio / admin, list false, update false,
+  create/delete atómicos), `perfiles_pendientes` (solo uid propio), `clientes_privados` (solo ADMIN).
+- VÍA 1: `vinculacionDniValida()` — vincula el UID a una ficha existente libre (firebaseUid null).
+- VÍA 2: `creacionDirectaValida()` — crea ficha + índice + usuarios en la misma Transaction.
+- `clientes/update` CLIENTE: solo `nombre, apellidos, telefono, email, foto, fechaNacimiento`;
+  DNI, negocioId, firebaseUid, estado, servicios, fechas admin y tieneLlave bloqueados.
+- ADMIN edita el DNI manteniendo el índice atómico (borra viejo + crea nuevo en el mismo Batch).
+- Eliminada la colección `vinculaciones` y todas las funciones de Vía B.
+
+### Tests de Rules (`firestore-tests/firestore.rules.test.cjs`) — REESCRITOS
+- 16 pruebas: VÍA 1, VÍA 2, índices, perfiles pendientes, clientes_privados, edición personal
+  del CLIENTE, cambio de DNI por el ADMIN, concurrencia, aislamiento por negocio.
+- **16/16 OK** (`npm --prefix firestore-tests test`).
+
+### App Admin (`:app`) — adaptada a Admin-only
+- `ClienteRemotoRepository`: réplica en Batch `clientes` + `indices_clientes` + `clientes_privados`;
+  al cambiar el DNI mantiene el índice (delete viejo + create nuevo). `dniAnterior` pasado por
+  `ClienteViewModel.actualizarCliente`.
+- Eliminados: `VincularClienteScreen`, `EnlaceVinculacionScreen`, `MiPerfilScreen`,
+  `HomeClienteScreen`, `SeleccionTipoUsuarioScreen`, `VinculacionRepository`, `EnlacePendiente`,
+  deep link del Manifest y `MainActivity`. `AñadirClienteScreen` sin `modoRegistroCliente`.
+- `MainViewModel`: rol ADMIN fijo, sin vinculación. `CuentaScreen` sin "cambiar tipo de usuario".
+- **BUILD SUCCESSFUL** (`:app:assembleDebug`).
+
+### App Cliente (`:appCliente`) — módulo nuevo
+- Paquetes: `com.roberto.gestorpro.cliente`. Flujo: Login/Registro/Recuperar → Inicio
+  ("¿Tu gimnasio ya te ha registrado?" código+DNI / "No tengo código") → CompletarPerfil (VÍA 2)
+  → vinculación por Transaction (VÍA 1 o VÍA 2) → Home → Mi perfil / Editar / Cuenta.
+- Repositorios: `AutenticacionRepository` (con `esperar()`), `NegocioRepository` (código maestro),
+  `PerfilPendienteRepository`, `ClienteRepository` (ficha + edición personal),
+  `VinculacionRepository` (VÍA 1 y VÍA 2 con Transactions y manejo de colisión).
+- `MainViewModel` orquesta el flujo; DataStore guarda idCliente/negocioId/dni pendiente.
+- `google-services.json` colocado; plugin incondicional. **BUILD SUCCESSFUL** (`:appCliente:assembleDebug`).
+
+### Configuración para Android Studio
+- `settings.gradle.kts` incluye `:app` y `:appCliente`.
+- `.idea/gradle.xml` añade `$PROJECT_DIR$/appCliente` a los módulos vinculados.
+- `appCliente/build.gradle.kts`: plugin google-services incondicional (igual que `:app`),
+  `applicationId com.roberto.gestorpro.cliente`, minSdk 26, targetSdk 36, Compose + Hilt + Firebase BOM.
+
+## Verificación
+- `.\gradlew.bat assembleDebug` → **BUILD SUCCESSFUL** (`:app` y `:appCliente`).
+- `npm --prefix firestore-tests test` → **16/16 OK**.
+- Sin commits (working tree listo para revisión).
+
+## Pendiente para continuar (siguiente conversacion)
+1. **Desplegar las Rules** en producción (`firebase deploy --only firestore:rules`) tras aprobación.
+2. **Backfill de `indices_clientes`** (2 índices detectados en el DRY-RUN; script listo; NO ejecutar sin aprobación).
+3. **Pruebas manuales en dispositivo:** registro y vinculación VÍA 1 y VÍA 2, edición de perfil,
+   recuperación de contraseña, y que `:app` (Admin) siga funcionando con su APK.
+4. **Verificar en Android Studio** que `:appCliente` aparece como aplicación ejecutable en el selector de Run.
+5. **Commits pendientes:** toda la sesión en working tree (dos apps, Rules, tests, docs, `.idea/gradle.xml`).
+6. Limpieza de basura versionada: `build_*.txt` en raíz y `firestore-tests/firestore-debug.log`.
+
+## Comandos utiles (este PC)
+```powershell
+.\gradlew.bat :app:assembleDebug            # compilar Admin
+.\gradlew.bat :appCliente:assembleDebug     # compilar Cliente
+npm --prefix firestore-tests test           # pruebas Rules (emulador)
+node firestore-tests/auditoria_backfill_indices.cjs   # DRY-RUN de auditoria (solo lectura)
+& ".\firestore-tests\node_modules\.bin\firebase.cmd" deploy --only firestore:rules
+```
+
+---
+
+---
+
+# ACTUALIZACION 2026-08-27 (SESION IX) — VIA 1 FUNCIONAL: DECLARACION TEMPORAL (OPCION B) + LECTURA DE FICHA (OPCION A)
+
+> Bloque vigente. Se resuelven los PERMISSION_DENIED de la VIA 1 (código maestro + DNI)
+> con dos cambios de seguridad en Rules y flujo de appCliente. Sesiones anteriores quedan
+> como historico.
+
+## Problema original (sesion de pruebas reales)
+
+- La VIA 1 fallaba con "ficha no existe" y luego "No tienes permisos". Causas encontradas:
+  1. `indices_clientes` vacío (sin backfill) y fichas antiguas con `negocioId` de otro negocio.
+  2. La regla GET de `indices_clientes` exigía `perfiles_pendientes/{uid}.dni`, pero en VIA 1 el
+     CLIENTE no tenia perfil pendiente → DENIED.
+  3. Tras permitir el indice, `transaction.get(clientes/{idCliente})` fallaba porque `clientes/get`
+     de CLIENTE exige `string(usuarioActual().clienteId) == clienteId` (y el CLIENTE aun no esta
+     vinculado, clienteId == null).
+
+## Solucion implementada
+
+### OPCION B — declaracion temporal { dni, negocioId } en perfiles_pendientes (VIA 1)
+- `PerfilPendienteRepository.guardarDeclaracion(uid, dni, negocioId)` escribe `perfiles_pendientes/{uid}`
+  = `{ dni, negocioId }` ANTES de consultar el indice. NO es un perfil ficticio: es el dato que el
+  CLIENTE introduce en el momento de la vinculacion. Se borra al terminar (exito o rechazo).
+- `VinculacionRepository.vincularConCodigoYDNI`: resuelve negocioId → guardarDeclaracion →
+  localizar indice → VIA 1 (vincular) o VIA 2 (crear ficha) → borrar perfiles_pendientes en todos los casos.
+- `MainViewModel.vincularConCodigoYDNI`: limpia estado local `_perfilPendiente` y borra el perfil remoto
+  tambien en caso de error.
+- Rules: `perfiles_pendientes` create/update admite DOS modos:
+  - VIA 1: `{ dni, negocioId }`
+  - VIA 2: perfil completo `{ nombre, apellidos, dni, telefono, email, foto, fechaNacimiento }`
+  (hasOnly = union de ambos; `dni is string`).
+- Rules: GET de `indices_clientes` exige que el indice coincida con la declaracion en AMBOS campos:
+  `get(perfiles_pendientes/{uid}).data.dni == resource.data.dni`
+  `get(perfiles_pendientes/{uid}).data.negocioId == resource.data.negocioId`.
+  Mantiene `list: false`, `resource == null` y el acceso ADMIN.
+
+### OPCION A — lectura de la ficha por el CLIENTE no vinculado (VIA 1)
+- Nueva regla `clientes/get` (tercera allow get):
+  - `esCliente() && usuarioActual().clienteId == null && usuarioActual().negocioId == null`
+  - `exists(perfiles_pendientes/{uid})` y `perfiles.dni == resource.data.dni`
+  - `perfiles.negocioId == resource.data.negocioId`
+  - `string(resource.data.idCliente) == clienteId` (documentId coherente).
+- Permite que `transaction.get(clientes/{idCliente})` de la Transaction de vinculacion funcione
+  para un CLIENTE aun sin vincular, sin permitir enumerar ni leer fichas de otros.
+- La regla de CLIENTE ya vinculado queda intacta.
+- NOTA transaction.get: el `get` dentro de una Transaction SI se evalúa contra las reglas de lectura;
+  con la regla VIA 1 ya pasa. El `update` de clientes se valida con `vinculacionDniValida()` (usa
+  get/getAfter de servidor, no sujetos a reglas de lectura).
+
+## Tests de Rules
+- Reescritos/ampliados a **18 pruebas** (`npm --prefix firestore-tests test` → 18/18 OK).
+- PRUEBA 6 adaptada: el CLIENTE declara `{ dni, negocioId }`; get del propio indice ALLOW, de otro
+  DNI/negocio DENY, list DENY.
+- PRUEBA 17 nueva (indice VIA 1): declaracion valida ALLOW; DNI distinto DENY; negocioId distinto
+  DENY; indice de otro negocio DENY; list DENY; cambio de declaracion; delete del perfil ALLOW.
+- PRUEBA 18 nueva (lectura ficha VIA 1): declaracion correcta ALLOW; ficha de otro DNI DENY; ficha
+  de otro negocio DENY; CLIENTE vinculado leyendo ficha ajena DENY; CLIENTE sin perfil pendiente
+  DENY; list DENY; CLIENTE vinculado lee solo su ficha (ALLOW propia / DENY ajena).
+
+## Deploys realizados en gestorpro-50e83
+- Rules Opcion B: ruleset verificado idéntico al local (28291 bytes) — deploy OK.
+- Rules Opcion B + A: ruleset `545ae672...` verificado idéntico al local (29617 bytes) — deploy OK.
+- Ficha real creada y vinculable: `clientes/22` (Luna, dni 12345678X, negocioId aSiZI8...),
+  con su indice y clientes_privados.
+
+## Verificacion
+- `npm --prefix firestore-tests test` → **18/18 OK**.
+- Admin `:app` replica correctamente (clientes/22 + indice + clientes_privados) cuando la sesion
+  es el ADMIN real (logout+login con su email; el login de Admin no valida rol → riesgo documentado).
+- Sin commits (working tree listo).
+
+## Pendiente para continuar (siguiente conversacion)
+1. **Prueba manual en dispositivo de VIA 1** con las Rules B+A desplegadas: código 123456 + DNI
+   de clientes/22 → debe vincular y mostrar "Te has vinculado a la ficha de tu gimnasio".
+2. **Prueba manual VIA 2** (cliente sin código → completar perfil → crear ficha).
+3. **Endurecer app Admin:** login/arranque deben validar `rol == "ADMIN"` (hoy el login solo exige
+   doc existente + activo; una cuenta CLIENTE o sin doc puede entrar a HOME y replicar a ciegas).
+4. **Backfill de `indices_clientes`** para fichas existentes con DNI (DRY-RUN: 2 indices; ficha
+   `clientes/1` pertenece a negocio `7X1KyM8...` sin `negocios_publicos` vigente → decisión aparte).
+5. **Commits pendientes:** toda la sesión en working tree sin commitear (Rules, tests, apps, docs).
+6. Limpieza de basura versionada: `build_*.txt` en raíz y `firestore-tests/firestore-debug.log`.
+
+## Comandos utiles (este PC)
+```powershell
+.\gradlew.bat :app:assembleDebug            # compilar Admin
+.\gradlew.bat :appCliente:assembleDebug     # compilar Cliente
+npm --prefix firestore-tests test           # pruebas Rules (emulador) — 18/18
+node firestore-tests/auditoria_backfill_indices.cjs   # DRY-RUN de auditoria (solo lectura)
+& ".\firestore-tests\node_modules\.bin\firebase.cmd" deploy --only firestore:rules
+```

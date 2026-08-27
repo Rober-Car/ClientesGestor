@@ -55,23 +55,27 @@ Estas reglas se aplican al trabajo de agentes de IA sobre GestorPro.
 - No tratar Firestore como una base de datos SQL: las colecciones no tienen un esquema rígido y las Security Rules no son filtros posteriores.
 - Toda consulta debe incluir los filtros necesarios para que Firestore pueda demostrar que todos los documentos cumplen las Rules.
 - No añadir accesos a una colección sin revisar primero `firestore.rules`.
-- No publicar o sustituir Security Rules sin revisar el cambio y ejecutar la matriz de pruebas acordada.
+- No publicar o sustituir Security Rules sin revisar el cambio y ejecutar la matriz de pruebas acordada (`npm --prefix firestore-tests test`).
 - Usar Batch o Transaction cuando una regla dependa de `getAfter()`.
 - La creación de un negocio debe vincular en la misma operación el negocio, `negocios_publicos/{id}` y `usuarios/{uid}.negocioId`.
-- La vinculación de un cliente se realiza por dos vías:
-  - **Vía A (código maestro):** Transaction genera `idCliente` como entero aleatorio en rango `Int` con verificación de existencia y reintento, crea `clientes/{idCliente}` ligado al UID y actualiza `usuarios/{uid}`. Sin `vinculaciones/{codigo}` y sin escritura del CLIENTE sobre `negocios`. Validar con `creacionDirectaValida()`.
-  - **Vía B (enlace individual):** ADMIN replica la ficha (`firebaseUid: null`) y asigna el token con Batch atómico ficha↔`vinculaciones/{token}` (`asignacionTokenValida()`); CLIENTE reclama con batch de 3 updates validado por `vinculacionValidaParaConsumo()`.
-- El token individual se genera con SecureRandom (≥20 alfanuméricos), no contiene idCliente, expira en 7 días, es de uso único, revocable (`revocacionTokenValida()` + `!existsAfter`) y regenerable.
+- La alta/vinculación de un cliente se realiza por dos vías, **sin `vinculaciones` ni deep links (Vía B descartada)**:
+  - **VÍA 1 (ADMIN crea primero):** el ADMIN replica la ficha y en el mismo Batch crea `indices_clientes/{negocioId}_{dni}`. El CLIENTE, al introducir código maestro + DNI, escribe primero una **declaración temporal** en `perfiles_pendientes/{uid}` = `{ dni, negocioId }` (NO un perfil ficticio) y después localiza la ficha por el índice y la vincula con una Transaction que escribe `clientes/{idCliente}.firebaseUid` y actualiza `usuarios/{uid}`. Validar con `vinculacionDniValida()` y con la regla `clientes/get` VÍA 1 (permite al CLIENTE sin vínculo leer solo la ficha declarada). Se borra `perfiles_pendientes/{uid}` al terminar (éxito o rechazo). No se crea segunda ficha.
+  - **VÍA 2 (CLIENTE crea primero):** el CLIENTE guarda su perfil completo en `perfiles_pendientes/{uid}` y, al introducir código maestro + DNI, la Transaction crea `clientes/{idCliente}` + `indices_clientes/{negocioId}_{dni}` + `usuarios/{uid}` y borra el perfil pendiente. Validar con `creacionDirectaValida()`. Si el índice ya existe, se vincula a la ficha existente (VÍA 1); si ya tiene UID, se rechaza.
+- `perfiles_pendientes/{uid}` admite DOS modos: VÍA 1 (declaración `{ dni, negocioId }`) y VÍA 2 (perfil completo con nombre, apellidos, dni, telefono, email, foto, fechaNacimiento). Solo el propio uid puede gestionarlo; `list` prohibido. Se borra siempre al terminar la vinculación.
+- La unicidad de ficha por negocio+DNI está garantizada por el documentId determinista de `indices_clientes/{negocioId}_{dni}`; la Transaction sobre el índice serializa la concurrencia. `update` del índice prohibido; `delete` solo ADMIN al cambiar el DNI (Batch atómico: borra el viejo y crea el nuevo).
+- El DNI identifica la ficha dentro del negocio y el CLIENTE **nunca** puede modificarlo; solo el ADMIN puede cambiarlo manteniendo el índice atómico.
+- `observaciones` vive en `clientes_privados/{idCliente}` (solo ADMIN); el CLIENTE no puede leerlo ni modificarlo.
 - El mismo `idCliente: Int` se comparte entre Room y Firestore; la réplica es write-through sin cola offline: si falla no se revierte lo local, se informa y se ofrece reintento manual. No borrar clientes remotos: baja lógica.
 - Los estados remotos de cliente son exactamente `ACTIVO`, `BAJA`, `ARCHIVADO`, `REGISTRADO` (nombres del enum Room); MOROSO nunca se almacena.
-- Un código de vinculación es de uso único, tiene `fechaExpiracion`, y puede ser revocado por el ADMIN.
 - Un CLIENTE solo puede vincularse una vez (`usuarios/{uid}` exige `clienteId == null` y `negocioId == null`).
 - El código maestro del negocio es independiente de las vinculaciones individuales; cambiarlo no afecta a clientes ya vinculados.
 - `negocios_publicos/{id}` permite `get/list` a cualquier autenticado; `create/update` solo el ADMIN del negocio.
+- `indices_clientes` solo permite `get` al ADMIN de su negocio o al CLIENTE cuyo `perfiles_pendientes/{uid}` declara exactamente el `dni` Y el `negocioId` del índice; `list` prohibido (evita enumerar DNI). Para que la Transaction de VÍA 1 funcione, `clientes/get` debe permitir al CLIENTE sin vínculo leer la ficha declarada.
+- `perfiles_pendientes/{uid}` solo lo gestiona su propio uid; `list` prohibido.
 - Una reserva de cliente debe comprobar la sesión referenciada por `sesionId`, su `negocioId` y la autorización del UID en `clientesPermitidos`.
 - Las solicitudes remotas solo usan `ALTA` y `BAJA`; no usar `CLASE` para solicitar una plaza.
 - La recuperación de contraseña usa exclusivamente `FirebaseAuth.sendPasswordResetEmail`, con mensaje de éxito genérico (no revelar si el email existe) y validación de email antes de llamar a Firebase.
-- Las rutas con parámetros de query se construyen sustituyendo el placeholder (`Routes.VINCULAR_CLIENTE.replace("{codigo}", token)`); nunca concatenando un segundo `?param=` a una ruta que ya lo contiene.
+- No reintroducir la Vía B: sin `vinculaciones`, sin `codigoVinculacion`, sin deep links ni `EnlacePendiente`.
 - No usar identificadores reales, UIDs, códigos de vinculación ni datos de prueba concretos en documentación versionada; usar placeholders.
 
 ## 8. Advertencias técnicas
@@ -101,7 +105,8 @@ Cuando se modifique una zona que contiene una de estas advertencias, preferir un
 - Leer el error completo antes de proponer una solución.
 - Distinguir entre error de compilación, configuración, datos y arquitectura.
 - No proponer más de dos soluciones alternativas consecutivas sin pedir más contexto.
-- Tras cambios Kotlin o Gradle, ejecutar la verificación más adecuada, normalmente `.\gradlew.bat assembleDebug` desde la raíz del proyecto.
+- Tras cambios Kotlin o Gradle, ejecutar la verificación más adecuada: `.\gradlew.bat :app:assembleDebug` (Admin), `.\gradlew.bat :appCliente:assembleDebug` (Cliente) o `.\gradlew.bat assembleDebug` (ambos) desde la raíz del proyecto.
+- Tras cambios en `firestore.rules`, ejecutar `npm --prefix firestore-tests test` (16 pruebas en el emulador) antes de desplegar.
 - Informar de los errores de compilación o verificaciones que no se hayan podido ejecutar.
 
 ## 11. Tests

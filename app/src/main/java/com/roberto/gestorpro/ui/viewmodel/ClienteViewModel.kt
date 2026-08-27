@@ -220,14 +220,18 @@ class ClienteViewModel @Inject constructor(
      * Sirve para mantener el espejo remoto sin revertir nunca el cambio
      * local: si falla, deja el estado preparado para el reintento manual.
      */
-    private suspend fun replicar(entidad: ClienteEntity, esAlta: Boolean) {
+    private suspend fun replicar(
+        entidad: ClienteEntity,
+        esAlta: Boolean,
+        dniAnterior: String? = null
+    ) {
         _errorSincronizacion.value = null
         _clienteSinSincronizar.value = null
 
         val resultado = if (esAlta) {
             clienteRemotoRepository.crearClienteRemoto(entidad)
         } else {
-            clienteRemotoRepository.actualizarClienteRemoto(entidad)
+            clienteRemotoRepository.actualizarClienteRemoto(entidad, dniAnterior)
         }
 
         if (resultado.exito) {
@@ -283,9 +287,14 @@ class ClienteViewModel @Inject constructor(
                 return@launch
             }
 
+            // DNI previo para mantener atómico el índice negocio+DNI en Firestore
+            // (si el ADMIN cambia el DNI, el índice viejo se borra y el nuevo nace
+            // en el mismo Batch que la réplica).
+            val dniAnterior = clienteRepository.obtenerClientePorIdRepo(cliente.idCliente)?.dni
+
             try {
                 clienteRepository.actualizarClienteRepo(cliente)
-                replicar(cliente, esAlta = false)
+                replicar(cliente, esAlta = false, dniAnterior = dniAnterior)
                 onExito()
             } catch (e: SQLiteConstraintException) {
                 _error.value = "El DNI ya está registrado"
