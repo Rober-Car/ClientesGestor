@@ -285,6 +285,50 @@ class MainViewModel @Inject constructor(
     }
 
     /**
+     * sincronizarNombreNegocio
+     * ------------------------
+     * Guarda el nombre del negocio en DataStore (identidad local/offline) y lo
+     * sincroniza en Firestore (negocios/{id} y negocios_publicos/{id} en el
+     * mismo Batch). Devuelve el error o null si se sincronizó correctamente.
+     * Es el método que usa MiNegocioScreen cuando el negocio ya existe en la
+     * nube, para que la app Cliente vea el nuevo nombre.
+     */
+    suspend fun sincronizarNombreNegocio(nombre: String): String? {
+        if (nombre.isBlank()) return "El nombre del negocio no puede estar vacío"
+
+        _operandoRemoto.value = true
+        try {
+            preferencesRepository.setNombreNegocio(nombre.trim())
+            val resultado = negocioRepository.guardarNombreNegocio(nombre.trim())
+            return if (resultado.exito) null else resultado.mensaje
+        } finally {
+            _operandoRemoto.value = false
+        }
+    }
+
+    /**
+     * sincronizarLogoNegocio
+     * ----------------------
+     * Sube el logo local a Firebase Storage, guarda la URL remota en Firestore
+     * (negocios/{id} y negocios_publicos/{id}) y actualiza DataStore como caché.
+     * Si la subida o el Batch fallan, NO se borra el logo local y se devuelve el
+     * error para que la UI lo muestre sin dar la operación por exitosa.
+     */
+    suspend fun sincronizarLogoNegocio(rutaLocal: String): String? {
+        if (rutaLocal.isBlank()) return "No hay logo para subir"
+
+        _operandoRemoto.value = true
+        try {
+            val resultado = negocioRepository.guardarLogoRemoto(rutaLocal)
+            if (!resultado.exito) return resultado.mensaje
+            preferencesRepository.setLogoNegocio(resultado.url ?: rutaLocal)
+            return null
+        } finally {
+            _operandoRemoto.value = false
+        }
+    }
+
+    /**
      * guardarLogoNegocio
      * ------------------
      * Guarda la ruta del logo del negocio en DataStore.

@@ -147,7 +147,7 @@ fun InicioScreen(
                         val error = mainViewModel.vincularConCodigoYDNI(codigo, dni)
                         if (error == null) {
                             navController.navigate(Routes.HOME) {
-                                popUpTo(Routes.INICIO) { inclusive = true }
+                                popUpTo(0) { inclusive = true }
                             }
                         } else {
                             mensajeError = error
@@ -168,7 +168,7 @@ fun InicioScreen(
                 enabled = !operandoRemoto,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("No tengo código")
+                Text("No tengo vinculación")
             }
 
             if (operandoRemoto) {

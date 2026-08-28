@@ -31,10 +31,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -51,7 +52,11 @@ import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
 import com.roberto.gestorpro.cliente.data.firebase.PerfilPendiente
 import com.roberto.gestorpro.cliente.navigation.Routes
+import com.roberto.gestorpro.cliente.ui.components.BotonSelectorFoto
+import com.roberto.gestorpro.cliente.ui.utils.crearFotoTemporal
 import com.roberto.gestorpro.cliente.ui.utils.guardaFotoEnInterna
+import com.roberto.gestorpro.cliente.ui.utils.guardarFotoDeCamara
+import com.roberto.gestorpro.cliente.ui.utils.uriDeFotoTemporal
 import com.roberto.gestorpro.cliente.ui.viewmodel.MainViewModel
 import java.io.File
 import kotlinx.coroutines.launch
@@ -69,6 +74,7 @@ fun CompletarPerfilScreen(
     mainViewModel: MainViewModel = hiltViewModel()
 ) {
     val operandoRemoto by mainViewModel.operandoRemoto.collectAsStateWithLifecycle()
+    val perfilPendiente by mainViewModel.perfilPendiente.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     var nombre by rememberSaveable { mutableStateOf("") }
@@ -79,7 +85,29 @@ fun CompletarPerfilScreen(
     var fechaNacimiento by rememberSaveable { mutableStateOf("") }
     var foto by rememberSaveable { mutableStateOf("") }
     var mensajeError by rememberSaveable { mutableStateOf("") }
+    var fotoTemporal by remember { mutableStateOf<File?>(null) }
     val scope = rememberCoroutineScope()
+
+    // Carga el perfil pendiente existente (perfiles_pendientes/{uid}) para que
+    // los campos aparezcan rellenados si el usuario ya los completó antes.
+    LaunchedEffect(Unit) {
+        mainViewModel.cargarPerfilPendiente()
+    }
+
+    // Prefill: solo rellena los campos que siguen vacíos (respeta lo que el
+    // usuario esté tecleando en esta sesión).
+    LaunchedEffect(perfilPendiente) {
+        val p = perfilPendiente ?: return@LaunchedEffect
+        if (nombre.isBlank()) nombre = p.nombre
+        if (apellidos.isBlank()) apellidos = p.apellidos
+        if (dni.isBlank()) dni = p.dni
+        if (telefono.isBlank()) telefono = p.telefono
+        if (email.isBlank()) email = p.email ?: ""
+        if (foto.isBlank()) foto = p.foto
+        if (fechaNacimiento.isBlank() && p.fechaNacimiento > 0L) {
+            fechaNacimiento = formatearFechaCompletarPerfil(p.fechaNacimiento)
+        }
+    }
 
     val launcherFoto = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
@@ -88,6 +116,16 @@ fun CompletarPerfilScreen(
             val ruta = guardaFotoEnInterna(context, uri)
             if (ruta != null) foto = ruta
         }
+    }
+
+    val launcherTomarFoto = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { resultado ->
+        if (resultado) {
+            val ruta = guardarFotoDeCamara(context, fotoTemporal)
+            if (ruta != null) foto = ruta
+        }
+        fotoTemporal = null
     }
 
     Scaffold(
@@ -110,6 +148,7 @@ fun CompletarPerfilScreen(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Volver",
+                        tint = Color(0xFF1E88E5),
                         modifier = Modifier.size(30.dp)
                     )
                 }
@@ -156,17 +195,23 @@ fun CompletarPerfilScreen(
                     )
                 }
                 Spacer(modifier = Modifier.width(16.dp))
-                TextButton(
-                    onClick = {
+                BotonSelectorFoto(
+                    tieneFoto = foto.isNotBlank(),
+                    onElegirGaleria = {
                         launcherFoto.launch(
                             PickVisualMediaRequest(
                                 ActivityResultContracts.PickVisualMedia.ImageOnly
                             )
                         )
+                    },
+                    onHacerFoto = {
+                        val temporal = crearFotoTemporal(context)
+                        if (temporal != null) {
+                            fotoTemporal = temporal
+                            launcherTomarFoto.launch(uriDeFotoTemporal(context, temporal))
+                        }
                     }
-                ) {
-                    Text(if (foto.isNotBlank()) "Cambiar foto" else "Elegir foto")
-                }
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -274,7 +319,12 @@ fun CompletarPerfilScreen(
                         if (error != null) {
                             mensajeError = error
                         } else {
-                            navController.popBackStack()
+                            // El perfil queda guardado en perfiles_pendientes/{uid};
+                            // el cliente NO está vinculado todavía. Se va al Home
+                            // sin vincular (sin buscar ficha ni ejecutar vinculación).
+                            navController.navigate(Routes.HOME) {
+                                popUpTo(0) { inclusive = true }
+                            }
                         }
                     }
                 },
@@ -291,5 +341,22 @@ fun CompletarPerfilScreen(
                 CircularProgressIndicator(modifier = Modifier.size(24.dp))
             }
         }
+    }
+}
+
+/**
+ * formatearFechaCompletarPerfil
+ * -----------------------------
+ * Convierte los milisegundos del perfil pendiente a texto dd/MM/aaaa para
+ * rellenar el campo de fecha al reabrir la pantalla.
+ */
+private fun formatearFechaCompletarPerfil(millis: Long): String {
+    return try {
+        java.time.Instant.ofEpochMilli(millis)
+            .atZone(java.time.ZoneId.systemDefault())
+            .toLocalDate()
+            .format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+    } catch (_: Exception) {
+        ""
     }
 }

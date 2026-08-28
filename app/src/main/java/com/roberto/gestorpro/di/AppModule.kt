@@ -14,6 +14,7 @@ import com.roberto.gestorpro.data.dao.SolicitudDao
 import com.roberto.gestorpro.data.database.ClientesDatabase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.storage.FirebaseStorage
 import com.roberto.gestorpro.data.repository.PreferencesRepository
 import com.roberto.gestorpro.data.repository.ClaseRepository
 import com.roberto.gestorpro.data.repository.ClienteRepository
@@ -92,6 +93,19 @@ object AppModule {
     @Singleton
     fun provideFirebaseFirestore(): FirebaseFirestore {
         return FirebaseFirestore.getInstance()
+    }
+
+    /**
+     * provideFirebaseStorage
+     * ----------------------
+     * ✔ TIPO: método (fun) de Hilt con anotación @Provides y @Singleton → FirebaseStorage
+     * Es la receta que proporciona la instancia única de Firebase Storage.
+     * Sirve para que el repositorio de negocio suba el logo del gimnasio.
+     */
+    @Provides
+    @Singleton
+    fun provideFirebaseStorage(): FirebaseStorage {
+        return FirebaseStorage.getInstance()
     }
 
     /**

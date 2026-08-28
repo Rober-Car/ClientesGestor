@@ -17,12 +17,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.roberto.gestorpro.cliente.ui.auth.CuentaScreen
 import com.roberto.gestorpro.cliente.ui.auth.CompletarPerfilScreen
+import com.roberto.gestorpro.cliente.ui.configuracion.ConfiguracionScreen
 import com.roberto.gestorpro.cliente.ui.auth.EditarPerfilScreen
 import com.roberto.gestorpro.cliente.ui.auth.InicioScreen
 import com.roberto.gestorpro.cliente.ui.auth.LoginScreen
 import com.roberto.gestorpro.cliente.ui.auth.MiPerfilScreen
 import com.roberto.gestorpro.cliente.ui.auth.RecuperarPasswordScreen
 import com.roberto.gestorpro.cliente.ui.auth.RegistroScreen
+import com.roberto.gestorpro.cliente.ui.home.ClasesScreen
 import com.roberto.gestorpro.cliente.ui.home.HomeScreen
 import com.roberto.gestorpro.cliente.ui.viewmodel.MainViewModel
 
@@ -84,6 +86,10 @@ fun AppNavigation() {
             HomeScreen(navController)
         }
 
+        composable(Routes.CLASES) {
+            ClasesScreen(navController)
+        }
+
         composable(Routes.MI_PERFIL) {
             MiPerfilScreen(navController)
         }
@@ -94,6 +100,10 @@ fun AppNavigation() {
 
         composable(Routes.CUENTA) {
             CuentaScreen(navController)
+        }
+
+        composable(Routes.CONFIGURACION) {
+            ConfiguracionScreen(navController)
         }
     }
 }

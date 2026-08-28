@@ -43,6 +43,9 @@ Las versiones oficiales del proyecto están en `gradle/libs.versions.toml`.
 | Imágenes | Coil Compose | 3.3.0 |
 | Serialización auxiliar (solo Admin) | Gson | 2.11.0 |
 | Backend | Firebase Authentication + Firestore | Firebase BOM 34.16.0 |
+| Almacenamiento de imágenes (solo Admin) | Firebase Storage | Firebase BOM 34.16.0 |
+
+- `firebase-storage` está registrado en el catálogo (`libs.firebase.storage`) y se aplica **solo en `:app`** (el Cliente carga las URLs por HTTP con Coil, sin SDK de Storage).
 
 Reglas relacionadas con dependencias:
 
@@ -124,11 +127,12 @@ appCliente/                              -> GestorPro Cliente
     ├── di/AppModule.kt                  -> dependencias de Hilt
     └── ui/
         ├── auth/                        -> login, registro, recuperar, inicio código+DNI,
-        │                                   completar perfil, mi perfil, editar perfil, cuenta
-        ├── components/                  -> MenuCard
-        ├── home/                        -> inicio del cliente
+        │                                   completar perfil, mi perfil, editar perfil, cuenta,
+        │                                   configuración
+        ├── components/                  -> MenuCard, BotonSelectorFoto
+        ├── home/                        -> HomeScreen y ClasesScreen (placeholder sin Firestore)
         ├── theme/                       -> tema, colores y tipografía
-        ├── utils/                       -> FotoUtils
+        ├── utils/                       -> FotoUtils (galería + cámara)
         └── viewmodel/                   -> MainViewModel
 ```
 
@@ -142,18 +146,23 @@ appCliente/                              -> GestorPro Cliente
 - Cambio de DNI de un cliente manteniendo el índice atómico (borra el viejo y crea el nuevo en el mismo Batch).
 - Gestión de clases, sesiones y reservas.
 - Gestión de movimientos, cuotas y gastos.
-- Configuración del negocio, logo, tema, cuenta y datos.
+- Configuración del negocio, nombre, logo, tema, cuenta y datos.
+- Subida del logo del negocio a Firebase Storage (`negocios/{negocioId}/logo.jpg`) y guardado de su URL en `negocios` + `negocios_publicos` (mismo WriteBatch).
 - Selección de foto de perfil desde galería o cámara.
 
 ### GestorPro Cliente
 - Registro/login/logout reales con Firebase Authentication (rol `CLIENTE` fijo).
 - Recuperación de contraseña (solo `FirebaseAuth.sendPasswordResetEmail`).
-- Pantalla inicial "¿Tu gimnasio ya te ha registrado?" con código maestro + DNI.
-- **VÍA 1:** vincular el UID a una ficha existente creada por el ADMIN (sin crear duplicados).
-- **VÍA 2:** guardar perfil pendiente (`perfiles_pendientes/{uid}`) y crear la ficha + índice al introducir código maestro + DNI (si no existe).
-- Ver y editar solo los datos personales de la propia ficha (nombre, apellidos, teléfono, email, foto, fecha de nacimiento).
+- Pantalla inicial "¿Tu gimnasio ya te ha registrado?" con la opción **"No tengo vinculación"**.
+- **Sin vínculo:** el CLIENTE puede completar su perfil (`perfiles_pendientes/{uid}`), entrar al **Home sin vincular** (aviso visible) y navegar (Mi perfil, Clases placeholder, Mi cuenta, Configuración) sin consultar Firestore para clases.
+- **Vincular con mi gimnasio** (código maestro + DNI) desde el Home:
+  - **VÍA 1:** vincular el UID a una ficha existente creada por el ADMIN (sin crear duplicados).
+  - **VÍA 2:** si `indices_clientes/{negocioId}_{dni}` NO existe, crear la ficha con los datos de `perfiles_pendientes/{uid}` + índice + `usuarios/{uid}` en la misma Transaction. **NO es un error** que el índice no exista.
+- Ver y editar los datos personales: sin vínculo se lee/escribe `perfiles_pendientes/{uid}` (el **DNI es editable**); vinculado se lee/escribe `clientes/{idCliente}` y el **DNI queda bloqueado**.
+- El perfil pendiente se borra **solo cuando la vinculación se completa con éxito** (nunca ante errores).
 - Nunca muestra ni edita `observaciones` ni datos administrativos.
-- Persistencia local solo con DataStore.
+- Persistencia local solo con DataStore (caché; la fuente de verdad remota es Firestore, incluidos `negocios_publicos/{id}` para nombre y logo).
+- Refresco de datos públicos del negocio al arrancar con sesión restaurada (`cargarEstadoLocal()` en `destinoInicial()`); si no hay conexión se conserva la caché.
 
 ## Contrato remoto de Firestore
 
@@ -195,6 +204,8 @@ Estructura clave de documentos:
 
 ```text
 usuarios/{uid} = { rol, activo, clienteId, negocioId }
+negocios/{negocioId} = { adminUid, nombre, codigoMaestro, logo }
+negocios_publicos/{negocioId} = { nombre, codigoMaestro, logo }
 clientes/{idCliente} = { idCliente, negocioId, firebaseUid, nombre, apellidos, dni,
                          telefono, email, foto, fechaNacimiento, fechaRegistro,
                          fechaAlta, fechaBaja, estado, tieneLlave,
@@ -204,6 +215,14 @@ clientes_privados/{idCliente} = { negocioId, observaciones }
 indices_clientes/{negocioId}_{dni} = { negocioId, dni, clienteId }
 perfiles_pendientes/{uid} = VÍA 1: { dni, negocioId } | VÍA 2: { nombre, apellidos, dni, telefono, email, foto, fechaNacimiento }
 ```
+
+### Almacenamiento remoto de imágenes (Firebase Storage, solo Admin)
+
+- Ruta del logo del negocio: `negocios/{negocioId}/logo.jpg` (`negocioId` = uid del ADMIN). Al cambiar el logo se sobrescribe; no se conservan históricos.
+- **No se guarda la imagen en Firestore**: solo la URL de descarga (`logo`) en `negocios` + `negocios_publicos` (mismo WriteBatch, atómico).
+- **Bucket:** el por defecto de `google-services.json` (`project_info.storage_bucket`). **PENDIENTE en producción:** el bucket `gestorpro-50e83.firebasestorage.app` debe crearse/habilitarse en Firebase Console antes de subir el primer logo; hasta entonces la subida falla con "Object does not exist at location".
+- Reglas de Storage (`storage.rules`, versionado): lectura para cualquier usuario autenticado; escritura solo para el ADMIN propietario (`usuarios/{uid}.rol == "ADMIN" && usuarios/{uid}.negocioId == negocioId`). Un ADMIN no puede escribir el logo de otro negocio; CLIENTE y no autenticados, denegado. Resto del bucket bloqueado.
+- El Cliente descarga el logo por su URL con Coil (HTTP), sin SDK de Storage.
 
 Flujos funcionales remotos:
 
@@ -218,19 +237,21 @@ Flujos funcionales remotos:
 - **VÍA 1 — ADMIN crea primero:**
   1. ADMIN crea la ficha → réplica en un Batch: `clientes/{idCliente}` (`firebaseUid: null`, `negocioId` del ADMIN) + `indices_clientes/{negocioId}_{dni}` + `clientes_privados/{idCliente}`.
   2. CLIENTE se registra/inicia sesión → `usuarios/{uid}` con `clienteId: null`, `negocioId: null`.
-  3. Introduce código maestro + DNI → la app resuelve `negocioId` en `negocios_publicos`.
-  4. **Declaración temporal de VÍA 1:** la app escribe en `perfiles_pendientes/{uid}` únicamente `{ dni, negocioId }` (no es un perfil ficticio; es el dato introducido en el momento) para que las Rules validen el acceso al índice y a la ficha.
+  3. Desde el Home sin vincular pulsa "Vincular con mi gimnasio" e introduce código maestro + DNI → la app resuelve `negocioId` en `negocios_publicos`.
+  4. **Declaración temporal de VÍA 1:** la app escribe en `perfiles_pendientes/{uid}` únicamente `{ dni, negocioId }` (con `SetOptions.merge()`, sin destruir un perfil completo previo) para que las Rules validen el acceso al índice y a la ficha.
   5. Lee `indices_clientes/{negocioId}_{dni}` → obtiene `clienteId`.
   6. Transaction de vinculación: `clientes/{idCliente}.firebaseUid = uid` + `usuarios/{uid}` → `{clienteId, negocioId}`. **No se crea segunda ficha.**
-  7. Se borra `perfiles_pendientes/{uid}` (éxito o rechazo).
+  7. Se borra `perfiles_pendientes/{uid}` **solo al completar la vinculación con éxito**.
 - **VÍA 2 — CLIENTE crea primero:**
   1. CLIENTE se registra → `usuarios/{uid}` con `clienteId: null`, `negocioId: null`.
-  2. "No tengo código" → completa su perfil completo → `perfiles_pendientes/{uid}` (nombre, apellidos, dni, telefono, email, foto, fechaNacimiento).
-  3. Introduce código maestro + DNI:
-     - Si **no existe** `indices_clientes/{negocioId}_{dni}` → Transaction: crear `clientes/{idCliente}` con los datos del perfil + crear el índice + `usuarios/{uid}` + borrar `perfiles_pendientes/{uid}`.
+  2. "No tengo vinculación" → completa su perfil completo → `perfiles_pendientes/{uid}` (nombre, apellidos, dni, telefono, email, foto, fechaNacimiento). Se guarda y pasa directamente al **Home sin vincular** (no busca ficha ni ejecuta vinculación todavía).
+  3. Desde el Home pulsa "Vincular con mi gimnasio" e introduce código maestro + DNI:
+     - Si **no existe** `indices_clientes/{negocioId}_{dni}` → Transaction: crear `clientes/{idCliente}` con los datos del perfil + crear el índice + actualizar `usuarios/{uid}` + borrar `perfiles_pendientes/{uid}`.
      - Si **existe** y `firebaseUid == null` → vincular a la ficha existente (VÍA 1).
      - Si **existe** y `firebaseUid != null` → rechazar ("ese DNI ya está vinculado").
-- **`perfiles_pendientes/{uid}` admite DOS modos:** VÍA 1 (declaración mínima `{ dni, negocioId }`) y VÍA 2 (perfil completo). Siempre se borra al terminar la vinculación (éxito o rechazo).
+- **`perfiles_pendientes/{uid}` admite DOS modos:** VÍA 1 (declaración mínima `{ dni, negocioId }`) y VÍA 2 (perfil completo). **Solo se borra al completar la vinculación con éxito**; ante errores (falta de perfil, red, permisos, fallo intermedio) se conserva para no perder los datos del usuario.
+- **Cliente autenticado sin vínculo:** puede tener perfil pendiente y navegar por el Home sin vincular (aviso visible, Clases placeholder sin consultar Firestore). `destinoInicial`/`destinoTrasAutenticar` llevan a Home si existe ficha o perfil pendiente; a la pantalla inicial solo si no hay ninguno.
+- **DNI editable pre-vinculación:** mientras no está vinculado el CLIENTE edita su perfil en `perfiles_pendientes/{uid}` (el DNI puede cambiar). Una vez vinculado, la ficha vive en `clientes/{idCliente}` y el DNI queda bloqueado para el CLIENTE; solo el ADMIN lo cambia manteniendo el índice atómico.
 - **Unicidad:** el documentId determinista `{negocioId}_{dni}` garantiza una única ficha por negocio+DNI. La Transaction sobre el índice serializa la concurrencia.
 - Tras vincularse, el CLIENTE puede editar solo sus datos personales (`nombre`, `apellidos`, `telefono`, `email`, `foto`, `fechaNacimiento`). **No** puede modificar `dni`, `negocioId`, `firebaseUid`, `estado`, `serviciosContratados`, fechas administrativas, `tieneLlave` ni `observaciones`.
 - El `dni` solo lo cambia el ADMIN, y al hacerlo debe mantener el índice atómico (borrar el índice viejo y crear el nuevo en el mismo Batch).
@@ -250,11 +271,13 @@ Security Rules (`firestore.rules`):
 - **Índices:** `indices_clientes` se crea solo en el mismo Batch que su ficha (`indiceCreadoPorAdmin` / `indiceCreadoPorCliente`); `update` prohibido; `delete` solo ADMIN al cambiar el DNI; `list` prohibido; `get` restringido a que el **DNI y el `negocioId`** del índice coincidan con los declarados en `perfiles_pendientes/{uid}` (o ADMIN de su negocio).
 - **`perfiles_pendientes/{uid}`:** `create/get/update/delete` solo del propio uid; `hasOnly` admite DOS modos — VÍA 1 `{ dni, negocioId }` (declaración temporal) o VÍA 2 perfil completo `{ nombre, apellidos, dni, telefono, email, foto, fechaNacimiento }`; `list` prohibido.
 - **`clientes/get` CLIENTE VÍA 1 (sin vínculo):** regla adicional que permite a un CLIENTE con `clienteId == null && negocioId == null` leer **solo** la ficha cuyo `dni` y `negocioId` coinciden con su `perfiles_pendientes/{uid}` y cuyo documentId es su `idCliente`. No puede leer fichas arbitrarias, de otros negocios, de otros DNIs ni enumerar (`list` solo ADMIN). Imprescindible para que `transaction.get(clientes/{idCliente})` de la vinculación funcione.
+- **`clientes/get` CLIENTE VÍA 2 (`resource == null`):** regla adicional que permite a un CLIENTE sin vínculo con perfil pendiente leer un documento **inexistente** (`resource == null`), necesaria para que la Transaction de VÍA 2 compruebe que `clientes/{idCliente}` aún no existe. No permite leer los datos de fichas existentes de otros.
 - **`clientes_privados/{idCliente}`:** solo el ADMIN del negocio puede leer/crear/actualizar; `delete` prohibido.
 - **`clientes`:** el CLIENTE solo puede leer su propia ficha (`firebaseUid == uid`) y editar solo sus campos personales; `list` solo ADMIN.
 - Un CLIENTE solo puede vincularse una vez (`usuarios/{uid}` exige `clienteId == null` y `negocioId == null`).
-- `negocios_publicos/{id}` permite `get/list` a cualquier autenticado; `create/update` solo el ADMIN del negocio.
+- `negocios_publicos/{id}` permite `get/list` a cualquier autenticado; `create/update` solo el ADMIN del negocio (campos `codigoMaestro`, `nombre`, `logo`).
 - Una reserva de cliente debe apuntar a una sesión existente del mismo negocio y a una sesión cuyo `clientesPermitidos` contenga el UID autenticado.
+- **Storage Rules (`storage.rules`):** lectura para cualquier autenticado; escritura solo para el ADMIN propietario (`negocios/{negocioId}/logo.jpg`, `negocioId == usuarios/{uid}.negocioId`). Resto del bucket bloqueado.
 - Las Rules deben probarse con los casos ADMIN, CLIENTE, VÍA 1 y VÍA 2 antes de publicarse (`npm --prefix firestore-tests test`).
 
 Los datos reales de prueba, UIDs, códigos y `negocioId` no se documentan en estos archivos; se usan placeholders para evitar guardar identificadores concretos en el repositorio.
@@ -305,11 +328,12 @@ Ejecutar desde `C:\Users\Roberto\AndroidStudioProjects\GestorPro`:
 # Compilar ambos
 .\gradlew.bat assembleDebug
 
-# Tests de Firestore Rules (emulador)
+# Tests de Firestore + Storage Rules (emulador: firestore y storage)
 npm --prefix firestore-tests test
 
 # Despliegue de Rules (solo tras validar con los tests)
 & ".\firestore-tests\node_modules\.bin\firebase.cmd" deploy --only firestore:rules
+& ".\firestore-tests\node_modules\.bin\firebase.cmd" deploy --only storage:rules
 
 # Auditoría (DRY-RUN) previa al backfill de indices_clientes (solo lectura)
 node firestore-tests/auditoria_backfill_indices.cjs
@@ -317,34 +341,36 @@ node firestore-tests/auditoria_backfill_indices.cjs
 
 ## Tests
 
-- **Rules de Firestore:** `npm --prefix firestore-tests test` (16 pruebas en el emulador). Deben pasar **antes** de desplegar `firestore.rules`.
+- **Rules de Firestore + Storage:** `npm --prefix firestore-tests test` (20 pruebas: 18 de Firestore + 2 de Storage/logo, en los emuladores `--only firestore,storage`). Deben pasar **antes** de desplegar las Rules.
 - Los tests de Android se mantienen para la fase final del proyecto salvo que el desarrollador los solicite expresamente antes. No crear archivos de test automáticamente durante una funcionalidad normal.
 
 ## Convenciones específicas de Firebase y navegación
 
 - **Recuperación de contraseña:** usar exclusivamente `FirebaseAuth.sendPasswordResetEmail`. El mensaje de éxito debe ser **genérico** ("Si el email existe, recibirás un enlace…") para no revelar qué cuentas existen; ante errores de autenticación (usuario inexistente, email inválido…) se responde con el mismo mensaje genérico. Solo se comunican fallos reales (p. ej. sin conexión). Validar email no vacío y formato antes de llamar a Firebase (`android.util.Patterns.EMAIL_ADDRESS`).
 - **Rutas con parámetros de query:** construir siempre sustituyendo el placeholder, nunca concatenando. En GestorPro Cliente no existen rutas con query (la Vía B está descartada); si se añade una ruta con placeholder, usar `Ruta.replace("{param}", valor)`.
-- **Fotos:** la lógica de guardado vive en `ui/utils/FotoUtils.kt` (`guardaFotoEnInterna`, y en Admin además `crearFotoTemporal`, `uriDeFotoTemporal`, `guardarFotoDeCamara`). No duplicar esa función en pantallas. La cámara usa `TakePicture()` con `FileProvider` (`${applicationId}.fileprovider`, `res/xml/file_paths.xml`); el guardado se hace solo en el callback del resultado, nunca justo después de `launch()`. En Admin el selector común es `ui/components/BotonSelectorFoto.kt`.
-- **Vinculación del CLIENTE:** el flujo de código maestro + DNI vive en `appCliente` (repositorio `VinculacionRepository`, pantalla `InicioScreen`). Las operaciones críticas (VÍA 1 y VÍA 2) deben ejecutarse en Transaction. Nunca reintroducir Vía B/deep links.
+- **Fotos:** la lógica de guardado vive en `ui/utils/FotoUtils.kt` (`guardaFotoEnInterna`; además `crearFotoTemporal`, `uriDeFotoTemporal`, `guardarFotoDeCamara` en Admin y también en appCliente). No duplicar esa función en pantallas. La cámara usa `TakePicture()` con `FileProvider` (`${applicationId}.fileprovider`, `res/xml/file_paths.xml`); el guardado se hace solo en el callback del resultado, nunca justo después de `launch()`. El selector común es `ui/components/BotonSelectorFoto.kt`.
+- **Vinculación del CLIENTE:** el flujo de código maestro + DNI vive en `appCliente` (repositorio `VinculacionRepository`, pantalla de vinculación accesible desde el Home). Las operaciones críticas (VÍA 1 y VÍA 2) deben ejecutarse en Transaction. Nunca reintroducir Vía B/deep links.
+- **Logo del negocio:** la subida vive en `NegocioRepository.guardarLogoRemoto()` (`:app`): `putFile` a `negocios/{uid}/logo.jpg` → `downloadUrl` → WriteBatch con `logo` en `negocios` + `negocios_publicos`. El Cliente lee `negocios_publicos/{id}.logo` y lo muestra con Coil. Requiere el bucket habilitado en Firebase Console.
 
-## Estado actual y pendientes (2026-08-27)
+## Estado actual y pendientes (2026-08-28)
 
 Implementado y compilado (BUILD SUCCESSFUL de `:app` y `:appCliente`):
 
 - **Dos aplicaciones independientes:** `:app` (Admin) y `:appCliente` (Cliente) en el mismo proyecto Gradle, con el mismo Firebase (`gestorpro-50e83`) compartido.
-- **`firestore.rules` reescrita** con el nuevo modelo: `indices_clientes`, `perfiles_pendientes`, `clientes_privados`, VÍA 1 (`vinculacionDniValida` + declaración temporal en `perfiles_pendientes` + regla `clientes/get` VÍA 1), VÍA 2 (`creacionDirectaValida`), edición personal del CLIENTE, índice atómico al cambiar DNI. Sin `vinculaciones`.
-- **Declaración temporal VÍA 1 (Opción B):** al introducir código maestro + DNI, `VinculacionRepository` escribe `perfiles_pendientes/{uid}` = `{ dni, negocioId }` antes de consultar el índice; las Rules exigen que el índice (y la ficha) coincidan con esa declaración. Se borra al terminar (éxito o rechazo).
-- **Lectura de la ficha VÍA 1 (Opción A):** regla `clientes/get` que permite a un CLIENTE sin vínculo leer solo la ficha declarada en `perfiles_pendientes/{uid}` (dni + negocioId + documentId == idCliente); necesaria para `transaction.get(clientes/{idCliente})`.
-- **Tests de Rules:** 18/18 OK (`npm --prefix firestore-tests test`).
-- **Admin (`:app`):** réplica de clientes crea `clientes` + `indices_clientes` + `clientes_privados` en Batch; edición mantiene el índice al cambiar DNI. Eliminadas las pantallas de CLIENTE y Vía B. Rol ADMIN fijo.
-- **Cliente (`:appCliente`):** módulo nuevo con login/registro/recuperar, pantalla inicio código+DNI, completar perfil (VÍA 2), vinculación por Transaction (VÍA 1 y VÍA 2), mi perfil y edición de datos personales. Sin Room, sin Vía B.
-- **`google-services.json` del Cliente** colocado en `appCliente/google-services.json` (paquete `com.roberto.gestorpro.cliente`, proyecto `gestorpro-50e83`); el plugin se aplica de forma incondicional en `appCliente/build.gradle.kts`.
-- **Rules desplegadas en producción:** `gestorpro-50e83` — ruleset con Opción B + Opción A (verificado idéntico al local).
+- **`firestore.rules`** con el nuevo modelo: `indices_clientes`, `perfiles_pendientes`, `clientes_privados`, VÍA 1 (`vinculacionDniValida` + declaración temporal con merge + regla `clientes/get` VÍA 1), VÍA 2 (`creacionDirectaValida` + regla `clientes/get resource == null`), edición personal del CLIENTE, índice atómico al cambiar DNI, `logo` en `negocios_publicos`. Sin `vinculaciones`.
+- **Flujo CLIENTE sin vínculo (FASE 1, validado en dispositivo):** "No tengo vinculación" → perfil en `perfiles_pendientes/{uid}` → Home sin vincular (aviso + cards Mi perfil / Clases placeholder / Vincular con mi gimnasio / Mi cuenta / Configuración) → vincular con código maestro + DNI → VÍA 1 (ficha existente) o VÍA 2 (crea ficha + índice + `usuarios` en Transaction). El perfil pendiente **solo se borra al completar la vinculación con éxito**; `localizarFicha()` distingue índice inexistente de permisos/red; `CompletarPerfilScreen` rellena los campos desde Firestore al abrir.
+- **Sincronización del nombre del negocio (validado en dispositivo):** `MiNegocioScreen`/`MainViewModel.sincronizarNombreNegocio` actualiza `negocios` + `negocios_publicos` en un WriteBatch; el Cliente refresca nombre (y logo) desde `negocios_publicos` al arrancar con sesión restaurada (`cargarEstadoLocal()` en `destinoInicial()`, con caché en DataStore si no hay conexión).
+- **Logo del negocio (código implementado y compilado; PENDIENTE habilitar bucket):** `storage.rules` versionada; dependencia `firebase-storage` solo en `:app`; `NegocioRepository.guardarLogoRemoto()` sube a `negocios/{uid}/logo.jpg`, guarda la URL en `negocios` + `negocios_publicos` (WriteBatch) y el Cliente la muestra con Coil en Home.
+- **Tests de Rules:** 20/20 OK (`npm --prefix firestore-tests test`, emuladores firestore+storage; PRUEBA 19 Storage logo, PRUEBA 20 Firestore logo).
+- **appCliente** incluye selector de foto galería/cámara (`BotonSelectorFoto` + `FotoUtils` con `crearFotoTemporal`/`guardarFotoDeCamara`/`uriDeFotoTemporal`) y rutas `CLASES`/`CONFIGURACION`.
+- **`google-services.json`** de Admin y Cliente en `app/` y `appCliente/` (no versionados; proyecto `gestorpro-50e83`; bucket por defecto `gestorpro-50e83.firebasestorage.app`).
 
 Pendiente para continuar:
 
-1. **Pruebas manuales en dispositivo:** registro y vinculación VÍA 1 y VÍA 2 con las Rules Opción B/A desplegadas, edición de perfil, recuperación de contraseña, y que `:app` (Admin) siga funcionando con su APK.
-2. **Backfill de `indices_clientes`** para las fichas existentes con DNI (DRY-RUN realizado: 2 índices, sin colisiones; script `firestore-tests/auditoria_backfill_indices.cjs`). No ejecutar hasta aprobación. OJO: la ficha `clientes/1` pertenece al negocio `7X1KyM8...` (sin `negocios_publicos` vigente) → no localizable con el código maestro actual; decisión aparte.
-3. **Verificar en Android Studio** que `:appCliente` aparece como aplicación ejecutable en el selector de Run (módulo ya vinculado en `.idea/gradle.xml`).
-4. **Commits pendientes:** toda la sesión está en working tree sin commitear (dos apps, Rules, tests, docs).
-5. Limpieza de basura versionada: `build_*.txt` en raíz y `firestore-tests/firestore-debug.log`.
+1. **Habilitar el bucket de Storage en Firebase Console** (proyecto `gestorpro-50e83` → Storage → Empezar) y desplegar `storage.rules` (`firebase deploy --only storage:rules`). Hasta entonces la subida del logo falla con "Object does not exist at location". Verificar el bucket real de producción (los tests 19/20 pasan porque el emulador lo crea automáticamente).
+2. **Desplegar las Rules de Firestore** (si no se hizo tras FASE 1) y verificar en consola que producción coincide con `firestore.rules` local.
+3. **Backfill de `indices_clientes`** para las fichas existentes con DNI (DRY-RUN realizado: 2 índices, sin colisiones; script `firestore-tests/auditoria_backfill_indices.cjs`). No ejecutar hasta aprobación. OJO: la ficha `clientes/1` pertenece al negocio `7X1KyM8...` (sin `negocios_publicos` vigente) → no localizable con el código maestro actual; decisión aparte.
+4. **Pruebas de Storage en producción:** subir/ver el logo desde el ADMIN y comprobar que el CLIENTE lo refresca al reabrir la app; revisar que el error "Object does not exist at location" desaparece tras habilitar el bucket.
+5. **Commits pendientes:** toda la sesión está en working tree sin commitear (dos apps, Rules, tests, docs).
+6. Limpieza de basura versionada: `build_*.txt` en raíz y `firestore-tests/firestore-debug.log`.
+7. Pendientes heredados de Sesión VI (abiertos): crear negocio con `PERMISSION_DENIED` en algún momento (hipótesis token de sesión) y verificar que el login de Admin valide `rol == "ADMIN"` (hoy solo exige doc existente + activo).

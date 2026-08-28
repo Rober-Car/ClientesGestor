@@ -1,16 +1,20 @@
 package com.roberto.gestorpro.ui.home
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AccountBox
@@ -26,8 +30,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -43,109 +48,125 @@ fun HomeScreen(
     navController: NavHostController,
     mainViewModel: MainViewModel = hiltViewModel()
 ) {
-
-    /**
-     * nombreNegocio / logoNegocio
-     * ---------------------------
-     * ✔ TIPO: variables observables (val by collectAsStateWithLifecycle) → String
-     * Son el nombre y la ruta del logo del negocio configurados por el administrador.
-     * Sirven para personalizar la cabecera; si están vacíos se muestra "GestorPro"
-     * con su icono por defecto.
-     */
     val nombreNegocio by mainViewModel.nombreNegocio.collectAsStateWithLifecycle()
     val logoNegocio by mainViewModel.logoNegocio.collectAsStateWithLifecycle()
 
-    Scaffold { innerPadding ->
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.surface
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
         ) {
-
-            /**
-             * Cabecera con identidad del negocio
-             * ----------------------------------
-             * ✔ TIPO: bloque Row con logo y nombre
-             * Es la cabecera principal de la app.
-             * Sirve para mostrar el logo y nombre configurados en MiNegocioScreen;
-             * sin configuración muestra el icono y el nombre "GestorPro".
-             */
             Row(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (logoNegocio.isNotBlank()) {
-
-                    /**
-                     * logoDelNegocio
-                     * --------------
-                     * ✔ TIPO: bloque condicional + Composable (coil3.compose.AsyncImage)
-                     * Es la imagen del logo cargada desde memoria interna con Coil.
-                     * Sirve para identificar visualmente el negocio en la pantalla principal.
-                     */
                     AsyncImage(
                         model = File(logoNegocio),
                         contentDescription = "Logo del negocio",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(44.dp)
                             .clip(CircleShape)
                     )
                 } else {
-                    Icon(
-                        imageVector = Icons.Default.AccountBox,
-                        contentDescription = null,
-                        tint = Color(0xFF1E88E5),
-                        modifier = Modifier.size(48.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AccountBox,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = nombreNegocio.ifBlank { "GestorPro" },
-                    style = MaterialTheme.typography.headlineMedium
-                )
+                Column {
+                    Text(
+                        text = "Panel principal",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = nombreNegocio.ifBlank { "GestorPro" },
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
-
             Text(
-                text = "Bienvenido",
-                modifier = Modifier.padding(start = 16.dp)
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-
-            MenuCard(
-                titulo = "Clientes",
-                descripcion = "Gestión de clientes",
-                icono = Icons.Default.Person,
-                iconColor = Color(0xFF1E88E5),
-                onClick = { navController.navigate(Routes.CLIENTES) }
+                text = "Accesos rápidos",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
             )
 
-            MenuCard(
-                titulo = "Clases",
-                descripcion = "Gestión de clases y horarios",
-                icono = Icons.Default.Groups,
-                iconColor = Color(0xFF1E88E5),
-                onClick = { navController.navigate(Routes.CLASES) }
-            )
-
-            MenuCard(
-                titulo = "Economia",
-                descripcion = "Datos económicos",
-                icono = Icons.Default.AccountBalance,
-                iconColor = Color(0xFF1E88E5),
-                onClick = { navController.navigate(Routes.ECONOMIA) }
-            )
-
-            MenuCard(
-                titulo = "Configuración",
-                descripcion = "Ajustes de la aplicación",
-                icono = Icons.Default.Settings,
-                iconColor = Color(0xFF1E88E5),
-                onClick = { navController.navigate(Routes.CONFIGURACION) }
-            )
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                item {
+                    MenuCard(
+                        titulo = "Clientes",
+                        descripcion = "Gestión de clientes",
+                        icono = Icons.Default.Person,
+                        containerColor = Color(0xFF2196F3).copy(alpha = 0.12f),
+                        iconContainerColor = Color(0xFF2196F3),
+                        iconTint = Color.White,
+                        onClick = { navController.navigate(Routes.CLIENTES) }
+                    )
+                }
+                item {
+                    MenuCard(
+                        titulo = "Clases",
+                        descripcion = "Horarios y grupos",
+                        icono = Icons.Default.Groups,
+                        containerColor = Color(0xFF43A047).copy(alpha = 0.12f),
+                        iconContainerColor = Color(0xFF43A047),
+                        iconTint = Color.White,
+                        onClick = { navController.navigate(Routes.CLASES) }
+                    )
+                }
+                item {
+                    MenuCard(
+                        titulo = "Economía",
+                        descripcion = "Balance y datos",
+                        icono = Icons.Default.AccountBalance,
+                        containerColor = Color(0xFFFB8C00).copy(alpha = 0.12f),
+                        iconContainerColor = Color(0xFFFB8C00),
+                        iconTint = Color.White,
+                        onClick = { navController.navigate(Routes.ECONOMIA) }
+                    )
+                }
+                item {
+                    MenuCard(
+                        titulo = "Ajustes",
+                        descripcion = "Configuración",
+                        icono = Icons.Default.Settings,
+                        containerColor = Color(0xFF78909C).copy(alpha = 0.12f),
+                        iconContainerColor = Color(0xFF78909C),
+                        iconTint = Color.White,
+                        onClick = { navController.navigate(Routes.CONFIGURACION) }
+                    )
+                }
+            }
         }
     }
 }

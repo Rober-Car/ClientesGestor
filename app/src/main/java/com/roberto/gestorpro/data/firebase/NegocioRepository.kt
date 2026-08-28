@@ -1,9 +1,25 @@
 package com.roberto.gestorpro.data.firebase
 
+import android.net.Uri
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.storage.FirebaseStorage
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/**
+ * ResultadoLogo
+ * -------------
+ * ✔ TIPO: data class
+ * Resultado de la subida del logo: éxito/mensaje y, en caso de éxito, la URL
+ * remota de descarga que se guarda en Firestore y en DataStore.
+ */
+data class ResultadoLogo(
+    val exito: Boolean,
+    val mensaje: String,
+    val url: String? = null
+)
 
 /**
  * NegocioRepository
@@ -18,7 +34,8 @@ import javax.inject.Singleton
 @Singleton
 class NegocioRepository @Inject constructor(
     private val auth: FirebaseAuth,
-    private val db: FirebaseFirestore
+    private val db: FirebaseFirestore,
+    private val storage: FirebaseStorage
 ) {
 
     companion object {
@@ -153,6 +170,81 @@ class NegocioRepository @Inject constructor(
             ResultadoAutenticacion(true, "Código maestro actualizado")
         } catch (e: Exception) {
             ResultadoAutenticacion(false, mensajeDe(e))
+        }
+    }
+
+    /**
+     * guardarNombreNegocio
+     * --------------------
+     * ✔ TIPO: método (fun) suspend de Kotlin → ResultadoAutenticacion
+     * Actualiza el nombre del negocio en negocios/{id} y negocios_publicos/{id}
+     * dentro del mismo WriteBatch (mismo mecanismo que guardarCodigoMaestro),
+     * para que ambos documentos queden siempre coherentes. La app Cliente lee
+     * el nombre desde negocios_publicos/{id}, por lo que este método es el que
+     * propaga el cambio que el ADMIN hace en MiNegocioScreen.
+     * Sirve al modo edición de MiNegocioScreen.
+     */
+    suspend fun guardarNombreNegocio(nombre: String): ResultadoAutenticacion {
+        val uid = auth.currentUser?.uid
+            ?: return ResultadoAutenticacion(false, "No hay ningún usuario autenticado")
+
+        val negocioId = negocioIdDeAdmin(uid)
+        val batch = db.batch()
+
+        batch.update(
+            db.collection(COLECCION_NEGOCIOS).document(negocioId),
+            mapOf("nombre" to nombre)
+        )
+
+        batch.update(
+            db.collection(COLECCION_NEGOCIOS_PUBLICOS).document(negocioId),
+            mapOf("nombre" to nombre)
+        )
+
+        return try {
+            batch.commit().esperar()
+            ResultadoAutenticacion(true, "Nombre actualizado")
+        } catch (e: Exception) {
+            ResultadoAutenticacion(false, mensajeDe(e))
+        }
+    }
+
+    /**
+     * guardarLogoRemoto
+     * -----------------
+     * ✔ TIPO: método (fun) suspend de Kotlin → ResultadoLogo
+     * Sube el logo del gimnasio a Firebase Storage en negocios/{negocioId}/logo.jpg
+     * (sobrescribiendo el anterior), obtiene la URL de descarga y actualiza el
+     * campo logo de negocios/{id} y negocios_publicos/{id} en un único WriteBatch.
+     * No se guarda la imagen en Firestore, solo la URL. El archivo local solo se
+     * usa como origen de la subida. Si falla la subida o el Batch se devuelve el
+     * error sin marcar la operación como exitosa (el logo local queda para reintentar).
+     */
+    suspend fun guardarLogoRemoto(rutaLocal: String): ResultadoLogo {
+        val uid = auth.currentUser?.uid
+            ?: return ResultadoLogo(false, "No hay ningún usuario autenticado")
+
+        val negocioId = negocioIdDeAdmin(uid)
+
+        return try {
+            val referencia = storage.reference.child("negocios/$negocioId/logo.jpg")
+            referencia.putFile(Uri.fromFile(File(rutaLocal))).esperar()
+            val url = referencia.downloadUrl.esperar().toString()
+
+            val batch = db.batch()
+            batch.update(
+                db.collection(COLECCION_NEGOCIOS).document(negocioId),
+                mapOf("logo" to url)
+            )
+            batch.update(
+                db.collection(COLECCION_NEGOCIOS_PUBLICOS).document(negocioId),
+                mapOf("logo" to url)
+            )
+            batch.commit().esperar()
+
+            ResultadoLogo(true, "Logo actualizado", url)
+        } catch (e: Exception) {
+            ResultadoLogo(false, mensajeDe(e))
         }
     }
 

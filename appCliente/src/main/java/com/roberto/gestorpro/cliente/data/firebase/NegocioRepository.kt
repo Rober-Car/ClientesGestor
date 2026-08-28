@@ -5,11 +5,22 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
+ * DatosPublicosNegocio
+ * --------------------
+ * ✔ TIPO: data class
+ * Datos públicos del gimnasio que la app Cliente lee de negocios_publicos/{id}.
+ */
+data class DatosPublicosNegocio(
+    val nombre: String,
+    val logo: String
+)
+
+/**
  * NegocioRepository
  * -----------------
  * ✔ TIPO: clase @Singleton inyectada por Hilt
  * Encapsula la lectura pública de negocios_publicos para resolver un negocio
- * a partir de su código maestro.
+ * a partir de su código maestro y para obtener sus datos públicos (nombre/logo).
  */
 @Singleton
 class NegocioRepository @Inject constructor(
@@ -40,9 +51,32 @@ class NegocioRepository @Inject constructor(
     }
 
     /**
+     * obtenerDatosPublicosNegocio
+     * ---------------------------
+     * Lee negocios_publicos/{negocioId} y devuelve nombre y logo (null si el
+     * documento no existe o falla la lectura). Es la fuente de verdad de los
+     * datos públicos del gimnasio para la app Cliente.
+     */
+    suspend fun obtenerDatosPublicosNegocio(negocioId: String): DatosPublicosNegocio? {
+        return try {
+            val documento = db.collection(COLECCION_NEGOCIOS_PUBLICOS)
+                .document(negocioId)
+                .get()
+                .esperar()
+            if (!documento.exists()) return null
+            DatosPublicosNegocio(
+                nombre = documento.getString("nombre") ?: "",
+                logo = documento.getString("logo") ?: ""
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
      * obtenerNombreNegocio
      * --------------------
-     * Lee el nombre de negocios_publicos/{negocioId} (información pública).
+     * Lee solo el nombre de negocios_publicos/{negocioId} (información pública).
      */
     suspend fun obtenerNombreNegocio(negocioId: String): String? {
         return try {

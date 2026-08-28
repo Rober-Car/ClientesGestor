@@ -1,6 +1,7 @@
 package com.roberto.gestorpro.cliente.data.firebase
 
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -70,7 +71,12 @@ class PerfilPendienteRepository @Inject constructor(
      * perfiles_pendientes/{uid}: únicamente { dni, negocioId }. Sirve para que
      * las Rules validen que el índice consultado corresponde exactamente a la
      * combinación negocio+DNI que el CLIENTE introdujo. NO es un perfil ficticio:
-     * es el dato declarado en el momento de la vinculación y se borra al terminar.
+     * es el dato declarado en el momento de la vinculación.
+     *
+     * Se usa SetOptions.merge() para NO destruir el perfil completo de VÍA 2
+     * que el cliente pudo haber guardado antes (nombre, apellidos, teléfono…):
+     * el perfil pendiente es la fuente de verdad y solo se elimina al completar
+     * la vinculación correctamente.
      */
     suspend fun guardarDeclaracion(
         uid: String,
@@ -84,7 +90,8 @@ class PerfilPendienteRepository @Inject constructor(
                     mapOf(
                         "dni" to dni.trim().uppercase(),
                         "negocioId" to negocioId
-                    )
+                    ),
+                    SetOptions.merge()
                 )
                 .esperar()
             ResultadoAutenticacion(true, "Declaración guardada")

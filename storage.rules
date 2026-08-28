@@ -1,0 +1,38 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // =========================================================
+    // LOGO DEL NEGOCIO
+    // Ruta: negocios/{negocioId}/logo.jpg  (negocioId = uid del ADMIN)
+    // =========================================================
+
+    // Un usuario autenticado (ADMIN o CLIENTE) puede descargar el logo
+    // de cualquier negocio.
+    match /negocios/{negocioId}/{archivo=**} {
+      allow read: if request.auth != null;
+
+      // Solo el ADMIN propietario del negocio puede subir, sobrescribir o
+      // borrar el logo de SU negocio (usuarios/{uid}.negocioId == negocioId).
+      // Un ADMIN de otro negocio, un CLIENTE o un no autenticado, no.
+      allow write: if request.auth != null
+        && esAdminDelNegocio(negocioId);
+    }
+
+    // =========================================================
+    // BLOQUEO POR DEFECTO
+    // =========================================================
+
+    match /{todo=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+function esAdminDelNegocio(negocioId) {
+  let u = firestore.get(
+    /databases/(default)/documents/usuarios/$(request.auth.uid)
+  ).data;
+  return u.rol == 'ADMIN'
+    && u.negocioId == negocioId;
+}

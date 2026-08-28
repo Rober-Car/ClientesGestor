@@ -36,6 +36,7 @@ class PreferencesRepository @Inject constructor(
         private val NEGOCIO_ID_KEY = stringPreferencesKey("negocio_id")
         private val DNI_PENDIENTE_KEY = stringPreferencesKey("dni_pendiente")
         private val NOMBRE_NEGOCIO_KEY = stringPreferencesKey("nombre_negocio")
+        private val LOGO_NEGOCIO_KEY = stringPreferencesKey("logo_negocio")
     }
 
     val themeMode: Flow<String> = context.dataStore.data.map { preferences ->
@@ -97,6 +98,29 @@ class PreferencesRepository @Inject constructor(
     suspend fun setNombreNegocio(nombre: String) {
         context.dataStore.edit { preferences ->
             preferences[NOMBRE_NEGOCIO_KEY] = nombre.trim()
+        }
+    }
+
+    /**
+     * logoNegocio
+     * -----------
+     * ✔ TIPO: propiedad (val) → Flow<String>
+     * Es el flujo que emite la URL del logo del negocio guardada como caché local
+     * (vacía si no hay logo). La fuente de verdad es negocios_publicos/{id}.logo.
+     */
+    val logoNegocio: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[LOGO_NEGOCIO_KEY] ?: ""
+    }
+
+    /**
+     * setLogoNegocio
+     * --------------
+     * ✔ TIPO: método (fun) suspend de Kotlin
+     * Guarda la URL del logo del negocio en DataStore como caché local.
+     */
+    suspend fun setLogoNegocio(url: String) {
+        context.dataStore.edit { preferences ->
+            preferences[LOGO_NEGOCIO_KEY] = url.trim()
         }
     }
 }

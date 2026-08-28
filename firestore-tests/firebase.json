@@ -2,9 +2,15 @@
   "firestore": {
     "rules": "firestore.rules.generated"
   },
+  "storage": {
+    "rules": "storage.rules.generated"
+  },
   "emulators": {
     "firestore": {
       "port": 8080
+    },
+    "storage": {
+      "port": 9199
     }
   }
 }

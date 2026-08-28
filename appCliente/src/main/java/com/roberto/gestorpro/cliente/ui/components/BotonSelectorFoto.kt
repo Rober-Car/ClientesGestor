@@ -1,4 +1,4 @@
-package com.roberto.gestorpro.ui.components
+package com.roberto.gestorpro.cliente.ui.components
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,10 +22,9 @@ import androidx.compose.ui.unit.dp
 /**
  * BotonSelectorFoto
  * -----------------
- * ✔ TIPO: función @Composable
- * Es el botón "Seleccionar/Cambiar foto" que despliega el menú con las dos
- * vías de obtención de la foto: elegir de la galería o hacer una foto con
- * la cámara. Sirve para unificar el flujo en todas las pantallas de perfil.
+ * Botón "Seleccionar/Cambiar foto" que despliega el menú con las dos vías de
+ * obtención de la foto: elegir de la galería o hacer una foto con la cámara.
+ * Estilo coherente con GestorPro Admin.
  *
  * @param tieneFoto Indica si ya hay una foto seleccionada (cambia el texto del botón)
  * @param onElegirGaleria Acción al elegir "Elegir de galería"
@@ -43,7 +42,7 @@ fun BotonSelectorFoto(
         OutlinedButton(
             onClick = { menuAbierto = true }
         ) {
-            Text(if (tieneFoto) "Cambiar foto" else "Seleccionar foto")
+            Text(if (tieneFoto) "Cambiar foto" else "Elegir foto")
         }
 
         DropdownMenu(

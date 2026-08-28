@@ -86,6 +86,12 @@ class MainViewModel @Inject constructor(
         initialValue = ""
     )
 
+    val logoNegocio = preferencesRepository.logoNegocio.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = ""
+    )
+
     fun setThemeMode(mode: String) {
         viewModelScope.launch {
             preferencesRepository.setThemeMode(mode)
@@ -99,25 +105,32 @@ class MainViewModel @Inject constructor(
     /**
      * destinoInicial
      * --------------
-     * Decide la pantalla inicial: sin sesión → Login; con sesión y sin ficha
-     * vinculada → Inicio (código+DNI); con ficha → Home.
+     * Decide la pantalla inicial: sin sesión → Login; con sesión y con ficha
+     * vinculada → Home; con sesión y perfil pendiente guardado → Home sin
+     * vincular; sin perfil → pantalla inicial de vinculación.
+     * Con sesión ya existente refresca los datos públicos del negocio desde
+     * Firestore antes de decidir (si la lectura falla se mantiene la caché).
      */
     suspend fun destinoInicial(): String {
         if (!autenticacionRepository.haySesionActiva()) {
             return Routes.LOGIN
         }
-        val id = preferencesRepository.idCliente.first()
-        return if (id == null) Routes.INICIO else Routes.HOME
+        cargarEstadoLocal()
+        return destinoTrasAutenticar()
     }
 
     /**
      * destinoTrasAutenticar
      * ---------------------
-     * Tras login/registro: si ya tiene ficha → Home; si no → Inicio.
+     * Tras login/registro: si ya tiene ficha → Home; si tiene perfil pendiente
+     * guardado → Home sin vincular (no debe volver a pedir el formulario); si
+     * aún no tiene perfil → pantalla inicial de vinculación.
      */
     suspend fun destinoTrasAutenticar(): String {
         val id = preferencesRepository.idCliente.first()
-        return if (id == null) Routes.INICIO else Routes.HOME
+        if (id != null) return Routes.HOME
+        val dni = preferencesRepository.dniPendiente.first()
+        return if (dni == null) Routes.INICIO else Routes.HOME
     }
 
     /**
@@ -189,30 +202,40 @@ class MainViewModel @Inject constructor(
      * cargarEstadoLocal
      * -----------------
      * Recarga idCliente/negocioId desde Firestore (usuarios/{uid}) y sincroniza
-     * DataStore, cargando la ficha si está vinculado.
+     * DataStore, cargando la ficha si está vinculado y refrescando el nombre del
+     * negocio desde negocios_publicos (fuente de verdad). Si la lectura falla
+     * (sin conexión, error de red…) se conservan los valores ya guardados en
+     * DataStore como caché.
      */
     private suspend fun cargarEstadoLocal() {
-        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
-        val usuarioDoc = com.google.firebase.firestore.FirebaseFirestore.getInstance()
-            .collection("usuarios")
-            .document(uid)
-            .get()
-            .esperar()
+        try {
+            val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+            val usuarioDoc = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                .collection("usuarios")
+                .document(uid)
+                .get()
+                .esperar()
 
-        val clienteId = usuarioDoc.getLong("clienteId")?.toInt()
-        val negocio = usuarioDoc.getString("negocioId")
+            val clienteId = usuarioDoc.getLong("clienteId")?.toInt()
+            val negocio = usuarioDoc.getString("negocioId")
 
-        if (clienteId != null) {
-            preferencesRepository.setIdCliente(clienteId)
-            _cliente.value = clienteRepository.leerFicha(clienteId)
-        } else {
-            preferencesRepository.borrarIdCliente()
-            _cliente.value = null
-        }
-        if (negocio != null) {
-            preferencesRepository.setNegocioId(negocio)
-            val nombre = negocioRepository.obtenerNombreNegocio(negocio)
-            preferencesRepository.setNombreNegocio(nombre ?: "")
+            if (clienteId != null) {
+                preferencesRepository.setIdCliente(clienteId)
+                _cliente.value = clienteRepository.leerFicha(clienteId)
+            } else {
+                preferencesRepository.borrarIdCliente()
+                _cliente.value = null
+            }
+            if (negocio != null) {
+                preferencesRepository.setNegocioId(negocio)
+                val datos = negocioRepository.obtenerDatosPublicosNegocio(negocio)
+                if (datos != null) {
+                    preferencesRepository.setNombreNegocio(datos.nombre)
+                    preferencesRepository.setLogoNegocio(datos.logo)
+                }
+            }
+        } catch (_: Exception) {
+            // Sin conexión o error de lectura: se mantiene la caché de DataStore.
         }
     }
 
@@ -250,6 +273,9 @@ class MainViewModel @Inject constructor(
      * vincularConCodigoYDNI
      * ---------------------
      * Ejecuta la vinculación por código maestro + DNI (VÍA 1 o VÍA 2).
+     * El perfil pendiente es la fuente de verdad en Firestore: el repositorio
+     * lo lee directamente. Ante un fallo NO se borra el perfil pendiente (ni en
+     * Firestore ni en el estado local) para no perder los datos del usuario.
      */
     suspend fun vincularConCodigoYDNI(codigoMaestro: String, dni: String): String? {
         if (codigoMaestro.isBlank()) return "Introduce el código maestro"
@@ -259,32 +285,20 @@ class MainViewModel @Inject constructor(
 
         _operandoRemoto.value = true
         try {
-            val perfil = _perfilPendiente.value
-            val resultado = vinculacionRepository.vincularConCodigoYDNI(
-                codigoMaestro,
-                dni,
-                perfil
-            )
-            val uid = FirebaseAuth.getInstance().currentUser?.uid
-
-            // En todos los casos (éxito o rechazo) el perfil pendiente temporal
-            // de VÍA 1/VÍA 2 se borra en el repositorio; aquí limpiamos el estado
-            // local para que no quede "perfil completado" de un intento anterior.
-            if (uid != null) {
-                perfilPendienteRepository.borrar(uid)
-                _perfilPendiente.value = null
-            }
-
+            val resultado = vinculacionRepository.vincularConCodigoYDNI(codigoMaestro, dni)
             if (!resultado.exito) return resultado.mensaje
 
             resultado.clienteId?.let { preferencesRepository.setIdCliente(it) }
             resultado.negocioId?.let {
                 preferencesRepository.setNegocioId(it)
-                val nombre = negocioRepository.obtenerNombreNegocio(it)
-                preferencesRepository.setNombreNegocio(nombre ?: "")
+                val datos = negocioRepository.obtenerDatosPublicosNegocio(it)
+                if (datos != null) {
+                    preferencesRepository.setNombreNegocio(datos.nombre)
+                    preferencesRepository.setLogoNegocio(datos.logo)
+                }
             }
             preferencesRepository.borrarDniPendiente()
-
+            _perfilPendiente.value = null
             _cliente.value = resultado.clienteId?.let { clienteRepository.leerFicha(it) }
             return null
         } finally {
@@ -301,6 +315,23 @@ class MainViewModel @Inject constructor(
     suspend fun cargarPerfilPendiente() {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
         _perfilPendiente.value = perfilPendienteRepository.leer(uid)
+    }
+
+    /**
+     * cargarPerfilVista
+     * -----------------
+     * Carga el perfil a mostrar en Mi perfil / Editar perfil según el estado:
+     *   - vinculado (idCliente != null) → lee clientes/{idCliente};
+     *   - sin vincular → lee el perfil pendiente de perfiles_pendientes/{uid}.
+     */
+    suspend fun cargarPerfilVista() {
+        val id = preferencesRepository.idCliente.first()
+        if (id != null) {
+            _cliente.value = clienteRepository.leerFicha(id)
+        } else {
+            val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+            _perfilPendiente.value = perfilPendienteRepository.leer(uid)
+        }
     }
 
     /**

@@ -1,7 +1,9 @@
 package com.roberto.gestorpro.cliente.data.firebase
 
+import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.random.Random
@@ -19,6 +21,21 @@ data class ResultadoVinculacion(
     val clienteId: Int? = null,
     val negocioId: String? = null
 )
+
+/**
+ * ResultadoIndice
+ * ---------------
+ * ✔ TIPO: sealed class
+ * Resultado de la consulta a indices_clientes/{negocioId}_{dni}:
+ *   - Ficha(clienteId): el índice existe y apunta a una ficha.
+ *   - NoExiste: el índice no existe (el gimnasio aún no creó una ficha para ese DNI).
+ * Los errores (permisos, red) NO se devuelven aquí: se lanzan como excepción para
+ * que el llamador los distinga de un índice inexistente.
+ */
+sealed class ResultadoIndice {
+    data class Ficha(val clienteId: Int) : ResultadoIndice()
+    object NoExiste : ResultadoIndice()
+}
 
 /**
  * VinculacionRepository
@@ -42,6 +59,8 @@ class VinculacionRepository @Inject constructor(
         private const val COLECCION_CLIENTES = "clientes"
         private const val COLECCION_INDICES = "indices_clientes"
         private const val COLECCION_USUARIOS = "usuarios"
+        private const val COLECCION_PERFILES_PENDIENTES = "perfiles_pendientes"
+        private const val COLECCION_NEGOCIOS_PUBLICOS = "negocios_publicos"
 
         private const val MAX_INTENTOS_ID = 5
         private const val ID_CLIENTE_MINIMO = 1_000_000_000
@@ -58,17 +77,23 @@ class VinculacionRepository @Inject constructor(
     /**
      * localizarFicha
      * --------------
-     * Devuelve el clienteId del índice negocio+DNI, o null si no existe.
+     * Devuelve el estado del índice negocio+DNI.
+     *   - ResultadoIndice.Ficha(clienteId): el índice existe.
+     *   - ResultadoIndice.NoExiste: el índice no existe.
+     * NO traga las excepciones: un PERMISSION_DENIED o un error de red se
+     * propagan al llamador para que no se confundan con "índice inexistente"
+     * (un índice inexistente significa VÍA 2; un permiso denegado no).
      */
-    suspend fun localizarFicha(negocioId: String, dni: String): Int? {
-        return try {
-            val documento = db.collection(COLECCION_INDICES)
-                .document(indiceId(negocioId, dni))
-                .get()
-                .esperar()
-            documento.getLong("clienteId")?.toInt()
-        } catch (_: Exception) {
-            null
+    suspend fun localizarFicha(negocioId: String, dni: String): ResultadoIndice {
+        val documento = db.collection(COLECCION_INDICES)
+            .document(indiceId(negocioId, dni))
+            .get()
+            .esperar()
+        val clienteId = documento.getLong("clienteId")?.toInt()
+        return if (clienteId != null) {
+            ResultadoIndice.Ficha(clienteId)
+        } else {
+            ResultadoIndice.NoExiste
         }
     }
 
@@ -77,66 +102,100 @@ class VinculacionRepository @Inject constructor(
      * ---------------------
      * Flujo principal de vinculación. Resuelve el negocio por código maestro,
      * declara temporalmente { dni, negocioId } en perfiles_pendientes/{uid}
-     * (VÍA 1) para poder consultar el índice de forma segura y, en una
-     * Transaction:
+     * (sin destruir el perfil completo) y, según el índice:
      *   - si la ficha existe y está libre (firebaseUid == null): la vincula (VÍA 1);
      *   - si la ficha ya está vinculada: rechaza;
-     *   - si la ficha no existe: la crea con los datos del perfil pendiente (VÍA 2).
-     * En todos los casos el perfil pendiente se borra al terminar.
+     *   - si el índice NO existe (VÍA 2): crea la ficha con los datos de
+     *     perfiles_pendientes/{uid} (fuente de verdad) en una Transaction.
+     * El perfil pendiente SOLO se elimina cuando la vinculación se completa con
+     * éxito. Ante cualquier error (falta de perfil, permisos, red, fallo
+     * intermedio) se conserva.
      */
     suspend fun vincularConCodigoYDNI(
         codigoMaestro: String,
-        dni: String,
-        perfil: PerfilPendiente?
+        dni: String
     ): ResultadoVinculacion {
-        val usuario = auth.currentUser
-            ?: return ResultadoVinculacion(false, "No hay ningún usuario autenticado")
-        val uid = usuario.uid
+        return try {
+            val usuario = auth.currentUser
+                ?: return ResultadoVinculacion(false, "No hay ningún usuario autenticado")
+            val uid = usuario.uid
 
-        val negocio = db.collection("negocios_publicos")
-            .whereEqualTo("codigoMaestro", codigoMaestro.trim())
-            .limit(1)
+            val negocio = db.collection(COLECCION_NEGOCIOS_PUBLICOS)
+                .whereEqualTo("codigoMaestro", codigoMaestro.trim())
+                .limit(1)
+                .get()
+                .esperar()
+            val negocioId = negocio.documents.firstOrNull()?.id
+                ?: return ResultadoVinculacion(false, "No existe ningún negocio con ese código maestro")
+
+            val dniNorm = dni.trim().uppercase()
+
+            // Declaración temporal de VÍA 1: permite a las Rules validar que el
+            // índice consultado es exactamente { negocioId, dni } del propio uid.
+            // Con merge no destruye el perfil completo guardado previamente.
+            val declaracion = perfilPendienteRepository.guardarDeclaracion(uid, dniNorm, negocioId)
+            if (!declaracion.exito) {
+                return ResultadoVinculacion(false, declaracion.mensaje)
+            }
+
+            when (val indice = localizarFicha(negocioId, dniNorm)) {
+                is ResultadoIndice.Ficha -> {
+                    val resultado = vincularFichaExistente(
+                        uid, indice.clienteId, negocioId, dniNorm
+                    )
+                    if (resultado.exito) {
+                        perfilPendienteRepository.borrar(uid)
+                    }
+                    resultado
+                }
+
+                // VÍA 2: el índice no existe → el gimnasio aún no creó una ficha
+                // para este DNI. Se crea con los datos de perfiles_pendientes/{uid}.
+                ResultadoIndice.NoExiste -> {
+                    val perfil = leerPerfilPendiente(uid) ?: return ResultadoVinculacion(
+                        false,
+                        "Completa primero tu perfil para registrarte"
+                    )
+                    if (perfil.dni.trim().uppercase() != dniNorm) {
+                        return ResultadoVinculacion(
+                            false,
+                            "El DNI del perfil no coincide con el introducido"
+                        )
+                    }
+                    val resultado = crearFicha(uid, negocioId, dniNorm, perfil)
+                    if (resultado.exito) {
+                        perfilPendienteRepository.borrar(uid)
+                    }
+                    resultado
+                }
+            }
+        } catch (e: Exception) {
+            ResultadoVinculacion(false, mensajeDe(e))
+        }
+    }
+
+    /**
+     * leerPerfilPendiente
+     * -------------------
+     * Lee el perfil pendiente completo de Firestore. A diferencia de
+     * PerfilPendienteRepository.leer(), NO traga las excepciones: un error de
+     * permisos o de red se propaga para que no se interprete como "no hay perfil".
+     */
+    private suspend fun leerPerfilPendiente(uid: String): PerfilPendiente? {
+        val documento = db.collection(COLECCION_PERFILES_PENDIENTES)
+            .document(uid)
             .get()
             .esperar()
-        val negocioId = negocio.documents.firstOrNull()?.id
-            ?: return ResultadoVinculacion(false, "No existe ningún negocio con ese código maestro")
-
-        val dniNorm = dni.trim().uppercase()
-
-        // Declaración temporal de VÍA 1: permite a las Rules validar que el
-        // índice consultado es exactamente { negocioId, dni } del propio uid.
-        val declaracion = perfilPendienteRepository.guardarDeclaracion(uid, dniNorm, negocioId)
-        if (!declaracion.exito) {
-            return ResultadoVinculacion(false, declaracion.mensaje)
-        }
-
-        // Primero localizamos la ficha por el índice (VÍA 1).
-        val clienteId = localizarFicha(negocioId, dniNorm)
-        if (clienteId != null) {
-            val resultado = vincularFichaExistente(uid, clienteId, negocioId, dniNorm)
-            perfilPendienteRepository.borrar(uid)
-            return resultado
-        }
-
-        // No existe ficha: VÍA 2, requiere perfil pendiente con sus datos.
-        if (perfil == null || perfil.dni.isBlank()) {
-            perfilPendienteRepository.borrar(uid)
-            return ResultadoVinculacion(
-                false,
-                "No existe una ficha creada por tu gimnasio. Completa tu perfil para registrarte"
-            )
-        }
-        if (perfil.dni.trim().uppercase() != dniNorm) {
-            perfilPendienteRepository.borrar(uid)
-            return ResultadoVinculacion(
-                false,
-                "El DNI del perfil no coincide con el introducido"
-            )
-        }
-
-        val resultadoCrear = crearFicha(uid, negocioId, dniNorm, perfil)
-        perfilPendienteRepository.borrar(uid)
-        return resultadoCrear
+        if (!documento.exists()) return null
+        return PerfilPendiente(
+            nombre = documento.getString("nombre") ?: "",
+            apellidos = documento.getString("apellidos") ?: "",
+            dni = documento.getString("dni") ?: "",
+            telefono = documento.getString("telefono") ?: "",
+            email = documento.getString("email"),
+            foto = documento.getString("foto") ?: "",
+            fechaNacimiento = documento.getLong("fechaNacimiento") ?: 0L
+        )
     }
 
     /**
@@ -297,9 +356,21 @@ class VinculacionRepository @Inject constructor(
     private class ColisionIdClienteException : Exception()
 
     private fun mensajeDe(e: Exception): String {
-        return when {
-            e.message?.contains("permission", ignoreCase = true) == true ->
-                "No tienes permisos para esta operación. Revisa el código y el DNI"
+        return when (e) {
+            is FirebaseFirestoreException -> when (e.code) {
+                FirebaseFirestoreException.Code.PERMISSION_DENIED ->
+                    "No tienes permisos para esta operación. Revisa el código y el DNI"
+
+                FirebaseFirestoreException.Code.UNAVAILABLE,
+                FirebaseFirestoreException.Code.DEADLINE_EXCEEDED ->
+                    "No hay conexión con el servidor. Comprueba tu conexión a Internet"
+
+                else -> e.message ?: "Error inesperado. Inténtalo de nuevo"
+            }
+
+            is FirebaseNetworkException ->
+                "No hay conexión con el servidor. Comprueba tu conexión a Internet"
+
             else -> e.message ?: "Error inesperado. Inténtalo de nuevo"
         }
     }

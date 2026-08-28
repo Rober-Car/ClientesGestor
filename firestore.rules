@@ -173,7 +173,7 @@ service cloud.firestore {
 
       allow create: if esAdmin()
         && request.resource.data.keys()
-            .hasOnly(["codigoMaestro", "nombre"])
+            .hasOnly(["codigoMaestro", "nombre", "logo"])
         && usuarioActual().negocioId == null
         && request.resource.data.codigoMaestro is string
         && request.resource.data.nombre is string
@@ -185,7 +185,7 @@ service cloud.firestore {
         && usuarioActual().negocioId == negocioId
         && request.resource.data.diff(resource.data)
             .affectedKeys()
-            .hasOnly(["codigoMaestro", "nombre"]);
+            .hasOnly(["codigoMaestro", "nombre", "logo"]);
 
       allow delete: if false;
     }
@@ -302,6 +302,18 @@ service cloud.firestore {
              /databases/$(database)/documents/perfiles_pendientes/$(request.auth.uid)
            ).data.negocioId == resource.data.negocioId
         && string(resource.data.idCliente) == clienteId;
+
+      // VIA 2: lectura de una ficha AUN NO CREADA (resource == null) dentro de
+      // la Transaction que la va a crear. Solo un CLIENTE sin vinculo con perfil
+      // pendiente puede comprobar que clientes/{id} no existe; al exigir
+      // resource == null no permite leer los datos de fichas existentes de otros.
+      allow get: if esCliente()
+        && usuarioActual().clienteId == null
+        && usuarioActual().negocioId == null
+        && exists(
+             /databases/$(database)/documents/perfiles_pendientes/$(request.auth.uid)
+           )
+        && resource == null;
 
       allow list: if esAdmin()
         && resource.data.negocioId == usuarioActual().negocioId;

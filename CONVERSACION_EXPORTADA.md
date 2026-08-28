@@ -1,6 +1,6 @@
 # Conversación GestorPro - Análisis Firestore Rules Límite 1000 Expresiones
 ## Fecha: 2026-08-24
-## Estado: ⭐ RESUELTO Y AVANZADO — Ver "ACTUALIZACIÓN SESIÓN III" al final: autenticación Firebase real implementada, compilada e instalada en dispositivo físico con registro probado contra producción (Sesión II: rules refactorizadas 9/9 y desplegadas en gestorpro-50e83)
+## Estado: ⭐ RESUELTO Y AVANZADO — Ver la última "ACTUALIZACIÓN SESIÓN X" (2026-08-28) al final: flujo CLIENTE sin vínculo y VÍA 2 validados en dispositivo, sincronización del nombre del negocio validada y logo del negocio con Firebase Storage implementado (20/20 tests OK). Pendiente: habilitar el bucket de Storage en Firebase Console.
 
 ---
 
@@ -1068,4 +1068,134 @@ node firestore-tests/auditoria_backfill_indices.cjs   # DRY-RUN de auditoria (so
 npm --prefix firestore-tests test           # pruebas Rules (emulador) — 18/18
 node firestore-tests/auditoria_backfill_indices.cjs   # DRY-RUN de auditoria (solo lectura)
 & ".\firestore-tests\node_modules\.bin\firebase.cmd" deploy --only firestore:rules
+```
+
+
+---
+
+---
+
+# ACTUALIZACION 2026-08-28 (SESION X) — FASE 1: FLUJO CLIENTE SIN VINCULAR + VIA 2, FIX NOMBRE NEGOCIO Y LOGO CON STORAGE
+
+> Bloque vigente. Sesiones anteriores quedan como historico. Se trabajan tres fases
+> sobre la app Cliente y el Admin: (1) flujo de cliente sin vinculo y VIA 2 completa,
+> (2) sincronizacion del nombre del negocio Admin -> Firestore -> Cliente, (3) logo
+> del negocio con Firebase Storage.
+
+## FASE 1 — Flujo CLIENTE sin vinculo y VIA 2 (validado en dispositivo)
+
+### Diagnostico del fallo real de VIA 2 ("No existe ficha creada por tu gym")
+
+- Causa raiz: `InicioScreen` y `CompletarPerfilScreen` usan ViewModels DISTINTOS
+  (cada `hiltViewModel()` se ancla a su NavBackStackEntry), por lo que
+  `_perfilPendiente` set en CompletarPerfil no era visible en Inicio. En
+  `MainViewModel.vincularConCodigoYDNI` el `perfil` llegaba `null` y
+  `VinculacionRepository` devolvia el mensaje enganoso (antes de VIA 2).
+- Bug secundario: `guardarDeclaracion` con `set()` destruia el perfil completo.
+- Bug latente confirmado por simulacion contra el emulador: la Transaction de
+  VIA 2 hace `transaction.get(clientes/{id})` sobre una ficha inexistente; las Rules
+  de produccion (sin la rama `resource == null`) denegaban esa lectura -> PERMISSION_DENIED.
+  Los tests usaban `writeBatch` (no `runTransaction`), por eso no lo detectaban.
+
+### Cambios implementados
+
+- `PerfilPendienteRepository`: `guardarDeclaracion` usa `SetOptions.merge()` (no
+  destruye el perfil completo).
+- `VinculacionRepository`: `localizarFicha()` devuelve `ResultadoIndice.Ficha/NoExiste`
+  y NO traga excepciones (permisos/red se propagan y se traducen por separado);
+  `vincularConCodigoYDNI` lee el perfil desde Firestore como fuente de verdad y
+  borra `perfiles_pendientes/{uid}` SOLO al completar la vinculacion con exito.
+- `MainViewModel`: `destinoInicial`/`destinoTrasAutenticar` -> HOME si hay ficha o
+  perfil pendiente (DataStore `dniPendiente`), INICIO solo si no hay ninguno;
+  `vincularConCodigoYDNI` no limpia el perfil ante errores; nuevo `cargarPerfilVista()`.
+- `CompletarPerfilScreen`: rellena los campos desde `perfiles_pendientes/{uid}` al
+  abrir y tras guardar navega a HOME (no vuelve a INICIO).
+- `HomeScreen`: soporta estado sin vincular (aviso + cards Mi perfil / Clases y
+  sesiones / Vincular con mi gimnasio / Mi cuenta / Configuracion).
+- `ClasesScreen` (nueva): placeholder sin consultar Firestore (aviso si no vinculado).
+- `MiPerfilScreen` / `EditarPerfilScreen`: si `clienteId == null` usan
+  `perfiles_pendientes/{uid}`; el DNI es editable sin vinculo y queda bloqueado
+  al vincular.
+- `firestore.rules`: nueva rama `clientes/get` con `resource == null` (VIA 2) para
+  que la Transaction pueda comprobar que la ficha no existe; restringida a CLIENTE
+  sin vinculo con perfil pendiente.
+- `Routes`/`AppNavigation`: ruta `CLASES`.
+- Pruebas en dispositivo OK: registro, completar perfil, Home sin vinculacion,
+  Mi perfil, edicion (DNI editable), cierre/reapertura conservando sesion y perfil,
+  y VIA 2 completa (crea `clientes/{id}` + `indices_clientes/{negocioId}_{dni}` +
+  `usuarios/{uid}`; borra `perfiles_pendientes`; sigue vinculado al reabrir).
+
+## FASE 2 — Sincronizacion del nombre del negocio (validado en dispositivo)
+
+### Diagnostico
+
+- `MiNegocioScreen` guardaba nombre y logo SOLO en DataStore local; Firestore no
+  recibia el nombre. La app Cliente lee `negocios_publicos/{id}.nombre`, por eso
+  seguia mostrando el antiguo (y Firestore tambien).
+- En appCliente, `cargarEstadoLocal()` (unico refresco de nombre desde Firestore)
+  solo se ejecutaba tras login/registro; al reabrir la app con sesion restaurada
+  nadie consultaba `negocios_publicos`.
+
+### Cambios implementados
+
+- Admin `NegocioRepository.guardarNombreNegocio(nombre)`: WriteBatch con `nombre`
+  en `negocios/{id}` y `negocios_publicos/{id}` (mismo mecanismo que
+  `guardarCodigoMaestro`). `MainViewModel.sincronizarNombreNegocio(nombre)` guarda
+  DataStore + Firestore. `MiNegocioScreen` "Guardar cambios" sincroniza si el
+  negocio existe en la nube.
+- appCliente `MainViewModel`: `cargarEstadoLocal()` se ejecuta en `destinoInicial()`
+  al arrancar con sesion restaurada y queda envuelto en try/catch (si no hay
+  conexion se conserva la caché de DataStore).
+- Prueba real OK: Admin cambia el nombre a "C.D. COLISEO PRUEBA 2", Firestore se
+  actualiza, Cliente cerrado y reabierto muestra el nombre nuevo.
+
+## FASE 3 — Logo del negocio con Firebase Storage (implementado y compilado; PENDIENTE bucket)
+
+- Dependencia `firebase-storage` (vía Firebase BOM) SOLO en `:app` (el Cliente
+  carga la URL por HTTP con Coil).
+- `storage.rules` (nueva): lectura para autenticados; escritura solo para el ADMIN
+  propietario (`usuarios/{uid}.negocioId == negocioId`); resto bloqueado.
+- `firestore.rules`: campo `logo` permitido en `negocios_publicos` create/update.
+- Admin: `NegocioRepository.guardarLogoRemoto(rutaLocal)` sube a
+  `negocios/{uid}/logo.jpg` -> `downloadUrl` -> WriteBatch `logo` en `negocios` +
+  `negocios_publicos`. `MainViewModel.sincronizarLogoNegocio`. `MiNegocioScreen`
+  muestra preview (URL o archivo local) y sube el logo al guardar.
+- Cliente: `NegocioRepository.obtenerDatosPublicosNegocio` lee `negocios_publicos`
+  (nombre + logo); DataStore guarda la URL como caché; `cargarEstadoLocal` refresca
+  logo y nombre al arrancar; `HomeScreen` muestra el logo con Coil (placeholder si
+  vacio).
+- Tests de Rules: 20/20 OK (`npm --prefix firestore-tests test`, emuladores
+  firestore+storage). PRUEBA 19 (Storage: ADMIN propietario sube, ADMIN ajeno/CLIENTE/
+  no autenticado no, cliente autenticado lee) y PRUEBA 20 (Firestore: logo en
+  negocios y negocios_publicos).
+- Builds: `:app:assembleDebug` y `:appCliente:assembleDebug` BUILD SUCCESSFUL.
+- **FALLO REAL en produccion:** al pulsar "Guardar cambios" el logo falla con
+  "Object does not exist at location". Diagnostico: el bucket por defecto
+  `gestorpro-50e83.firebasestorage.app` (de `app/google-services.json`) NO esta
+  creado/habilitado en Firebase Console; es la primera operacion de Storage del
+  proyecto. Los tests 19/20 pasan porque el emulador crea el bucket automaticamente.
+  Correccion: habilitar Cloud Storage en la consola y desplegar `storage.rules`.
+
+## Pendiente para continuar
+
+1. **Habilitar el bucket de Storage** en Firebase Console (proyecto `gestorpro-50e83`
+   -> Storage -> Empezar) y desplegar `storage.rules`. Hasta entonces el logo falla.
+2. Verificar que las Rules de Firestore desplegadas en produccion coinciden con
+   `firestore.rules` local (necesarias para VIA 2 / `clientes/get resource == null`).
+3. **Backfill de `indices_clientes`** (DRY-RUN: 2 indices; ficha `clientes/1` de un
+   negocio sin `negocios_publicos` vigente, decision aparte).
+4. Pruebas de Storage en produccion (subir/ver logo; Cliente lo refresca al reabrir).
+5. Commits pendientes (toda la sesion en working tree). Limpieza `build_*.txt` y
+   `firestore-tests/firestore-debug.log`.
+6. Heredados de Sesion VI (abiertos): crear negocio con `PERMISSION_DENIED`
+   (hipotesis token) y validar `rol == "ADMIN"` en el login de Admin.
+
+## Comandos utiles (este PC)
+```powershell
+.\gradlew.bat :app:assembleDebug            # compilar Admin
+.\gradlew.bat :appCliente:assembleDebug     # compilar Cliente
+npm --prefix firestore-tests test           # pruebas Rules (emulador firestore+storage) — 20/20
+node firestore-tests/auditoria_backfill_indices.cjs   # DRY-RUN (solo lectura)
+& ".\firestore-tests\node_modules\.bin\firebase.cmd" deploy --only firestore:rules
+& ".\firestore-tests\node_modules\.bin\firebase.cmd" deploy --only storage:rules
 ```

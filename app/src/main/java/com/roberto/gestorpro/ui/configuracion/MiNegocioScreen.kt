@@ -298,11 +298,12 @@ fun MiNegocioScreen(
                      * AsyncImage del logo
                      * -------------------
                      * ✔ TIPO: bloque condicional + Composable (AsyncImage)
-                     * Es la vista previa circular del logo elegido.
-                     * Sirve para confirmar visualmente qué logo se guardará.
+                     * Es la vista previa circular del logo elegido. El modelo puede
+                     * ser una URL remota (cargada de Firestore/DataStore) o un archivo
+                     * local recién seleccionado.
                      */
                     AsyncImage(
-                        model = File(logo),
+                        model = if (esUrlLogo(logo)) logo else File(logo),
                         contentDescription = "Logo del negocio",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
@@ -451,14 +452,41 @@ fun MiNegocioScreen(
              * Button de Guardar cambios
              * -------------------------
              * ✔ TIPO: función @Composable (Button)
-             * Es el botón que persiste nombre y logo en DataStore.
-             * Sirve para aplicar la personalización de golpe y volver a Configuración.
+             * Es el botón que persiste nombre y logo. El nombre se guarda siempre
+             * en DataStore y, si el negocio ya existe en la nube, se sincroniza en
+             * Firestore (negocios/{id} + negocios_publicos/{id}). El logo, si es un
+             * archivo local recién elegido, se sube a Firebase Storage y se guarda
+             * su URL remota en Firestore + DataStore; si ya es una URL (sin cambios)
+             * solo se conserva en DataStore.
              */
             Button(
                 onClick = {
-                    mainViewModel.guardarNombreNegocio(nombre)
-                    mainViewModel.guardarLogoNegocio(logo)
-                    navController.popBackStack()
+                    alcance.launch {
+                        mensajeRemoto = ""
+                        val error = when (negocioEnNube) {
+                            true -> {
+                                val eNombre = mainViewModel.sincronizarNombreNegocio(nombre)
+                                if (eNombre != null) {
+                                    eNombre
+                                } else if (logo.isNotBlank() && !esUrlLogo(logo)) {
+                                    mainViewModel.sincronizarLogoNegocio(logo)
+                                } else {
+                                    mainViewModel.guardarLogoNegocio(logo)
+                                    null
+                                }
+                            }
+                            else -> {
+                                mainViewModel.guardarNombreNegocio(nombre)
+                                mainViewModel.guardarLogoNegocio(logo)
+                                null
+                            }
+                        }
+                        if (error != null) {
+                            mensajeRemoto = error
+                        } else {
+                            navController.popBackStack()
+                        }
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth(0.7f)
@@ -542,6 +570,18 @@ private fun guardarImagenEnInterna(context: Context, uri: Uri): String? {
     } catch (e: Exception) {
         null
     }
+}
+
+/**
+ * esUrlLogo
+ * ---------
+ * ✔ TIPO: función privada (private fun) → Boolean
+ * Indica si el valor del logo es una URL remota (https/http) o una ruta de
+ * archivo local. Sirve para que AsyncImage cargue con Coil la URL remota o el
+ * archivo local recién seleccionado según corresponda.
+ */
+private fun esUrlLogo(valor: String): Boolean {
+    return valor.startsWith("http://") || valor.startsWith("https://")
 }
 
 /**

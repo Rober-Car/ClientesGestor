@@ -29,9 +29,16 @@ object Routes {
     /**
      * HOME
      * ----
-     * Menú principal del cliente ya vinculado.
+     * Menú principal del cliente (vinculado o sin vincular).
      */
     const val HOME = "home"
+
+    /**
+     * CLASES
+     * ------
+     * Apartado de clases/sesiones del cliente.
+     */
+    const val CLASES = "clases"
 
     /**
      * MI_PERFIL
@@ -53,4 +60,11 @@ object Routes {
      * Cerrar sesión / recuperar contraseña.
      */
     const val CUENTA = "cuenta"
+
+    /**
+     * CONFIGURACION
+     * -------------
+     * Ajustes de la aplicación (tema claro/oscuro).
+     */
+    const val CONFIGURACION = "configuracion"
 }

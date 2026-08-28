@@ -21,6 +21,11 @@ const {
     where,
     writeBatch
 } = require("firebase/firestore");
+const {
+    ref: storageRef,
+    uploadBytes,
+    getBytes
+} = require("firebase/storage");
 
 const PROJECT_ID = "gestorpro-rules-test";
 const CLIENTE_UID = "Vnyht6hlR5EYJ1G0vxxl";
@@ -71,6 +76,12 @@ before(async () => {
         firestore: {
             rules: fs.readFileSync(
                 path.resolve(__dirname, "..", "firestore.rules"),
+                "utf8"
+            )
+        },
+        storage: {
+            rules: fs.readFileSync(
+                path.resolve(__dirname, "..", "storage.rules"),
                 "utf8"
             )
         }
@@ -1197,5 +1208,121 @@ test("PRUEBA 18: VIA 1 - el CLIENTE no vinculado solo lee la ficha que declaro",
     );
     await assertFails(
         getDoc(doc(dbVinculado, "clientes", "805"))
+    );
+});
+
+test("PRUEBA 19: Storage - el ADMIN propietario sube su logo y el resto no puede", async () => {
+    const adminA = "admin-logo-a";
+    const adminB = "admin-logo-b";
+    const clienteUid = "cliente-logo-storage";
+    const negocioA = "negocio-logo-a";
+    const ruta = "negocios/negocio-logo-a/logo.jpg";
+    const bytes = new Uint8Array([1, 2, 3, 4]);
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", adminA), {
+            rol: "ADMIN",
+            activo: true,
+            clienteId: null,
+            negocioId: negocioA
+        });
+        await setDoc(doc(database, "usuarios", adminB), {
+            rol: "ADMIN",
+            activo: true,
+            clienteId: null,
+            negocioId: "negocio-logo-b"
+        });
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE",
+            activo: true,
+            clienteId: null,
+            negocioId: negocioA
+        });
+    });
+
+    const storageAdminA = testEnvironment.authenticatedContext(adminA).storage();
+    const storageAdminB = testEnvironment.authenticatedContext(adminB).storage();
+    const storageCliente = testEnvironment.authenticatedContext(clienteUid).storage();
+    const storageNoAuth = testEnvironment.unauthenticatedContext().storage();
+
+    // 1. ADMIN propietario puede subir su logo.
+    await assertSucceeds(
+        uploadBytes(storageRef(storageAdminA, ruta), bytes)
+    );
+
+    // 2. ADMIN de otro negocio no puede escribir en ese logo.
+    await assertFails(
+        uploadBytes(storageRef(storageAdminB, ruta), bytes)
+    );
+
+    // 3. CLIENTE no puede escribir el logo.
+    await assertFails(
+        uploadBytes(storageRef(storageCliente, ruta), bytes)
+    );
+
+    // 4. Usuario no autenticado no puede escribir.
+    await assertFails(
+        uploadBytes(storageRef(storageNoAuth, ruta), bytes)
+    );
+
+    // 5. CLIENTE autenticado puede leer el logo.
+    await assertSucceeds(
+        getBytes(storageRef(storageCliente, ruta))
+    );
+
+    // 6. Usuario no autenticado no puede leer.
+    await assertFails(
+        getBytes(storageRef(storageNoAuth, ruta))
+    );
+});
+
+test("PRUEBA 20: el ADMIN guarda el logo en negocios y negocios_publicos; el CLIENTE no", async () => {
+    const adminUid = "admin-logo-firestore";
+    const clienteUid = "cliente-logo-firestore";
+    const negocioId = "negocio-logo-firestore";
+    const url = "https://firebasestorage.googleapis.com/v0/b/x/o/logo.jpg";
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", adminUid), {
+            rol: "ADMIN",
+            activo: true,
+            clienteId: null,
+            negocioId
+        });
+        await setDoc(doc(database, "negocios", negocioId), {
+            adminUid,
+            nombre: "Gimnasio",
+            codigoMaestro: "MAESTRO-LOGO"
+        });
+        await setDoc(doc(database, "negocios_publicos", negocioId), {
+            nombre: "Gimnasio",
+            codigoMaestro: "MAESTRO-LOGO"
+        });
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE",
+            activo: true,
+            clienteId: null,
+            negocioId
+        });
+    });
+
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+
+    // El ADMIN puede añadir el logo a negocios_publicos.
+    await assertSucceeds(
+        updateDoc(doc(database, "negocios_publicos", negocioId), { logo: url })
+    );
+
+    // El ADMIN puede añadir el logo a negocios.
+    await assertSucceeds(
+        updateDoc(doc(database, "negocios", negocioId), { logo: url })
+    );
+
+    // Un CLIENTE no puede modificar negocios_publicos (ni el logo).
+    const dbCliente = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertFails(
+        updateDoc(doc(dbCliente, "negocios_publicos", negocioId), { logo: url })
     );
 });

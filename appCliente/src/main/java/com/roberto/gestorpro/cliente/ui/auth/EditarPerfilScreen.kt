@@ -31,11 +31,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -50,7 +50,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
+import com.roberto.gestorpro.cliente.data.firebase.PerfilPendiente
+import com.roberto.gestorpro.cliente.ui.components.BotonSelectorFoto
+import com.roberto.gestorpro.cliente.ui.utils.crearFotoTemporal
 import com.roberto.gestorpro.cliente.ui.utils.guardaFotoEnInterna
+import com.roberto.gestorpro.cliente.ui.utils.guardarFotoDeCamara
+import com.roberto.gestorpro.cliente.ui.utils.uriDeFotoTemporal
 import com.roberto.gestorpro.cliente.ui.viewmodel.MainViewModel
 import java.io.File
 import kotlinx.coroutines.launch
@@ -58,8 +63,11 @@ import kotlinx.coroutines.launch
 /**
  * EditarPerfilScreen
  * ------------------
- * Formulario de edición de los datos personales de la propia ficha.
- * NO permite modificar DNI ni datos administrativos.
+ * Formulario de edición del propio perfil:
+ *   - vinculado: solo datos personales (el DNI y los datos administrativos no
+ *     se pueden modificar);
+ *   - sin vincular: edita el perfil pendiente perfiles_pendientes/{uid} y el
+ *     DNI SÍ es editable (todavía no está vinculado a una ficha).
  */
 @Composable
 fun EditarPerfilScreen(
@@ -67,36 +75,50 @@ fun EditarPerfilScreen(
     mainViewModel: MainViewModel = hiltViewModel()
 ) {
     val operandoRemoto by mainViewModel.operandoRemoto.collectAsStateWithLifecycle()
+    val idCliente by mainViewModel.idCliente.collectAsStateWithLifecycle()
     val cliente by mainViewModel.cliente.collectAsStateWithLifecycle()
+    val perfilPendiente by mainViewModel.perfilPendiente.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val vinculado = idCliente != null
 
     var nombre by rememberSaveable { mutableStateOf("") }
     var apellidos by rememberSaveable { mutableStateOf("") }
+    var dni by rememberSaveable { mutableStateOf("") }
     var telefono by rememberSaveable { mutableStateOf("") }
     var email by rememberSaveable { mutableStateOf("") }
     var foto by rememberSaveable { mutableStateOf("") }
     var fechaNacimiento by rememberSaveable { mutableStateOf("") }
     var mensajeError by rememberSaveable { mutableStateOf("") }
+    var fotoTemporal by remember { mutableStateOf<File?>(null) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(cliente) {
-        val c = cliente ?: return@LaunchedEffect
-        if (nombre.isBlank()) nombre = c.nombre
-        if (apellidos.isBlank()) apellidos = c.apellidos
-        if (telefono.isBlank()) telefono = c.telefono
-        if (email.isBlank()) email = c.email ?: ""
-        if (foto.isBlank()) foto = c.foto
-        if (fechaNacimiento.isBlank()) {
-            fechaNacimiento = if (c.fechaNacimiento > 0L) {
-                try {
-                    java.time.Instant.ofEpochMilli(c.fechaNacimiento)
-                        .atZone(java.time.ZoneId.systemDefault())
-                        .toLocalDate()
-                        .format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                } catch (_: Exception) {
-                    ""
-                }
-            } else ""
+    LaunchedEffect(Unit) {
+        mainViewModel.cargarPerfilVista()
+    }
+
+    // Prefill: rellena los campos vacíos con el perfil correspondiente al estado.
+    LaunchedEffect(vinculado, cliente, perfilPendiente) {
+        if (vinculado) {
+            val c = cliente ?: return@LaunchedEffect
+            if (nombre.isBlank()) nombre = c.nombre
+            if (apellidos.isBlank()) apellidos = c.apellidos
+            if (telefono.isBlank()) telefono = c.telefono
+            if (email.isBlank()) email = c.email ?: ""
+            if (foto.isBlank()) foto = c.foto
+            if (fechaNacimiento.isBlank() && c.fechaNacimiento > 0L) {
+                fechaNacimiento = formatearFechaEditar(c.fechaNacimiento)
+            }
+        } else {
+            val p = perfilPendiente ?: return@LaunchedEffect
+            if (nombre.isBlank()) nombre = p.nombre
+            if (apellidos.isBlank()) apellidos = p.apellidos
+            if (dni.isBlank()) dni = p.dni
+            if (telefono.isBlank()) telefono = p.telefono
+            if (email.isBlank()) email = p.email ?: ""
+            if (foto.isBlank()) foto = p.foto
+            if (fechaNacimiento.isBlank() && p.fechaNacimiento > 0L) {
+                fechaNacimiento = formatearFechaEditar(p.fechaNacimiento)
+            }
         }
     }
 
@@ -107,6 +129,16 @@ fun EditarPerfilScreen(
             val ruta = guardaFotoEnInterna(context, uri)
             if (ruta != null) foto = ruta
         }
+    }
+
+    val launcherTomarFoto = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { resultado ->
+        if (resultado) {
+            val ruta = guardarFotoDeCamara(context, fotoTemporal)
+            if (ruta != null) foto = ruta
+        }
+        fotoTemporal = null
     }
 
     Scaffold(
@@ -140,8 +172,13 @@ fun EditarPerfilScreen(
             }
 
             Text(
-                text = "Solo puedes modificar tus datos personales. El DNI y los " +
-                    "datos de tu gimnasio no se pueden cambiar desde aquí.",
+                text = if (vinculado) {
+                    "Solo puedes modificar tus datos personales. El DNI y los " +
+                        "datos de tu gimnasio no se pueden cambiar desde aquí."
+                } else {
+                    "Todavía no estás vinculado a un gimnasio. Puedes modificar " +
+                        "tus datos, incluido el DNI; al vincularlo, el DNI quedará bloqueado."
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -175,17 +212,23 @@ fun EditarPerfilScreen(
                     )
                 }
                 Spacer(modifier = Modifier.width(16.dp))
-                TextButton(
-                    onClick = {
+                BotonSelectorFoto(
+                    tieneFoto = foto.isNotBlank(),
+                    onElegirGaleria = {
                         launcherFoto.launch(
                             PickVisualMediaRequest(
                                 ActivityResultContracts.PickVisualMedia.ImageOnly
                             )
                         )
+                    },
+                    onHacerFoto = {
+                        val temporal = crearFotoTemporal(context)
+                        if (temporal != null) {
+                            fotoTemporal = temporal
+                            launcherTomarFoto.launch(uriDeFotoTemporal(context, temporal))
+                        }
                     }
-                ) {
-                    Text(if (foto.isNotBlank()) "Cambiar foto" else "Elegir foto")
-                }
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -207,6 +250,18 @@ fun EditarPerfilScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
+
+            if (!vinculado) {
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = dni,
+                    onValueChange = { dni = it.uppercase() },
+                    label = { Text("DNI") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -253,35 +308,28 @@ fun EditarPerfilScreen(
                 onClick = {
                     mensajeError = ""
                     scope.launch {
-                        val fecha = fechaNacimiento
-                            .split("/")
-                            .filter { it.isNotBlank() }
-                            .mapNotNull { it.toLongOrNull() }
-                        val fechaMillis = if (fecha.size == 3) {
-                            try {
-                                java.time.LocalDate.of(
-                                    fecha[2].toInt(),
-                                    fecha[1].toInt(),
-                                    fecha[0].toInt()
-                                )
-                                    .atStartOfDay(java.time.ZoneId.systemDefault())
-                                    .toInstant()
-                                    .toEpochMilli()
-                            } catch (_: Exception) {
-                                0L
-                            }
+                        val fechaMillis = fechaNacimientoEditarMillis(fechaNacimiento)
+                        val error = if (vinculado) {
+                            mainViewModel.actualizarMisDatosPersonales(
+                                nombre = nombre.trim(),
+                                apellidos = apellidos.trim(),
+                                telefono = telefono.trim(),
+                                email = email.trim().ifBlank { null },
+                                foto = foto,
+                                fechaNacimiento = fechaMillis
+                            )
                         } else {
-                            0L
+                            val perfil = PerfilPendiente(
+                                nombre = nombre.trim(),
+                                apellidos = apellidos.trim(),
+                                dni = dni.trim(),
+                                telefono = telefono.trim(),
+                                email = email.trim().ifBlank { null },
+                                foto = foto,
+                                fechaNacimiento = fechaMillis
+                            )
+                            mainViewModel.guardarPerfilPendiente(perfil)
                         }
-
-                        val error = mainViewModel.actualizarMisDatosPersonales(
-                            nombre = nombre.trim(),
-                            apellidos = apellidos.trim(),
-                            telefono = telefono.trim(),
-                            email = email.trim().ifBlank { null },
-                            foto = foto,
-                            fechaNacimiento = fechaMillis
-                        )
                         if (error != null) {
                             mensajeError = error
                         } else {
@@ -289,7 +337,9 @@ fun EditarPerfilScreen(
                         }
                     }
                 },
-                enabled = !operandoRemoto && nombre.isNotBlank() && apellidos.isNotBlank(),
+                enabled = !operandoRemoto &&
+                    nombre.isNotBlank() && apellidos.isNotBlank() &&
+                    (!vinculado && dni.isNotBlank() || vinculado),
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E88E5))
             ) {
@@ -301,5 +351,39 @@ fun EditarPerfilScreen(
                 CircularProgressIndicator(modifier = Modifier.size(24.dp))
             }
         }
+    }
+}
+
+private fun formatearFechaEditar(millis: Long): String {
+    return try {
+        java.time.Instant.ofEpochMilli(millis)
+            .atZone(java.time.ZoneId.systemDefault())
+            .toLocalDate()
+            .format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+    } catch (_: Exception) {
+        ""
+    }
+}
+
+private fun fechaNacimientoEditarMillis(fechaNacimiento: String): Long {
+    val fecha = fechaNacimiento
+        .split("/")
+        .filter { it.isNotBlank() }
+        .mapNotNull { it.toLongOrNull() }
+    return if (fecha.size == 3) {
+        try {
+            java.time.LocalDate.of(
+                fecha[2].toInt(),
+                fecha[1].toInt(),
+                fecha[0].toInt()
+            )
+                .atStartOfDay(java.time.ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli()
+        } catch (_: Exception) {
+            0L
+        }
+    } else {
+        0L
     }
 }

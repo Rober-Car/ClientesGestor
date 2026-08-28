@@ -5,6 +5,8 @@ const { spawnSync } = require("node:child_process");
 const testDirectory = __dirname;
 const sourceRules = path.resolve(testDirectory, "..", "firestore.rules");
 const generatedRules = path.resolve(testDirectory, "firestore.rules.generated");
+const sourceStorageRules = path.resolve(testDirectory, "..", "storage.rules");
+const generatedStorageRules = path.resolve(testDirectory, "storage.rules.generated");
 const firebaseBinary = path.resolve(
     testDirectory,
     "node_modules",
@@ -14,16 +16,19 @@ const firebaseBinary = path.resolve(
 
 let exitCode = 1;
 let rulesCreated = false;
+let storageRulesCreated = false;
 
 try {
     fs.copyFileSync(sourceRules, generatedRules);
     rulesCreated = true;
+    fs.copyFileSync(sourceStorageRules, generatedStorageRules);
+    storageRulesCreated = true;
 
     const command = [
         `"${firebaseBinary}"`,
         "emulators:exec",
         "--project gestorpro-rules-test",
-        "--only firestore",
+        "--only firestore,storage",
         '"node --test firestore.rules.test.cjs"'
     ].join(" ");
 
@@ -41,6 +46,9 @@ try {
 } finally {
     if (rulesCreated) {
         fs.rmSync(generatedRules, { force: true });
+    }
+    if (storageRulesCreated) {
+        fs.rmSync(generatedStorageRules, { force: true });
     }
 }
 
