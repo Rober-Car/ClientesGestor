@@ -1,5 +1,7 @@
 package com.roberto.gestorpro.cliente.ui.components
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -42,7 +45,8 @@ fun MenuCard(
             .fillMaxWidth()
             .padding(16.dp),
         shape = RoundedCornerShape(20.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         )
@@ -52,10 +56,9 @@ fun MenuCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
-                modifier = Modifier.size(64.dp),
+                modifier = Modifier.size(56.dp),
                 shape = CircleShape,
-                color = MaterialTheme.colorScheme.surface,
-                shadowElevation = 4.dp
+                color = colorAcento.copy(alpha = 0.12f)
             ) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -65,7 +68,7 @@ fun MenuCard(
                         imageVector = icono,
                         contentDescription = titulo,
                         tint = colorAcento,
-                        modifier = Modifier.size(40.dp)
+                        modifier = Modifier.size(32.dp)
                     )
                 }
             }
@@ -73,11 +76,13 @@ fun MenuCard(
             Spacer(modifier = Modifier.width(16.dp))
 
             Column(
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
             ) {
                 Text(
                     text = titulo,
                     style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 if (descripcion.isNotBlank()) {

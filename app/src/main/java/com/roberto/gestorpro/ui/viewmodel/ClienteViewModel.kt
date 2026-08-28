@@ -7,9 +7,11 @@ import android.database.sqlite.SQLiteConstraintException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.roberto.gestorpro.data.entity.ClienteEntity
+import com.roberto.gestorpro.data.entity.ServicioEntity
 import com.roberto.gestorpro.data.entity.toCliente
 import com.roberto.gestorpro.data.firebase.ClienteRemotoRepository
 import com.roberto.gestorpro.data.repository.ClienteRepository
+import com.roberto.gestorpro.data.repository.ServicioRepository
 import com.roberto.gestorpro.model.Cliente
 import com.roberto.gestorpro.model.EstadoCliente
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -54,7 +56,8 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class ClienteViewModel @Inject constructor(
     private val clienteRepository: ClienteRepository,
-    private val clienteRemotoRepository: ClienteRemotoRepository
+    private val clienteRemotoRepository: ClienteRemotoRepository,
+    private val servicioRepository: ServicioRepository
 ) : ViewModel() {
 
     /* ============================================================
@@ -164,6 +167,25 @@ class ClienteViewModel @Inject constructor(
             initialValue = emptySet()
         )
 
+    /**
+     * _serviciosMap / serviciosMap
+     * ----------------------------
+     * Mapa idServicio -> nombre con TODOS los servicios (activos e inactivos).
+     * Sirve para resolver los nombres de los servicios contratados del cliente
+     * en el perfil, incluso si alguno se dio de baja posteriormente.
+     */
+    private val _serviciosMap = MutableStateFlow<Map<Int, String>>(emptyMap())
+    val serviciosMap = _serviciosMap.asStateFlow()
+
+    /**
+     * _serviciosActivos / serviciosActivos
+     * ------------------------------------
+     * Lista de servicios activos del negocio. Sirve al selector de servicios
+     * contratados: solo los activos pueden asignarse como nuevos servicios.
+     */
+    private val _serviciosActivos = MutableStateFlow<List<ServicioEntity>>(emptyList())
+    val serviciosActivos = _serviciosActivos.asStateFlow()
+
     /* ============================================================
      * ============ BLOQUE 5: OPERACIONES DEL VIEWMODEL ===========
      * ============================================================ */
@@ -177,6 +199,39 @@ class ClienteViewModel @Inject constructor(
      */
     fun limpiarError() {
         _error.value = null
+    }
+
+    /**
+     * cargarServicios
+     * ---------------
+     * Observa los servicios (todos) y los servicios activos para el perfil
+     * y el selector de servicios contratados del cliente.
+     */
+    fun cargarServicios() {
+        viewModelScope.launch {
+            servicioRepository.obtenerTodosLosServicios().collect { lista ->
+                _serviciosMap.value = lista.associate { it.idServicio to it.nombre }
+            }
+        }
+        viewModelScope.launch {
+            servicioRepository.obtenerServiciosActivos().collect { _serviciosActivos.value = it }
+        }
+    }
+
+    /**
+     * guardarServiciosContratados
+     * ---------------------------
+     * Actualiza SOLO la lista de servicios contratados del cliente en Room,
+     * conservando el resto de campos. No replica a Firestore (se hará en una
+     * fase posterior). La nueva lista sustituye a la anterior por completo.
+     */
+    fun guardarServiciosContratados(idCliente: Int, idsServicios: List<Int>) {
+        viewModelScope.launch {
+            val actual = clienteRepository.obtenerClientePorIdRepo(idCliente) ?: return@launch
+            clienteRepository.actualizarClienteRepo(
+                actual.copy(serviciosContratados = idsServicios.distinct())
+            )
+        }
     }
 
     /**

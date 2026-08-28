@@ -33,6 +33,12 @@ import com.roberto.gestorpro.ui.configuracion.MiNegocioScreen
 import com.roberto.gestorpro.ui.configuracion.PreferenciasScreen
 import com.roberto.gestorpro.ui.economia.EconomiaScreen
 import com.roberto.gestorpro.ui.home.HomeScreen
+import com.roberto.gestorpro.ui.servicios.DetalleServicioScreen
+import com.roberto.gestorpro.ui.servicios.EditarServicioScreen
+import com.roberto.gestorpro.ui.servicios.EditarSesionScreen
+import com.roberto.gestorpro.ui.servicios.ProgramarSesionesScreen
+import com.roberto.gestorpro.ui.servicios.ServiciosScreen
+import com.roberto.gestorpro.ui.servicios.SesionReservasScreen
 import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 
 /**
@@ -194,6 +200,84 @@ fun AppNavigation() {
                 ?.toIntOrNull()
             if (idSesion != null) {
                 DetalleSesionReservasScreen(
+                    navController = navController,
+                    idSesion = idSesion
+                )
+            }
+        }
+
+        composable(Routes.SERVICIOS) {
+            ServiciosScreen(navController)
+        }
+
+        composable(Routes.CREAR_SERVICIO) {
+            EditarServicioScreen(navController)
+        }
+
+        composable(
+            route = "${Routes.EDITAR_SERVICIO}/{idServicio}"
+        ) { backStackEntry ->
+            val idServicio = backStackEntry.arguments
+                ?.getString("idServicio")
+                ?.toIntOrNull()
+            if (idServicio != null) {
+                EditarServicioScreen(
+                    navController = navController,
+                    idServicio = idServicio
+                )
+            }
+        }
+
+        composable(
+            route = "${Routes.DETALLE_SERVICIO}/{idServicio}"
+        ) { backStackEntry ->
+            val idServicio = backStackEntry.arguments
+                ?.getString("idServicio")
+                ?.toIntOrNull()
+            if (idServicio != null) {
+                DetalleServicioScreen(
+                    navController = navController,
+                    idServicio = idServicio
+                )
+            }
+        }
+
+        composable(
+            route = "${Routes.PROGRAMAR_SESIONES}/{idServicio}"
+        ) { backStackEntry ->
+            val idServicio = backStackEntry.arguments
+                ?.getString("idServicio")
+                ?.toIntOrNull()
+            if (idServicio != null) {
+                ProgramarSesionesScreen(
+                    navController = navController,
+                    idServicio = idServicio
+                )
+            }
+        }
+
+        composable(
+            route = "${Routes.SESION_RESERVAS}/{idSesion}"
+        ) { backStackEntry ->
+            val idSesion = backStackEntry.arguments
+                ?.getString("idSesion")
+                ?.toIntOrNull()
+            if (idSesion != null) {
+                SesionReservasScreen(
+                    navController = navController,
+                    idSesion = idSesion
+                )
+            }
+        }
+
+        composable(
+            route = "${Routes.EDITAR_SESION}/{idSesion}"
+        ) { backStackEntry ->
+            val idSesion = backStackEntry.arguments
+                ?.getString("idSesion")
+                ?.toIntOrNull()
+            if (idSesion != null) {
+                EditarSesionScreen(
                     navController = navController,
                     idSesion = idSesion
                 )

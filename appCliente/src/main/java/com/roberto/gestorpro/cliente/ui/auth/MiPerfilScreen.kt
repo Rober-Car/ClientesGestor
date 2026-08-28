@@ -2,6 +2,7 @@ package com.roberto.gestorpro.cliente.ui.auth
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -24,6 +26,8 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -86,24 +90,32 @@ fun MiPerfilScreen(
                 .padding(innerPadding)
                 .padding(horizontal = 16.dp)
         ) {
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .padding(horizontal = 20.dp, vertical = 16.dp)
             ) {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
-                        modifier = Modifier.size(30.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Volver",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "Mi perfil",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                Spacer(modifier = Modifier.width(16.dp))
-                Text(
-                    text = "Mi perfil",
-                    style = MaterialTheme.typography.titleLarge
-                )
             }
 
             if (datos == null) {
@@ -128,13 +140,13 @@ fun MiPerfilScreen(
                         modifier = Modifier
                             .size(120.dp)
                             .clip(CircleShape)
-                            .border(3.dp, Color(0xFF1E88E5), CircleShape)
+                            .border(2.dp, Color(0xFF2196F3), CircleShape)
                     )
                 } else {
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = null,
-                        tint = Color(0xFF64B5F6),
+                        tint = Color(0xFF2196F3),
                         modifier = Modifier
                             .size(120.dp)
                             .clip(CircleShape)
@@ -157,12 +169,12 @@ fun MiPerfilScreen(
 
                     Surface(
                         shape = RoundedCornerShape(50),
-                        color = Color(0xFF1E88E5).copy(alpha = 0.15f)
+                        color = estadoColor(datos.estadoTexto).copy(alpha = 0.15f)
                     ) {
                         Text(
                             text = datos.estadoTexto,
                             style = MaterialTheme.typography.labelLarge,
-                            color = Color(0xFF1E88E5),
+                            color = estadoColor(datos.estadoTexto),
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
                         )
                     }
@@ -174,38 +186,57 @@ fun MiPerfilScreen(
             Text(
                 text = "Datos personales",
                 style = MaterialTheme.typography.titleMedium,
-                color = Color(0xFF1E88E5)
+                color = Color(0xFF2196F3)
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            FilaDatoPerfilCliente(
-                icono = Icons.Default.Badge,
-                etiqueta = "DNI",
-                valor = datos.dni
-            )
-            FilaDatoPerfilCliente(
-                icono = Icons.Default.Phone,
-                etiqueta = "Teléfono",
-                valor = datos.telefono
-            )
-            FilaDatoPerfilCliente(
-                icono = Icons.Default.Email,
-                etiqueta = "Email",
-                valor = datos.email ?: "Sin email"
-            )
-            FilaDatoPerfilCliente(
-                icono = Icons.Default.DateRange,
-                etiqueta = "Fecha de nacimiento",
-                valor = datos.fechaNacimiento.let { formatearFecha(it) }
-            )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    FilaDatoPerfilCliente(
+                        icono = Icons.Default.Badge,
+                        etiqueta = "DNI",
+                        valor = datos.dni,
+                        color = Color(0xFF2196F3)
+                    )
+                    FilaDatoPerfilCliente(
+                        icono = Icons.Default.Phone,
+                        etiqueta = "Teléfono",
+                        valor = datos.telefono,
+                        color = Color(0xFF26A69A)
+                    )
+                    FilaDatoPerfilCliente(
+                        icono = Icons.Default.Email,
+                        etiqueta = "Email",
+                        valor = datos.email ?: "Sin email",
+                        color = Color(0xFF8E24AA)
+                    )
+                    FilaDatoPerfilCliente(
+                        icono = Icons.Default.DateRange,
+                        etiqueta = "Fecha de nacimiento",
+                        valor = datos.fechaNacimiento.let { formatearFecha(it) },
+                        color = Color(0xFFFB8C00)
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
                 onClick = { navController.navigate(Routes.EDITAR_PERFIL) },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E88E5))
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
             ) {
                 Text("Modificar mis datos", color = Color.White)
             }
@@ -268,7 +299,8 @@ private data class DatosPerfilMostrar(
 private fun FilaDatoPerfilCliente(
     icono: androidx.compose.ui.graphics.vector.ImageVector,
     etiqueta: String,
-    valor: String
+    valor: String,
+    color: Color = MaterialTheme.colorScheme.onSurfaceVariant
 ) {
     Row(
         modifier = Modifier
@@ -276,7 +308,7 @@ private fun FilaDatoPerfilCliente(
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icono, contentDescription = null, tint = Color(0xFF1E88E5), modifier = Modifier.size(24.dp))
+        Icon(icono, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
         Spacer(modifier = Modifier.width(16.dp))
         Column {
             Text(
@@ -301,5 +333,16 @@ private fun formatearFecha(millis: Long): String {
             .format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
     } catch (_: Exception) {
         "Sin especificar"
+    }
+}
+
+private fun estadoColor(texto: String?): Color {
+    return when (texto) {
+        "Activo" -> Color(0xFF43A047)
+        "Moroso" -> Color(0xFFE53935)
+        "Baja" -> Color(0xFF78909C)
+        "Archivado" -> Color(0xFF78909C)
+        "Registrado" -> Color(0xFF1E88E5)
+        else -> Color(0xFF1E88E5)
     }
 }

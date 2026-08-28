@@ -61,7 +61,7 @@ data class ClienteEntity(
     val tieneLlave: Boolean,
     val observaciones: String? = null,
     val negocioId: String? = null,
-    val serviciosContratados: List<String>,
+    val serviciosContratados: List<Int>,
     val firebaseUid: String? = null
 )
 
@@ -81,6 +81,7 @@ fun ClienteEntity.toCliente(): Cliente {
         fechaNacimiento = fechaNacimiento,
         estado = estado,
         tieneLlave = tieneLlave,
-        observaciones = observaciones
+        observaciones = observaciones,
+        serviciosContratados = serviciosContratados
     )
 }

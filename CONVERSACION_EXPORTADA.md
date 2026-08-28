@@ -1199,3 +1199,132 @@ node firestore-tests/auditoria_backfill_indices.cjs   # DRY-RUN (solo lectura)
 & ".\firestore-tests\node_modules\.bin\firebase.cmd" deploy --only firestore:rules
 & ".\firestore-tests\node_modules\.bin\firebase.cmd" deploy --only storage:rules
 ```
+
+---
+
+---
+
+# ACTUALIZACION 2026-08-28 (SESION XI) — NUEVO MODELO SERVICIOS / SESIONES / RESERVAS (Fases 1 a 5C)
+
+> Bloque vigente. Se rediseña el sistema de "Clases" por un catálogo de SERVICIOS con
+> sesiones propias y reservas. Relación final **Cliente → Servicio → Sesión → Reserva**,
+> SIN entidad Clase en el flujo nuevo. Sesiones anteriores quedan como historico.
+
+## Diagnóstico previo (solo lectura)
+
+- El "servicio contratado" vivía como `ClienteEntity.serviciosContratados: List<String>` (texto libre);
+  `ClaseEntity.servicio: String` y `SesionClaseEntity.servicio: String` eran duplicados denormalizados;
+  `MovimientoEntity.servicio: String` es texto libre e INDEPENDIENTE del catálogo.
+- No existía `ServicioEntity`, ni pantalla de gestión de servicios, ni réplica de clases/sesiones a Firestore
+  (las Rules de `clases`/`sesiones`/`reservas` eran "reglas adelantadas" sin datos).
+- Decisiones: `Clase` pasa a tener `servicioId` (no String); `serviciosContratados` → `List<Int>` (ids);
+  el movimiento sigue con su `servicio` en texto y NO se relaciona con el catálogo.
+
+## FASE 1 — Modelo Room (nuevas entidades)
+
+- `ServicioEntity` (tabla `servicio`): `idServicio` (PK auto), `negocioId`, `nombre`, `descripcion`, `activo`.
+- `SesionEntity` (tabla `sesion`): `idSesion` (PK auto), `negocioId`, `idServicio`, `fecha` (Long), `hora`
+  (String), `duracionMinutos`, `capacidad`, `plazasDisponibles`. Pertenece DIRECTAMENTE a un servicio.
+- `ClienteEntity.serviciosContratados`: `List<String>` → `List<Int>`; nuevo `IntListConverter`.
+- `ServicioDao`/`SesionDao` + repositorios; Room v10 → v11 (sigue `fallbackToDestructiveMigration`).
+- `ClaseEntity`/`SesionClaseEntity` se MANTIENEN temporalmente (transición por fases).
+- `:app:compileDebugKotlin` EXITCODE 0.
+
+## FASE 2 — Gestión ADMIN de Servicios y Sesiones (Room)
+
+- `ServiciosScreen` (ACTIVOS / DE BAJA; crear/editar/dar de baja/reactivar/eliminar), `EditarServicioScreen`,
+  `DetalleServicioScreen` (sesión del día), `ProgramarSesionesScreen` (desde/hasta + CADA día con su propia
+  hora + duración + capacidad), `EditarSesionScreen` ("Ver / editar sesión"), `SesionReservasScreen`.
+- Generación/regeneración: borra sesiones futuras + sus reservas y crea las nuevas; conserva pasadas.
+- `ReservaDao` ganó cascadas por servicio (subconsultas sobre la tabla `sesion`); plazas vía `reservarPlaza`
+  (solo si >0) y `liberarPlaza` (tope capacidad).
+- Ajuste posterior: cards de servicio con acciones según estado (ACTIVO → Editar/Dar de baja; DE BAJA →
+  Reactivar/Eliminar); `DetalleServicioScreen` muestra SOLO la sesión de HOY y botón "Gestionar sesiones".
+
+## FASE 3 — Servicios contratados en el perfil (Room, ADMIN)
+
+- `Cliente` (modelo) y `toCliente()` portan `serviciosContratados: List<Int>`.
+- Perfil: sección dinámica con nombres reales (resueltos contra `ServicioEntity`), sin hardcodes
+  ("Sala de máquinas"/"CrossFit") y botón "Editar servicios" (diálogo con servicios ACTIVOS, selección múltiple;
+  los ids de servicios inactivos contratados se conservan).
+- `ClienteViewModel.guardarServiciosContratados` actualiza SOLO Room (sin réplica aún).
+
+## FASE 4A — Servicios en Firestore
+
+- `servicios/{idServicio}` (documentId = id int): `{ idServicio, negocioId, nombre, descripcion, activo }`.
+  `negocioId` remoto = UID del ADMIN (Room sigue con `""`).
+- `ServicioRemotoRepository`: crear (con comprobación de colisión de id en Transaction), actualizar,
+  activar/desactivar, eliminar. `ServicioViewModel` sincroniza con patrón write-through + reintento.
+- Rules `servicios`: ADMIN CRUD de su negocio (create con `hasOnly`+tipos; update solo nombre/descripcion/activo;
+  delete propio; get con `resource == null` para la Transaction). CLIENTE: get de ACTIVOS de su negocio
+  (añadido en 5C para la Transaction de reserva); sin escrituras.
+- Tests PRUEBA 21–33. Total 33/33.
+
+## FASE 4B — Sesiones en Firestore
+
+- `sesiones/{idSesion}`: `{ idSesion, negocioId, idServicio, fecha, hora, duracionMinutos, capacidad, plazasDisponibles }`.
+- `SesionRemotoRepository`: crear/actualizar/eliminar, eliminar futuras y todas de un servicio,
+  `sincronizarSesionesGeneradas` (Batch: borra futuras + crea nuevas).
+- Rules `sesiones`: ADMIN CRUD de su negocio (create exige servicio existente+activo del negocio vía
+  `servicioValidoParaSesion`; update mantiene idSesion/negocioId/idServicio); CLIENTE get/list solo de
+  servicios contratados Y activos (se ELIMINÓ `clientesPermitidos`; acceso calculado con
+  `get(clientes)` + `get(servicios)`).
+- Tests PRUEBA 34–53. Total 53/53. `SesionViewModel` sincroniza generación y edición.
+
+## FASE 5B — Reservas en Room + nuevo modelo Sesion
+
+- `ReservaEntity` sin cambios (índice único `(idSesion, idCliente)`).
+- `ReservaRepository` REESCRITO: inyecta `ReservaDao`+`SesionDao`+`ServicioDao`+`ClientesDatabase`;
+  operaciones ATÓMICAS con `RoomDatabase.withTransaction`:
+  - `crearReserva`: sesión existe + plazas>0 + servicio existe y ACTIVO + sin duplicado → insert reserva + `plazas-1`.
+  - `cancelarReserva`: reserva existe → delete + `plazas+1` (≤ capacidad).
+  - `regenerarProgramacion`, `eliminarReservasYSesiones(Futuras)DelServicio`, `eliminarSesionConReservas`.
+- `SesionDao.liberarPlaza` con tope `plazasDisponibles < capacidad`; `SesionDao.eliminarSesion`.
+- `SesionReservasScreen` enlazada desde `EditarSesionScreen` ("Ver reservas de la sesión").
+- NO se creó `ReservaViewModel` (las reservas de sesión las gestiona `SesionViewModel`; la capa de datos
+  de reserva está en `ReservaRepository`).
+
+## FASE 5C — Reservas en Firestore + Transactions + Rules
+
+- `reservas/{clienteId}_{sesionId}` (documentId DETERMINISTA → una reserva por cliente+sesión):
+  `{ idReserva, negocioId, sesionId, clienteId, fechaReserva }`.
+- `ReservaRemotoRepository`:
+  - `crearReservaRemota` (Transaction: cliente → negocio; sesión → existe/negocio/plazas; servicio →
+    existe/negocio/activo; contratado; sin duplicado; set reserva + `plazasDisponibles-1`).
+  - `cancelarReservaRemota` (Transaction: reserva existe + sesión existe + plazas<capacidad → delete + `+1`).
+  - Cascadas: `eliminarReservasDeSesionRemoto`, `eliminarReservasDeSesionesFuturasDelServicioRemoto`,
+    `eliminarTodasLasReservasDelServicioRemoto` (queries por `sesionId` + WriteBatch).
+- Rules `reservas` (ATÓMICAS con `getAfter`/`existsAfter`):
+  - CLIENTE create: `reservaCreaValida` (negocio, servicio contratado+activo, `plazas == anterior-1 && >= 0`);
+    delete: `reservaEliminadaValida` (`== anterior+1 && <= capacidad`); update false.
+  - `sesiones/update` CLIENTE: solo `plazasDisponibles` (±1 exacto) y solo si la Transaction crea/elimina la
+    reserva (`reservaCreadaEnTransaccion` / `reservaEliminadaEnTransaccion`).
+  - ADMIN: get/list/delete de su negocio (delete con ajuste de plazas).
+  - `resource == null` en get de reservas para la comprobación de duplicado en Transaction (patrón VÍA 2).
+- Cascadas remotas conectadas en `ServicioViewModel` (baja/eliminar) y `SesionViewModel` (eliminar sesión,
+  regenerar). Los movimientos NO se tocan.
+- Tests PRUEBA 54–76. **Total 76/76** (`npm --prefix firestore-tests test`). `:app:compileDebugKotlin` EXITCODE 0.
+- Nota de depuración: un test (PRUEBA 69) falló por un typo en el valor `plazasDisponibles` (6 en vez de 5);
+  corregido, no era un problema de Rules.
+
+## Pendiente para continuar
+
+1. **`appCliente` del nuevo modelo:** `serviciosContratados: List<Int>`, `SesionesScreen` (sesiones de
+   servicios contratados y activos), reservar/ver/cancelar reservas (reusar la Transaction).
+2. **Sincronizar `serviciosContratados` del ADMIN a Firestore** (hoy solo Room).
+3. **Habilitar el bucket de Storage** en Firebase Console y desplegar `storage.rules`.
+4. **Desplegar las Rules** tras validar (76/76) y verificar producción == `firestore.rules`.
+5. **Backfill de `indices_clientes`** (2 índices; `clientes/1` decisión aparte).
+6. **Limpieza definitiva de `Clase`/`SesionClase`** (entidades, DAOs, repos, VM, UI `ui/clases`, rutas) y de
+   `ServicioItem` (sin uso).
+7. **Commits pendientes** (toda la sesión en working tree) y limpieza `build_*.txt`, `firestore-debug.log`.
+8. Heredados: crear negocio con `PERMISSION_DENIED` (hipótesis token) y validar `rol == "ADMIN"` en login Admin.
+
+## Comandos utiles (este PC)
+
+```powershell
+.\gradlew.bat :app:compileDebugKotlin        # compilar Admin (Kotlin)
+npm --prefix firestore-tests test            # pruebas Rules — 76/76
+& ".\firestore-tests\node_modules\.bin\firebase.cmd" deploy --only firestore:rules
+& ".\firestore-tests\node_modules\.bin\firebase.cmd" deploy --only storage:rules
+```

@@ -62,6 +62,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
@@ -585,17 +586,18 @@ fun AñadirClienteScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 8.dp),
+                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
 
             /**
-             * IconButton de volver
-             * --------------------
-             * ✔ TIPO: función @Composable (androidx.compose.material3.IconButton)
-             * Es el botón con forma de icono que permite retroceder.
-             * Sirve para volver a la pantalla anterior pulsando la flecha.
-             */
+              * IconButton de volver
+              * --------------------
+              * ✔ TIPO: función @Composable (androidx.compose.material3.IconButton)
+              * Es el botón con forma de icono que permite retroceder.
+              * Sirve para volver a la pantalla anterior pulsando la flecha.
+              */
             IconButton(
                 onClick = {
                     navController.popBackStack()
@@ -603,12 +605,12 @@ fun AñadirClienteScreen(
             ) {
 
                 /**
-                 * Icon de flecha
-                 * --------------
-                 * ✔ TIPO: función @Composable (androidx.compose.material3.Icon)
-                 * Es el icono de flecha hacia atrás del botón.
-                 * Sirve para indicar visualmente la acción de volver.
-                 */
+                  * Icon de flecha
+                  * --------------
+                  * ✔ TIPO: función @Composable (androidx.compose.material3.Icon)
+                  * Es el icono de flecha hacia atrás del botón.
+                  * Sirve para indicar visualmente la acción de volver.
+                  */
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Volver",
@@ -616,20 +618,22 @@ fun AñadirClienteScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
             /**
-             * Text del título
-             * ---------------
-             * ✔ TIPO: función @Composable (androidx.compose.material3.Text)
-             * Es el título de la pantalla de clientes.
-             * Sirve para indicar al usuario en qué sección se encuentra;
-             * en modo registro de cliente se usan títulos propios ("Completa tu registro"
-             * y "Modificar mis datos") en lugar de los del administrador.
-             */
+              * Text del título
+              * ---------------
+              * ✔ TIPO: función @Composable (androidx.compose.material3.Text)
+              * Es el título de la pantalla de clientes.
+              * Sirve para indicar al usuario en qué sección se encuentra;
+              * en modo registro de cliente se usan títulos propios ("Completa tu registro"
+              * y "Modificar mis datos") en lugar de los del administrador.
+              */
             Text(
                 text = if (idCliente != null) "Modificar cliente" else "Añadir cliente",
-                style = MaterialTheme.typography.titleLarge
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
 

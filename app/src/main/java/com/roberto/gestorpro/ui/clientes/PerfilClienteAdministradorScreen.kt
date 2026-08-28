@@ -2,6 +2,7 @@ package com.roberto.gestorpro.ui.clientes
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,11 +24,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Badge
-import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.filled.Person
@@ -47,6 +47,8 @@ import com.roberto.gestorpro.R
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -83,6 +85,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
 import com.roberto.gestorpro.model.EstadoCliente
@@ -92,8 +95,6 @@ import com.roberto.gestorpro.ui.utils.crearFotoTemporal
 import com.roberto.gestorpro.ui.utils.guardarFotoDeCamara
 import com.roberto.gestorpro.ui.utils.uriDeFotoTemporal
 import com.roberto.gestorpro.ui.components.BotonSelectorFoto
-import com.roberto.gestorpro.ui.components.MovimientoItem
-import com.roberto.gestorpro.ui.components.ServicioItem
 import com.roberto.gestorpro.ui.viewmodel.ClienteViewModel
 import com.roberto.gestorpro.ui.viewmodel.MovimientoViewModel
 import java.io.File
@@ -173,6 +174,7 @@ fun PerfilClienteScreen(
      */
     LifecycleResumeEffect(idCliente) {
         viewModel.obtenerClientePorId(idCliente)
+        viewModel.cargarServicios()
         onPauseOrDispose { }
     }
 
@@ -204,6 +206,10 @@ fun PerfilClienteScreen(
      * Sirve para mostrar sus datos en la cabecera y en la pestaña de información.
      */
     val cliente by viewModel.clienteSeleccionado.collectAsState()
+
+    val serviciosMap by viewModel.serviciosMap.collectAsStateWithLifecycle()
+
+    val serviciosActivos by viewModel.serviciosActivos.collectAsStateWithLifecycle()
 
     /**
      * textoEstado
@@ -529,6 +535,14 @@ fun PerfilClienteScreen(
     var mostrarConfirmarArchivar by rememberSaveable { mutableStateOf(false) }
 
     /**
+     * mostrarDialogoServicios
+     * -----------------------
+     * Controla si se muestra el diálogo de edición de los servicios
+     * contratados del cliente.
+     */
+    var mostrarDialogoServicios by rememberSaveable { mutableStateOf(false) }
+
+    /**
      * LaunchedEffect(movimientoSeleccionado)
      * --------------------------------------
      * ✔ TIPO: efecto de composición (LaunchedEffect)
@@ -585,31 +599,36 @@ fun PerfilClienteScreen(
              * Es la fila superior que junta la flecha de volver con el título.
              * Sirve para retroceder a la lista y mostrar en qué pantalla estamos.
              */
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                modifier = Modifier.fillMaxWidth()
             ) {
-
-                IconButton(
-                    onClick = {
-                        navController.popBackStack()
-                    }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
-                        modifier = Modifier.size(30.dp)
+
+                    IconButton(
+                        onClick = {
+                            navController.popBackStack()
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Volver",
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Text(
+                        text = "Perfil de cliente",
+                        style = MaterialTheme.typography.titleLarge
                     )
                 }
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                Text(
-                    text = "Perfil de cliente",
-                    style = MaterialTheme.typography.titleLarge
-                )
             }
 
             /**
@@ -663,31 +682,6 @@ fun PerfilClienteScreen(
                     )
                 }
 
-            /**
-             * BotonSelectorFoto
-             * -----------------
-             * ✔ TIPO: componente @Composable (BotonSelectorFoto)
-             * Es el botón que despliega el menú "Elegir de galería" / "Hacer una foto".
-             * Sirve para elegir la foto por primera vez o cambiarla si ya hay una seleccionada.
-             */
-            BotonSelectorFoto(
-                tieneFoto = !fotoSeleccionada.isNullOrBlank(),
-                onElegirGaleria = {
-                    launcherFoto.launch(
-                        PickVisualMediaRequest(
-                            ActivityResultContracts.PickVisualMedia.ImageOnly
-                        )
-                    )
-                },
-                onHacerFoto = {
-                    val temporal = crearFotoTemporal(context)
-                    if (temporal != null) {
-                        fotoTemporal = temporal
-                        launcherTomarFoto.launch(uriDeFotoTemporal(context, temporal))
-                    }
-                }
-            )
-
                 Spacer(modifier = Modifier.height(12.dp))
 
                 /**
@@ -702,6 +696,20 @@ fun PerfilClienteScreen(
                     style = MaterialTheme.typography.headlineMedium,
                     textAlign = TextAlign.Center
                 )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = colorEstado.copy(alpha = 0.15f)
+                ) {
+                    Text(
+                        text = textoEstado,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = colorEstado,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                    )
+                }
             }
 
             /**
@@ -714,12 +722,12 @@ fun PerfilClienteScreen(
             TabRow(
                 selectedTabIndex = pestañaSeleccionada,
                 containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = Color(0xFF1E88E5),
+                contentColor = Color(0xFF2196F3),
                 indicator = { tabPositions ->
                     TabRowDefaults.SecondaryIndicator(
                         modifier = Modifier.tabIndicatorOffset(tabPositions[pestañaSeleccionada]),
                         height = 3.dp,
-                        color = Color(0xFF1E88E5)
+                        color = Color(0xFF2196F3)
                     )
                 },
                 divider = {}
@@ -731,7 +739,7 @@ fun PerfilClienteScreen(
                         Text(
                             text = "Datos",
                             style = MaterialTheme.typography.labelLarge,
-                            color = if (pestañaSeleccionada == 0) Color(0xFF1E88E5) else Color.Gray
+                            color = if (pestañaSeleccionada == 0) Color(0xFF2196F3) else Color.Gray
                         )
                     },
                     modifier = Modifier.padding(vertical = 4.dp)
@@ -744,7 +752,7 @@ fun PerfilClienteScreen(
                         Text(
                             text = "Economía",
                             style = MaterialTheme.typography.labelLarge,
-                            color = if (pestañaSeleccionada == 1) Color(0xFF1E88E5) else Color.Gray
+                            color = if (pestañaSeleccionada == 1) Color(0xFF2196F3) else Color.Gray
                         )
                     },
                     modifier = Modifier.padding(vertical = 4.dp)
@@ -754,64 +762,98 @@ fun PerfilClienteScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             if (pestañaSeleccionada == 0) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    val telefono = cliente?.telefono ?: return@IconButton
+                                    val uri = Uri.parse("https://wa.me/34$telefono")
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                                }
+                            ) {
+                                Image(
+                                    painter = painterResource(R.drawable.ic_whatsapp),
+                                    contentDescription = "Abrir WhatsApp",
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .combinedClickable(
+                                        onClick = {},
+                                        onLongClick = {
+                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                            val clip = ClipData.newPlainText("Telefono", cliente?.telefono ?: "")
+                                            clipboard.setPrimaryClip(clip)
+                                            Toast.makeText(context, "Telefono copiado", Toast.LENGTH_SHORT).show()
+                                        }
+                                    )
+                            ) {
+                                Text(
+                                    text = "Teléfono",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = cliente?.telefono ?: "No disponible",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            }
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Badge,
+                                contentDescription = "Icono de DNI",
+                                tint = Color(0xFF2196F3),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "DNI",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = cliente?.dni ?: "Cargando...",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            }
+                        }
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    IconButton(
-                        onClick = {
-                            val telefono = cliente?.telefono ?: return@IconButton
-                            val uri = Uri.parse("https://wa.me/34$telefono")
-                            context.startActivity(Intent(Intent.ACTION_VIEW, uri))
-                        }
-                    ) {
-                        Image(
-                            painter = painterResource(R.drawable.ic_whatsapp),
-                            contentDescription = "Abrir WhatsApp",
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = cliente?.telefono ?: "No disponible",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.combinedClickable(
-                            onClick = {},
-                            onLongClick = {
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                val clip = ClipData.newPlainText("Telefono", cliente?.telefono ?: "")
-                                clipboard.setPrimaryClip(clip)
-                                Toast.makeText(context, "Telefono copiado", Toast.LENGTH_SHORT).show()
-                            }
-                        )
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                    Icon(
-                        imageVector = Icons.Default.Badge,
-                        contentDescription = "Icono de DNI",
-                        tint = Color(0xFF64B5F6),
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = cliente?.dni ?: "Cargando...",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
                     Icon(
                         imageVector = Icons.Default.Email,
                         contentDescription = "Icono de email",
-                        tint = Color(0xFF64B5F6),
-                        modifier = Modifier.size(20.dp)
+                        tint = Color(0xFF8E24AA),
+                        modifier = Modifier.size(24.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = cliente?.email ?: "Sin email",
-                        style = MaterialTheme.typography.bodyLarge,
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(
                         modifier = Modifier.combinedClickable(
                             onClick = {},
                             onLongClick = {
@@ -821,7 +863,17 @@ fun PerfilClienteScreen(
                                 Toast.makeText(context, "Email copiado", Toast.LENGTH_SHORT).show()
                             }
                         )
-                    )
+                    ) {
+                        Text(
+                            text = "Email",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = cliente?.email ?: "Sin email",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
                 }
 
                 Row(
@@ -831,20 +883,23 @@ fun PerfilClienteScreen(
                     Icon(
                         imageVector = Icons.Default.DateRange,
                         contentDescription = "Icono de fecha de nacimiento",
-                        tint = Color(0xFF64B5F6),
-                        modifier = Modifier.size(20.dp)
+                        tint = Color(0xFFFB8C00),
+                        modifier = Modifier.size(24.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Fecha de nacimiento",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                    Text(
-                        text = cliente?.let { formatearFecha(it.fechaNacimiento) } ?: "No disponible",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Fecha de nacimiento",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = cliente?.let { formatearFecha(it.fechaNacimiento) } ?: "No disponible",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
                 }
 
                 /**
@@ -866,15 +921,24 @@ fun PerfilClienteScreen(
                         Icon(
                             imageVector = Icons.Default.Notes,
                             contentDescription = "Icono de observaciones",
-                            tint = Color(0xFF64B5F6),
-                            modifier = Modifier.size(20.dp)
+                            tint = Color(0xFF78909C),
+                            modifier = Modifier.size(24.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Observaciones",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = Color(0xFF1E88E5)
-                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "Observaciones",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = observaciones,
+                                style = MaterialTheme.typography.bodyLarge,
+                                maxLines = 1
+                            )
+                        }
                     }
 
                     if (mostrarDialogObservaciones) {
@@ -896,19 +960,31 @@ fun PerfilClienteScreen(
                     }
                 }
 
-                /**
-                 * Título de la sección de servicios
-                 * ---------------------------------
-                 * ✔ TIPO: función @Composable (androidx.compose.material3.Text)
-                 * Es el encabezado de la sección de servicios contratados del cliente.
-                 * Sirve para encabezar la lista de servicios con el mismo estilo del formulario.
-                 */
+                }
+
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
                 Text(
                     text = "Servicios contratados",
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 16.dp)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -917,8 +993,8 @@ fun PerfilClienteScreen(
                     Icon(
                         imageVector = Icons.Default.Key,
                         contentDescription = "Icono de llave",
-                        tint = Color(0xFF64B5F6),
-                        modifier = Modifier.size(20.dp)
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
@@ -934,28 +1010,56 @@ fun PerfilClienteScreen(
                 }
 
                 /**
-                 * ServicioItem de Sala de máquinas
-                 * --------------------------------
-                 * ✔ TIPO: componente @Composable (ServicioItem)
-                 * Es el elemento que muestra el servicio de Sala de máquinas.
-                 * Sirve para indicar que el cliente tiene contratado este servicio.
+                 * Servicios contratados del cliente
+                 * ----------------------------------
+                 * Lista dinámica de los servicios contratados (resuelve los ids
+                 * de serviciosContratados contra ServicioEntity). Solo nombres.
                  */
-                ServicioItem(
-                    nombreServicio = "Sala de máquinas",
-                    iconoServicio = Icons.Default.FitnessCenter
-                )
+                val serviciosContratados = cliente?.serviciosContratados.orEmpty()
+                val nombresServicios = serviciosContratados.mapNotNull { serviciosMap[it] }
+
+                if (nombresServicios.isEmpty()) {
+                    Text(
+                        text = "No tienes servicios contratados.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color.Gray
+                    )
+                } else {
+                    nombresServicios.forEach { nombreServicio ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = nombreServicio,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
 
                 /**
-                 * ServicioItem de CrossFit
-                 * -----------------------
-                 * ✔ TIPO: componente @Composable (ServicioItem)
-                 * Es el elemento que muestra el servicio de CrossFit.
-                 * Sirve para indicar que el cliente tiene contratado este servicio.
+                 * Button de Editar servicios
+                 * --------------------------
+                 * Abre el diálogo para seleccionar los servicios activos que
+                 * tiene contratados este cliente.
                  */
-                ServicioItem(
-                    nombreServicio = "CrossFit",
-                    iconoServicio = Icons.Default.Bolt
-                )
+                Button(
+                    onClick = { mostrarDialogoServicios = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF1E88E5),
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text("Editar servicios")
+                }
+
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
 
                 /**
                  * Button de Modificar cliente
@@ -974,7 +1078,7 @@ fun PerfilClienteScreen(
                         .align(Alignment.CenterHorizontally)
                         .padding(top = 16.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF1E88E5),
+                        containerColor = Color(0xFF2196F3),
                         contentColor = Color.White
                     )
                 ) {
@@ -1086,7 +1190,7 @@ fun PerfilClienteScreen(
                      * Sirve para crear un MovimientoItem por cada servicio contratado por el cliente.
                      */
                     movimientos.forEach { movimiento ->
-                        MovimientoItem(
+                        ItemMovimientoPerfil(
                             movimiento = movimiento,
                             onClick = {
                                 movimientoSeleccionado = movimiento
@@ -2012,6 +2116,22 @@ fun PerfilClienteScreen(
             }
         }
 
+        if (mostrarDialogoServicios) {
+            val clienteActual = cliente
+            if (clienteActual != null) {
+                DialogoEditarServiciosContratados(
+                    contratadosActuales = clienteActual.serviciosContratados,
+                    serviciosActivos = serviciosActivos,
+                    onDismiss = { mostrarDialogoServicios = false },
+                    onGuardar = { ids ->
+                        viewModel.guardarServiciosContratados(idCliente, ids)
+                        mostrarDialogoServicios = false
+                        viewModel.obtenerClientePorId(idCliente)
+                    }
+                )
+            }
+        }
+
         if (mostrarConfirmarArchivar) {
             val esArchivado = cliente?.estado == EstadoCliente.ARCHIVADO
             AlertDialog(
@@ -2048,6 +2168,67 @@ fun PerfilClienteScreen(
                         Text("Cancelar")
                     }
                 }
+            )
+        }
+    }
+}
+
+/**
+ * ItemMovimientoPerfil
+ * --------------------
+ * ✔ TIPO: función @Composable privada (componente local)
+ * Renderiza cada movimiento del cliente en la pestaña Economía con el mismo
+ * lenguaje visual que EconomiaScreen (ItemMovimiento): tarjeta horizontal,
+ * fondo verde muy suave, icono a la izquierda, servicio y fecha en el centro
+ * e importe a la derecha. Es visualmente coherente con el área económica.
+ */
+@Composable
+private fun ItemMovimientoPerfil(
+    movimiento: MovimientoEntity,
+    onClick: () -> Unit
+) {
+    val formatter = java.text.NumberFormat.getCurrencyInstance(java.util.Locale("es", "ES"))
+    val fechaFinFormateada = java.time.Instant.ofEpochMilli(movimiento.fechaFin)
+        .atZone(java.time.ZoneId.systemDefault())
+        .toLocalDate()
+        .format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF4CAF50).copy(alpha = 0.08f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.AttachMoney,
+                contentDescription = null,
+                tint = Color(0xFF4CAF50),
+                modifier = Modifier.size(32.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = movimiento.servicio,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1
+                )
+                Text(
+                    text = fechaFinFormateada,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+            }
+            Text(
+                text = "+${formatter.format(movimiento.precio)}",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color(0xFF4CAF50)
             )
         }
     }

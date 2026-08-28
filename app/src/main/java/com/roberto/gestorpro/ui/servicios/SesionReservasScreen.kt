@@ -1,4 +1,4 @@
-package com.roberto.gestorpro.ui.clases
+package com.roberto.gestorpro.ui.servicios
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.EventSeat
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -31,138 +32,51 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.roberto.gestorpro.model.ReservaConCliente
-import com.roberto.gestorpro.model.SesionConClase
-import com.roberto.gestorpro.ui.viewmodel.ClaseViewModel
+import com.roberto.gestorpro.ui.viewmodel.SesionViewModel
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
- * DetalleSesionReservasScreen.kt
- * ------------------------------
- * ✔ TIPO: archivo de código fuente Kotlin (pantalla de detalle de sesión)
- * Es el archivo que define la pantalla que muestra las reservas de una sesión concreta.
- * Sirve para que el administrador vea quién ha reservado plaza y cuántas quedan libres.
- */
-
-/**
- * DetalleSesionReservasScreen
- * ---------------------------
- * ✔ TIPO: función @Composable
- * Es la pantalla de detalle con los datos de la sesión y su lista de reservas.
- * Sirve para localizar la sesión por su id entre las sesiones activas del día,
- * cargar sus reservas a través de ClaseViewModel y presentarlas en una lista.
+ * SesionReservasScreen
+ * --------------------
+ * Pantalla de detalle de una sesión con su lista de reservas, dentro del
+ * nuevo flujo de SERVICIOS → SESIONES. Trabaja con SesionEntity.
  */
 @Composable
-fun DetalleSesionReservasScreen(
-    /**
-     * navController
-     * -------------
-     * ✔ TIPO: parámetro (param) → NavHostController
-     * Es el controlador de navegación que recibe la pantalla.
-     * Sirve para volver atrás hacia la lista de clases.
-     */
+fun SesionReservasScreen(
     navController: NavHostController,
-    /**
-     * idSesion
-     * --------
-     * ✔ TIPO: parámetro (param) → Int
-     * Es el identificador de la sesión cuyas reservas se quieren ver.
-     * Sirve para buscar la sesión dentro de las sesiones activas cargadas del día.
-     */
     idSesion: Int,
-    /**
-     * viewModel
-     * ---------
-     * ✔ TIPO: parámetro (param) → ClaseViewModel (inyectado por Hilt)
-     * Es el ViewModel compartido de clases y sesiones.
-     * Sirve para obtener la sesión seleccionada y la lista de reservas con cliente.
-     */
-    viewModel: ClaseViewModel = hiltViewModel()
+    viewModel: SesionViewModel = hiltViewModel()
 ) {
+    val sesion by viewModel.sesionDetalle.collectAsStateWithLifecycle()
+    val reservas by viewModel.reservasDetalle.collectAsStateWithLifecycle()
 
-    /**
-     * LaunchedEffect(idSesion)
-     * ------------------------
-     * ✔ TIPO: efecto de composición (LaunchedEffect)
-     * Se lanza al entrar en la pantalla.
-     * Sirve para pedir al ViewModel la carga de las sesiones activas de hoy,
-     * entre las que se encontrará la sesión cuyo id llega por navegación.
-     */
     LaunchedEffect(idSesion) {
-        viewModel.cargarSesionesActivas()
+        viewModel.cargarSesion(idSesion)
+        viewModel.cargarReservasSesion(idSesion)
     }
 
-    /**
-     * sesiones / sesion
-     * -----------------
-     * ✔ TIPO: variable observable + variable derivada (val)
-     * Son la lista de sesiones activas del día y la sesión buscada dentro de ella.
-     * Sirven para encontrar los datos completos (nombre de clase, hora, plazas)
-     * de la sesión cuyo id se recibió como argumento de ruta.
-     */
-    val sesiones by viewModel.sesionesActivas.collectAsState()
-    val sesion = sesiones.firstOrNull { it.idSesion == idSesion }
-
-    /**
-     * LaunchedEffect(sesion)
-     * ----------------------
-     * ✔ TIPO: efecto de composición (LaunchedEffect)
-     * Se lanza cuando la sesión buscada aparece en la lista cargada.
-     * Sirve para pedir al ViewModel las reservas de esa sesión solo una vez,
-     * comprobando antes si ya está seleccionada para no recargarlas en cada recomposición.
-     */
-    LaunchedEffect(sesion) {
-        if (sesion != null &&
-            viewModel.sesionDetalleSeleccionada.value?.idSesion != idSesion
-        ) {
-            viewModel.cargarReservasSesion(sesion)
-        }
-    }
-
-    /**
-     * DisposableEffect
-     * ----------------
-     * ✔ TIPO: efecto de ciclo de vida (DisposableEffect)
-     * Se ejecuta al abandonar la pantalla.
-     * Sirve para limpiar la sesión seleccionada y las reservas del detalle
-     * en el ViewModel, dejándolo listo para la próxima apertura.
-     */
     DisposableEffect(Unit) {
         onDispose {
-            viewModel.limpiarDetalleSesion()
+            viewModel.limpiarDetalle()
         }
     }
 
-    /**
-     * reservas
-     * --------
-     * ✔ TIPO: variable observable (val by collectAsState) → List<ReservaConCliente>
-     * Es la lista de reservas de la sesión con los datos de cada cliente.
-     * Sirve para pintar la lista final de asistentes de la sesión.
-     */
-    val reservas by viewModel.reservasDetalle.collectAsState()
-
-    /**
-     * formatoFecha
-     * ------------
-     * ✔ TIPO: variable (val) → DateTimeFormatter
-     * Es el formateador que convierte la fecha de la sesión en texto legible en español.
-     * Sirve para mostrar el día completo ("lunes, 12 de mayo de 2026") en la cabecera.
-     */
     val formatoFecha = remember {
         DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM 'de' yyyy", Locale("es"))
     }
@@ -177,14 +91,6 @@ fun DetalleSesionReservasScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-
-            /**
-             * Row de la cabecera
-             * ------------------
-             * ✔ TIPO: función @Composable (Row)
-             * Es la fila superior que junta la flecha de volver con el título.
-             * Sirve para retroceder a la pantalla de clases e indicar dónde estamos.
-             */
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -192,20 +98,14 @@ fun DetalleSesionReservasScreen(
                     .padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(
-                    onClick = {
-                        navController.popBackStack()
-                    }
-                ) {
+                IconButton(onClick = { navController.popBackStack() }) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Volver",
                         modifier = Modifier.size(30.dp)
                     )
                 }
-
                 Spacer(modifier = Modifier.width(12.dp))
-
                 Text(
                     text = "Reservas de la sesión",
                     style = MaterialTheme.typography.titleLarge,
@@ -215,14 +115,6 @@ fun DetalleSesionReservasScreen(
             }
 
             if (sesion == null) {
-
-                /**
-                 * Texto de carga
-                 * --------------
-                 * ✔ TIPO: bloque condicional (if) + Text
-                 * Es el aviso mostrado mientras la sesión aún no aparece en la lista cargada.
-                 * Sirve para informar de que se están recuperando los datos de la sesión.
-                 */
                 Text(
                     text = "Cargando sesión...",
                     style = MaterialTheme.typography.bodyLarge,
@@ -232,14 +124,7 @@ fun DetalleSesionReservasScreen(
                         .padding(24.dp)
                 )
             } else {
-
-                /**
-                 * Tarjeta resumen de la sesión
-                 * ----------------------------
-                 * ✔ TIPO: bloque Composable (Card)
-                 * Es la tarjeta con los datos generales de la sesión.
-                 * Sirve para ver de un vistazo clase, fecha, hora y ocupación de plazas.
-                 */
+                val s = sesion!!
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -252,30 +137,21 @@ fun DetalleSesionReservasScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            text = sesion.nombre,
+                            text = fechaLegible(s.fecha, formatoFecha),
                             style = MaterialTheme.typography.titleMedium,
                             color = Color(0xFF1E88E5)
                         )
-
-                        FilaDatoSesion(
-                            icono = Icons.Default.CalendarMonth,
-                            texto = fechaLegible(sesion.fecha, formatoFecha)
+                        FilaDatoSesionReserva(
+                            icono = Icons.Default.Schedule,
+                            texto = "Hora: ${s.hora} · ${s.duracionMinutos} min"
                         )
-
-                        FilaDatoSesion(
+                        FilaDatoSesionReserva(
                             icono = Icons.Default.EventSeat,
-                            texto = "Plazas: ${sesion.capacidadMaxima - sesion.plazasDisponibles} de ${sesion.capacidadMaxima} reservadas"
+                            texto = "Plazas: ${s.capacidad - s.plazasDisponibles} de ${s.capacidad} reservadas"
                         )
                     }
                 }
 
-                /**
-                 * Título de la lista de reservas
-                 * ------------------------------
-                 * ✔ TIPO: función @Composable (Text)
-                 * Es el encabezado de la sección de reservas.
-                 * Sirve para indicar cuántos clientes han reservado la sesión.
-                 */
                 Text(
                     text = "Clientes reservados (${reservas.size})",
                     style = MaterialTheme.typography.titleMedium,
@@ -283,13 +159,6 @@ fun DetalleSesionReservasScreen(
                     modifier = Modifier.padding(top = 8.dp)
                 )
 
-                /**
-                 * Contenido de la lista de reservas
-                 * ---------------------------------
-                 * ✔ TIPO: bloque condicional (if/else) + LazyColumn
-                 * Es la zona que lista los clientes reservados o avisa de que no hay ninguno.
-                 * Sirve para consultar rápidamente quién asiste a la sesión sin salir de la app.
-                 */
                 if (reservas.isEmpty()) {
                     Text(
                         text = "No hay reservas para esta sesión",
@@ -304,7 +173,7 @@ fun DetalleSesionReservasScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(reservas, key = { it.idReserva }) { reserva ->
-                            ItemReservaCliente(reserva)
+                            ItemReservaClienteServicio(reserva)
                         }
                     }
                 }
@@ -314,20 +183,16 @@ fun DetalleSesionReservasScreen(
 }
 
 /**
- * FilaDatoSesion
- * --------------
- * ✔ TIPO: función @Composable privada
- * Es una fila reutilizable que junta un icono con un texto de dato de la sesión.
- * Sirve para mantener el mismo estilo en la fecha y las plazas del resumen.
+ * FilaDatoSesionReserva
+ * ---------------------
+ * Fila reutilizable con icono y texto en el resumen de la sesión.
  */
 @Composable
-private fun FilaDatoSesion(
-    icono: androidx.compose.ui.graphics.vector.ImageVector,
+private fun FilaDatoSesionReserva(
+    icono: ImageVector,
     texto: String
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(
             imageVector = icono,
             contentDescription = null,
@@ -343,14 +208,12 @@ private fun FilaDatoSesion(
 }
 
 /**
- * ItemReservaCliente
- * ------------------
- * ✔ TIPO: función @Composable privada
- * Es la tarjeta que representa la reserva de un cliente concreto.
- * Sirve para mostrar su nombre completo y teléfono dentro de la lista de la sesión.
+ * ItemReservaClienteServicio
+ * --------------------------
+ * Tarjeta de un cliente reservado en la sesión.
  */
 @Composable
-private fun ItemReservaCliente(reserva: ReservaConCliente) {
+private fun ItemReservaClienteServicio(reserva: ReservaConCliente) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -362,9 +225,7 @@ private fun ItemReservaCliente(reserva: ReservaConCliente) {
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Default.Person,
                     contentDescription = null,
@@ -377,10 +238,7 @@ private fun ItemReservaCliente(reserva: ReservaConCliente) {
                     style = MaterialTheme.typography.bodyLarge
                 )
             }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Default.Phone,
                     contentDescription = null,
@@ -394,10 +252,7 @@ private fun ItemReservaCliente(reserva: ReservaConCliente) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Default.Badge,
                     contentDescription = null,
@@ -418,9 +273,7 @@ private fun ItemReservaCliente(reserva: ReservaConCliente) {
 /**
  * fechaLegible
  * ------------
- * ✔ TIPO: función privada (private fun) → String
- * Es la función que convierte el timestamp de la sesión en texto con formato largo.
- * Sirve para mostrar la fecha completa de la sesión en la cabecera del detalle.
+ * Convierte un timestamp en una fecha larga legible en español.
  */
 private fun fechaLegible(millis: Long, formato: DateTimeFormatter): String {
     return Instant.ofEpochMilli(millis)

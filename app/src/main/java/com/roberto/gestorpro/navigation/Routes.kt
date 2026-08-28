@@ -85,6 +85,100 @@ object Routes {
     const val CREAR_CLASE = "crear_clase"
 
     /**
+     * SERVICIOS
+     * ---------
+     * Ruta de la pantalla principal de gestión de servicios del ADMIN.
+     */
+    const val SERVICIOS = "servicios"
+
+    /**
+     * CREAR_SERVICIO
+     * --------------
+     * Ruta del formulario de creación de un servicio nuevo.
+     */
+    const val CREAR_SERVICIO = "crear_servicio"
+
+    /**
+     * EDITAR_SERVICIO
+     * ---------------
+     * Ruta base del formulario de edición de un servicio existente.
+     */
+    const val EDITAR_SERVICIO = "editar_servicio"
+
+    /**
+     * editarServicio
+     * --------------
+     * Ruta dinámica del formulario de edición: editar_servicio/{idServicio}.
+     */
+    fun editarServicio(idServicio: Int): String {
+        return "$EDITAR_SERVICIO/$idServicio"
+    }
+
+    /**
+     * DETALLE_SERVICIO
+     * ----------------
+     * Ruta base del detalle de un servicio con sus sesiones.
+     */
+    const val DETALLE_SERVICIO = "detalle_servicio"
+
+    /**
+     * detalleServicio
+     * ---------------
+     * Ruta dinámica del detalle: detalle_servicio/{idServicio}.
+     */
+    fun detalleServicio(idServicio: Int): String {
+        return "$DETALLE_SERVICIO/$idServicio"
+    }
+
+    /**
+     * PROGRAMAR_SESIONES
+     * ------------------
+     * Ruta base de la programación de sesiones de un servicio.
+     */
+    const val PROGRAMAR_SESIONES = "programar_sesiones"
+
+    /**
+     * programarSesiones
+     * -----------------
+     * Ruta dinámica de la programación: programar_sesiones/{idServicio}.
+     */
+    fun programarSesiones(idServicio: Int): String {
+        return "$PROGRAMAR_SESIONES/$idServicio"
+    }
+
+    /**
+     * SESION_RESERVAS
+     * ---------------
+     * Ruta base del detalle de reservas de una sesión.
+     */
+    const val SESION_RESERVAS = "sesion_reservas"
+
+    /**
+     * sesionReservas
+     * --------------
+     * Ruta dinámica del detalle de reservas: sesion_reservas/{idSesion}.
+     */
+    fun sesionReservas(idSesion: Int): String {
+        return "$SESION_RESERVAS/$idSesion"
+    }
+
+    /**
+     * EDITAR_SESION
+     * -------------
+     * Ruta base de la pantalla "Ver / editar sesión" de una sesión concreta.
+     */
+    const val EDITAR_SESION = "editar_sesion"
+
+    /**
+     * editarSesion
+     * ------------
+     * Ruta dinámica de la edición de una sesión: editar_sesion/{idSesion}.
+     */
+    fun editarSesion(idSesion: Int): String {
+        return "$EDITAR_SESION/$idSesion"
+    }
+
+    /**
      * MINEGOCIO
      * ---------
      * Ruta de la pantalla de personalización del negocio (nombre y logo).

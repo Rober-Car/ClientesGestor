@@ -30,16 +30,18 @@ service cloud.firestore {
     }
 
     // Una sola lectura de la ficha del cliente del usuario autenticado.
-    function servicioContratadoPorCliente(servicio) {
+    // El servicio se identifica por su id (int), igual que en
+    // clientes/{idCliente}.serviciosContratados.
+    function servicioContratadoPorCliente(servicioId) {
       let clienteId = usuarioActual().clienteId;
       let servicios = (clienteId is int)
         ? get(
             /databases/$(database)/documents/clientes/$(clienteId)
           ).data.serviciosContratados
         : null;
-      return servicio is string
+      return servicioId is int
         && servicios is list
-        && servicio in servicios;
+        && servicioId in servicios;
     }
 
     // VIA 2: un CLIENTE crea su propia ficha con el codigo maestro + DNI.
@@ -122,15 +124,85 @@ service cloud.firestore {
       ).data.negocioId == usuarioActual().negocioId;
     }
 
-    // Una sola lectura de la sesion: negocio propio, cliente autorizado
-    // en ella y servicio contratado por el cliente autenticado.
+    // El servicio existe, pertenece al negocio indicado y está activo.
+    // Se usa para validar que una sesión solo pueda crear/modificar con un
+    // servicio existente, del mismo negocio y activo.
+    function servicioValidoParaSesion(idServicio, negocioId) {
+      let servicioRef = /databases/$(database)/documents/servicios/$(idServicio);
+      return exists(servicioRef)
+        && get(servicioRef).data.negocioId == negocioId
+        && get(servicioRef).data.activo == true;
+    }
+
+    // Una sola lectura de la sesion: negocio propio, servicio contratado por el
+    // cliente autenticado y servicio activo.
     function sesionAccesiblePorCliente(sesionId) {
       let sesion = get(
         /databases/$(database)/documents/sesiones/$(sesionId)
       ).data;
       return sesion.negocioId == usuarioActual().negocioId
-        && request.auth.uid in sesion.clientesPermitidos
-        && servicioContratadoPorCliente(sesion.servicio);
+        && servicioContratadoPorCliente(sesion.idServicio)
+        && get(
+             /databases/$(database)/documents/servicios/$(sesion.idServicio)
+           ).data.activo == true;
+    }
+
+    // CREAR RESERVA (Transaction CLIENTE): la reserva debe nacer en la misma
+    // operación que decrementa plazasDisponibles de la sesión.
+    function reservaCreaValida(sesionId, clienteId, negocioId) {
+      let sesionRef = /databases/$(database)/documents/sesiones/$(sesionId);
+      let clienteRef = /databases/$(database)/documents/clientes/$(clienteId);
+      let sesion = get(sesionRef).data;
+      let servicioRef = /databases/$(database)/documents/servicios/$(sesion.idServicio);
+      let cliente = get(clienteRef).data;
+      return exists(sesionRef)
+        && sesion.negocioId == negocioId
+        && exists(servicioRef)
+        && get(servicioRef).data.negocioId == negocioId
+        && get(servicioRef).data.activo == true
+        && sesion.idServicio in cliente.serviciosContratados
+        && cliente.negocioId == negocioId
+        && cliente.firebaseUid == request.auth.uid
+        && getAfter(sesionRef).data.plazasDisponibles == sesion.plazasDisponibles - 1
+        && getAfter(sesionRef).data.plazasDisponibles >= 0;
+    }
+
+    // CANCELAR RESERVA: la eliminación de la reserva debe ir acompañada del
+    // incremento de plazasDisponibles (sin superar la capacidad).
+    function reservaEliminadaValida(sesionId, negocioId) {
+      let sesionRef = /databases/$(database)/documents/sesiones/$(sesionId);
+      return exists(sesionRef)
+        && get(sesionRef).data.negocioId == negocioId
+        && getAfter(sesionRef).data.plazasDisponibles == get(sesionRef).data.plazasDisponibles + 1
+        && getAfter(sesionRef).data.plazasDisponibles <= get(sesionRef).data.capacidad;
+    }
+
+    // La sesión solo puede cambiar su campo plazasDisponibles.
+    function sesionSinCambiosSalvoPlazas() {
+      return request.resource.data.idSesion == resource.data.idSesion
+        && request.resource.data.negocioId == resource.data.negocioId
+        && request.resource.data.idServicio == resource.data.idServicio
+        && request.resource.data.fecha == resource.data.fecha
+        && request.resource.data.hora == resource.data.hora
+        && request.resource.data.duracionMinutos == resource.data.duracionMinutos
+        && request.resource.data.capacidad == resource.data.capacidad
+        && request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly(["plazasDisponibles"]);
+    }
+
+    // El decremento de plazas solo es válido si la Transaction crea la reserva.
+    function reservaCreadaEnTransaccion(sesionId, negocioId) {
+      let reservaRef = /databases/$(database)/documents/reservas/$(string(usuarioActual().clienteId) + "_" + string(sesionId));
+      return existsAfter(reservaRef)
+        && getAfter(reservaRef).data.negocioId == negocioId
+        && getAfter(reservaRef).data.clienteId == usuarioActual().clienteId;
+    }
+
+    // El incremento de plazas solo es válido si la Transaction elimina la reserva.
+    function reservaEliminadaEnTransaccion(sesionId) {
+      let reservaRef = /databases/$(database)/documents/reservas/$(string(usuarioActual().clienteId) + "_" + string(sesionId));
+      return !existsAfter(reservaRef);
     }
 
 
@@ -606,6 +678,64 @@ service cloud.firestore {
 
 
     // =========================================================
+    // SERVICIOS
+    // =========================================================
+
+    // Un servicio pertenece a un único negocio (negocioId = UID del ADMIN).
+    // Solo el ADMIN de ese negocio puede leer, crear, modificar y eliminar.
+    // El CLIENTE no puede crear, modificar ni eliminar servicios.
+    match /servicios/{servicioId} {
+      // El ADMIN lee sus servicios. La rama resource == null permite que una
+      // Transaction compruebe la existencia del documento antes de crearlo
+      // (mismo mecanismo que clientes en VÍA 2); no revela datos de otros.
+      allow get: if esAdmin()
+        && (resource == null
+            || resource.data.negocioId == usuarioActual().negocioId);
+
+      // Un CLIENTE vinculado puede leer un servicio ACTIVO de su negocio.
+      // Necesario para que la Transaction de reserva pueda comprobar el servicio.
+      allow get: if esCliente()
+        && usuarioActual().clienteId is int
+        && resource.data.negocioId == usuarioActual().negocioId
+        && resource.data.activo == true;
+
+      allow list: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+
+      allow create: if esAdmin()
+        && request.resource.data.keys().hasOnly([
+             "idServicio",
+             "negocioId",
+             "nombre",
+             "descripcion",
+             "activo"
+           ])
+        && request.resource.data.idServicio is int
+        && string(request.resource.data.idServicio) == servicioId
+        && request.resource.data.negocioId == usuarioActual().negocioId
+        && request.resource.data.nombre is string
+        && request.resource.data.descripcion is string
+        && request.resource.data.activo is bool;
+
+      // El ADMIN modifica nombre, descripcion y activo de SUS servicios.
+      // No puede mover el servicio a otro negocio ni cambiar su id.
+      allow update: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId
+        && request.resource.data.negocioId == resource.data.negocioId
+        && request.resource.data.idServicio == resource.data.idServicio
+        && request.resource.data.nombre is string
+        && request.resource.data.descripcion is string
+        && request.resource.data.activo is bool
+        && request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly(["nombre", "descripcion", "activo"]);
+
+      allow delete: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+    }
+
+
+    // =========================================================
     // MOVIMIENTOS
     // =========================================================
 
@@ -655,21 +785,101 @@ service cloud.firestore {
     // SESIONES
     // =========================================================
 
+    // Una sesión pertenece directamente a un servicio (idServicio) y al
+    // negocio del ADMIN. Modelo: Servicio -> Sesion (sin entidad Clase).
     match /sesiones/{sesionId} {
-      allow get, list: if esAdmin()
+      // El ADMIN lee sus sesiones. La rama resource == null permite que una
+      // Transaction compruebe la existencia del documento antes de crearlo.
+      allow get: if esAdmin()
+        && (resource == null
+            || resource.data.negocioId == usuarioActual().negocioId);
+
+      allow list: if esAdmin()
         && resource.data.negocioId == usuarioActual().negocioId;
 
-      allow get, list: if esCliente()
+      // CLIENTE vinculado: solo sesiones cuyo servicio esté contratado Y activo
+      // y cuyo negocio sea el suyo. No puede crear/modificar/eliminar.
+      allow get: if esCliente()
+        && usuarioActual().clienteId is int
         && resource.data.negocioId == usuarioActual().negocioId
-        && request.auth.uid in resource.data.clientesPermitidos
-        && servicioContratadoPorCliente(resource.data.servicio);
+        && servicioContratadoPorCliente(resource.data.idServicio)
+        && get(
+             /databases/$(database)/documents/servicios/$(resource.data.idServicio)
+           ).data.activo == true;
+
+      allow list: if esCliente()
+        && usuarioActual().clienteId is int
+        && resource.data.negocioId == usuarioActual().negocioId
+        && servicioContratadoPorCliente(resource.data.idServicio)
+        && get(
+             /databases/$(database)/documents/servicios/$(resource.data.idServicio)
+           ).data.activo == true;
 
       allow create: if esAdmin()
-        && request.resource.data.negocioId == usuarioActual().negocioId;
+        && request.resource.data.keys().hasOnly([
+             "idSesion",
+             "negocioId",
+             "idServicio",
+             "fecha",
+             "hora",
+             "duracionMinutos",
+             "capacidad",
+             "plazasDisponibles"
+           ])
+        && request.resource.data.idSesion is int
+        && string(request.resource.data.idSesion) == sesionId
+        && request.resource.data.negocioId is string
+        && request.resource.data.negocioId == usuarioActual().negocioId
+        && request.resource.data.idServicio is int
+        && request.resource.data.fecha is int
+        && request.resource.data.hora is string
+        && request.resource.data.duracionMinutos is int
+        && request.resource.data.capacidad is int
+        && request.resource.data.plazasDisponibles is int
+        && servicioValidoParaSesion(
+             request.resource.data.idServicio,
+             request.resource.data.negocioId
+           );
 
+      // El ADMIN modifica los datos de la sesión sin cambiar ni el id ni el
+      // negocio ni el servicio. El servicio debe seguir existiendo, siendo del
+      // negocio y estando activo.
       allow update: if esAdmin()
         && resource.data.negocioId == usuarioActual().negocioId
-        && request.resource.data.negocioId == usuarioActual().negocioId;
+        && request.resource.data.idSesion == resource.data.idSesion
+        && request.resource.data.negocioId == resource.data.negocioId
+        && request.resource.data.idServicio == resource.data.idServicio
+        && request.resource.data.fecha is int
+        && request.resource.data.hora is string
+        && request.resource.data.duracionMinutos is int
+        && request.resource.data.capacidad is int
+        && request.resource.data.plazasDisponibles is int
+        && servicioValidoParaSesion(
+             request.resource.data.idServicio,
+             request.resource.data.negocioId
+           )
+        && request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly(["fecha", "hora", "duracionMinutos", "capacidad", "plazasDisponibles"]);
+
+      // CLIENTE: decrementa plazasDisponibles SOLO dentro de la Transaction que
+      // crea su reserva. No puede alterar el resto de la sesión.
+      allow update: if esCliente()
+        && sesionSinCambiosSalvoPlazas()
+        && request.resource.data.plazasDisponibles == resource.data.plazasDisponibles - 1
+        && request.resource.data.plazasDisponibles >= 0
+        && reservaCreadaEnTransaccion(
+             request.resource.data.idSesion,
+             request.resource.data.negocioId
+           );
+
+      // CLIENTE: incrementa plazasDisponibles SOLO dentro de la Transaction que
+      // elimina su reserva. Nunca supera la capacidad.
+      allow update: if esCliente()
+        && sesionSinCambiosSalvoPlazas()
+        && request.resource.data.plazasDisponibles == resource.data.plazasDisponibles + 1
+        && request.resource.data.plazasDisponibles <= request.resource.data.capacidad
+        && reservaEliminadaEnTransaccion(request.resource.data.idSesion);
 
       allow delete: if esAdmin()
         && resource.data.negocioId == usuarioActual().negocioId;
@@ -680,24 +890,51 @@ service cloud.firestore {
     // RESERVAS
     // =========================================================
 
+    // Una reserva identifica al cliente y la sesión: reservas/{clienteId}_{sesionId}.
+    // La creación y la cancelación son ATÓMICAS (Transaction): la reserva y el
+    // ajuste de plazasDisponibles van siempre juntos.
     match /reservas/{reservaId} {
-      allow get, list: if esAdmin()
+      allow get: if esAdmin()
+        && (resource == null
+            || resource.data.negocioId == usuarioActual().negocioId);
+
+      // El CLIENTE lee su propia reserva (o un documento inexistente para que la
+      // Transaction compruebe que no hay duplicado). No revela reservas ajenas.
+      allow get: if esCliente()
+        && (resource == null
+            || (resource.data.negocioId == usuarioActual().negocioId
+                && resource.data.clienteId == usuarioActual().clienteId));
+
+      allow list: if esAdmin()
         && resource.data.negocioId == usuarioActual().negocioId;
 
-      allow get, list: if esCliente()
+      allow list: if esCliente()
         && resource.data.negocioId == usuarioActual().negocioId
         && resource.data.clienteId == usuarioActual().clienteId;
 
-      allow create: if esAdmin()
-        && request.resource.data.negocioId == usuarioActual().negocioId
-        && request.resource.data.sesionId is int
-        && sesionDelNegocio(request.resource.data.sesionId);
-
+      // El CLIENTE crea su propia reserva dentro de una Transaction que
+      // decrementa las plazas de la sesión.
       allow create: if esCliente()
+        && request.resource.data.keys().hasOnly([
+             "idReserva",
+             "negocioId",
+             "sesionId",
+             "clienteId",
+             "fechaReserva"
+           ])
+        && request.resource.data.idReserva is string
+        && request.resource.data.idReserva == reservaId
+        && request.resource.data.negocioId is string
         && request.resource.data.negocioId == usuarioActual().negocioId
+        && request.resource.data.clienteId is int
         && request.resource.data.clienteId == usuarioActual().clienteId
         && request.resource.data.sesionId is int
-        && sesionAccesiblePorCliente(request.resource.data.sesionId);
+        && string(request.resource.data.clienteId) + "_" + string(request.resource.data.sesionId) == reservaId
+        && reservaCreaValida(
+             request.resource.data.sesionId,
+             request.resource.data.clienteId,
+             request.resource.data.negocioId
+           );
 
       allow update: if esAdmin()
         && resource.data.negocioId == usuarioActual().negocioId
@@ -705,12 +942,18 @@ service cloud.firestore {
 
       allow update: if false;
 
+      // El ADMIN elimina una reserva de su negocio dentro de una Transaction
+      // que incrementa las plazas de la sesión.
       allow delete: if esAdmin()
-        && resource.data.negocioId == usuarioActual().negocioId;
+        && resource.data.negocioId == usuarioActual().negocioId
+        && reservaEliminadaValida(resource.data.sesionId, resource.data.negocioId);
 
+      // El CLIENTE elimina su propia reserva dentro de una Transaction que
+      // incrementa las plazas de la sesión.
       allow delete: if esCliente()
         && resource.data.negocioId == usuarioActual().negocioId
-        && resource.data.clienteId == usuarioActual().clienteId;
+        && resource.data.clienteId == usuarioActual().clienteId
+        && reservaEliminadaValida(resource.data.sesionId, resource.data.negocioId);
     }
 
 

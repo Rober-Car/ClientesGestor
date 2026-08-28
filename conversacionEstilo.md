@@ -9,12 +9,16 @@
 Se está trabajando **solo en el estilo visual** de GestorPro (dos apps Android en un mismo
 proyecto Gradle: `:app` = Admin, `:appCliente` = Cliente, Firebase compartido `gestorpro-50e83`).
 
-En esta sesión nos centramos en rediseñar la **pantalla Home del Admin** con un look
-Material 3 "dashboard". La última versión aplicada y compilada usa **cards casi blancas con
-tinte muy suave del color** y **el color protagonista solo en la celda del icono**.
+Hemos aplicado un lenguaje visual Material 3 moderno y coherente en dos frentes:
 
-**Estado de alcance pedido por el usuario:** `Solo Admin`. El Cliente NO se ha tocado en este
-rediseño de Home (sigue con su layout de columna original/restaurado).
+- **Home del Admin** (dashboard 2×2, cards con color solo en el icono).
+- **Pantallas de tema/preferencias**: `ConfiguracionScreen` (Cliente, "Ajustes") y
+  `PreferenciasScreen` (Admin, "Preferencias") rediseñadas con el mismo patrón de
+  "fila con icono + título + descripción + indicador de selección".
+
+**Regla fundamental en todas estas tareas:** SOLO presentación. Nunca se toca lógica,
+ViewModels, repositorios, navegación, rutas, entidades, Firebase ni Room. Si compila,
+no se hacen cambios adicionales.
 
 ## 2. Decisiones de diseño acordadas (Admin Home)
 
@@ -41,64 +45,93 @@ rediseño de Home (sigue con su layout de columna original/restaurado).
   - Cabecera "ligeramente diferenciada" (fondo gris claro), NO oscura.
   - Cards lo más neutras posible: color solo en iconos, fondo muy suave.
 
-## 3. Estado actual de archivos (Admin)
+## 3. Patrón reutilizable — filas de opción de tema (Ajustes/Preferencias)
 
-- `app/src/main/java/com/roberto/gestorpro/ui/components/MenuCard.kt`
-  - Versión cuadrada 140.dp. Firma:
-    `MenuCard(titulo, descripcion, icono, containerColor = surface, iconContainerColor = primaryContainer, iconTint = onPrimaryContainer, onClick)`.
-  - `elevation = 1.dp`, `shape = 20.dp`, padding interno 20.dp.
-- `app/src/main/java/com/roberto/gestorpro/ui/home/HomeScreen.kt`
-  - Header con logo (`AsyncImage(File(logoNegocio))` o placeholder `AccountBox` en `primaryContainer`),
-    "Panel principal" + `nombreNegocio`, fondo `surfaceContainerLow`.
-  - Título "Accesos rápidos".
-  - `LazyVerticalGrid` 2 col con las 4 `MenuCard` de la tabla de colores de arriba.
-  - Usa `Routes.CLIENTES`, `Routes.CLASES`, `Routes.ECONOMIA`, `Routes.CONFIGURACION`.
-  - `MainViewModel` expone `nombreNegocio` y `logoNegocio`.
-  - Imports añadidos: `androidx.compose.ui.graphics.Color`, `coil3.compose.AsyncImage`, `java.io.File`,
-    `lazy.grid.*`, etc.
+Ambas pantallas de tema usan exactamente el mismo concepto visual (copiado de la pantalla
+de Ajustes del Cliente y replicado en Preferencias del Admin). Composable privado `TemaOption`:
 
-## 4. Estado del Cliente (sin cambios en este rediseño)
+- **Una sola Card** agrupa las 3 opciones (Claro / Oscuro / Sistema). No se crean 3 cards.
+  Card: `shape = 16.dp`, `containerColor = surface`, `elevation = 0.dp`,
+  `border = BorderStroke(1.dp, outlineVariant)`.
+- Fila `TemaOption` (`Row`, `verticalAlignment = CenterVertically`,
+  `horizontalArrangement = Arrangement.spacedBy(16.dp)`, `clickable(onClick)`):
+  - **Icono** a la izquierda (`24.dp`): `LightMode` / `DarkMode` / `SettingsBrightness`
+    (disponibles vía `material-icons-extended`, presente en ambas apps).
+  - **Columna** con `titleMedium` (título) + `bodyMedium` (descripción secundaria):
+    "Claro"→"Tema claro", "Oscuro"→"Tema oscuro", "Seguir configuración del sistema"→"Según el dispositivo".
+  - **Indicador** `RadioButton` a la derecha (`selectedColor = azul #1E88E5`).
+- **Opción seleccionada:** `background = azul.copy(alpha = 0.08f)`, icono y título en azul
+  `#1E88E5` con `FontWeight.Bold`; las no seleccionadas en `onSurfaceVariant` (gris).
+- **Divisores:** `HorizontalDivider` con `outlineVariant` entre filas (con `padding horizontal 16.dp`).
+- AZUL = selección de tema / acciones principales; ROJO = cerrar sesión / destructivo; GRISES = secundario.
+- **No usar `Modifier.weight`** en este patrón: en la versión de Compose del proyecto el import
+  `androidx.compose.foundation.layout.weight` resuelve a un símbolo `internal` y falla la compilación.
+  Se usa `Arrangement.spacedBy(16.dp)` en su lugar (funciona sin overflow).
 
-- `appCliente/.../ui/home/HomeScreen.kt`: **restaurado a layout de columna** (no grid).
-  Header "GestorPro Cliente" + subtítulo, `Card` de aviso `errorContainer` si `!vinculado`,
-  y `MenuCard` a ancho completo en orden: Mi perfil, Clases y sesiones, Vinculación (solo si
-  `!vinculado`), Mi cuenta, Configuración.
-- `appCliente/.../ui/components/MenuCard.kt`: estilo original (Card elev 6.dp, icono círculo 64.dp
-  con `shadowElevation = 4.dp`, color azul fijo `0xFF1E88E5`, flecha `KeyboardArrowRight`).
-- Trabajo previo ya existente en Cliente (no es parte de este rediseño, se mantiene):
-  ruta `CONFIGURACION` + `ConfiguracionScreen` (tema claro/oscuro/sistema), `BotonSelectorFoto`
-  en ambas apps, helpers de cámara en `FotoUtils`, foto en `CompletarPerfilScreen`/`EditarPerfilScreen`.
+### 3a. Pantalla de Preferencias del Admin (`PreferenciasScreen.kt`)
+- Cabecera idéntica a la del resto (surfaceContainerLow, padding 20/16, título "Preferencias",
+  `IconButton` con `ArrowBack` → `navController.popBackStack()`).
+- Título de sección "Apariencia".
+- "Cerrar sesión": `TextButton` rojo `#F44336` con icono `Logout`
+  (`Icons.AutoMirrored.Filled.Logout`), ancho completo, separado 32.dp de la card.
+  Sin tocar `mostrarDialogoCerrarSesion`, `mainViewModel.cerrarSesion()`, navegación ni `popUpTo(0)`.
+- Diálogo `AlertDialog` intacto (textos "Cerrar sesión" / "¿Seguro que quieres cerrar sesión?" /
+  "Cancelar" / "Cerrar sesión", título azul).
 
-## 5. Pendientes / siguiente paso
+### 3b. Pantalla de Ajustes del Cliente (`ConfiguracionScreen.kt`)
+- Cabecera idéntica pero título visible "Ajustes" (el nombre interno `ConfiguracionScreen`/
+  `Routes.CONFIGURACION` NO se cambia).
+- Misma Card y patrón `TemaOption` que arriba. Sin tocar `themeMode`, `setThemeMode`,
+  `THEME_CLARO/OSCURO/SISTEMA`, `popBackStack`.
 
-- **El usuario quería VER cómo queda** la última versión (hex + tinte 0.12f) en dispositivo.
-  Posibles ajustes que él mismo sugirió:
-  - Si el tinte se ve mucho: bajar `alpha` a `0.08f`.
-  - Si prefiere icono sobre blanco en vez de color fuerte: cambiar `iconContainerColor` a blanco
-    y `iconTint` al color fuerte.
-  - Subir elevación a `2.dp` si quiere más contraste de sombra.
-- **Rediseño del Home del Cliente (NO hecho aún):** el usuario contestó en una pregunta que,
-  cuando se aplique al cliente, quiere: grid 2 col + tarjeta "Vinculación" condicional (solo si
-  `!vinculado`) + aviso si no vinculado. Queda pendiente y fuera de alcance hasta que lo pida.
+## 4. Estado de archivos
+
+### Admin (`:app`)
+- `ui/components/MenuCard.kt` — cuadrada 140.dp, `Card(onClick)`, `elevation = 1.dp`, `shape = 20.dp`.
+- `ui/home/HomeScreen.kt` — header `surfaceContainerLow` + logo/nombreNegocio + grid 2 col.
+- `ui/configuracion/PreferenciasScreen.kt` — **rediseñada** (patrón TemaOption + Cerrar sesión).
+- `ui/viewmodel/MainViewModel.kt` — expone `nombreNegocio` y `logoNegocio` (sin cambios de lógica).
+
+### Cliente (`:appCliente`)
+- `ui/home/HomeScreen.kt` — **pendiente de rediseño a grid 2 col** (ver §5). Hoy: columna original.
+- `ui/components/MenuCard.kt` — estilo original (elev 6.dp, icono círculo 64.dp azul fijo, flecha).
+- `ui/configuracion/ConfiguracionScreen.kt` — **rediseñada** (patrón TemaOption, título "Ajustes").
+- `ui/viewmodel/MainViewModel.kt` — expone `logoNegocio` (reusable para header).
+
+## 5. Pendientes / siguiente paso (visual)
+
+- **Home del Cliente aún NO rediseñado** a grid 2 col. El usuario quiso: grid 2 col +
+  tarjeta "Vinculación" condicional (solo si `!vinculado`) + aviso si no vinculado.
+  Fuera de alcance hasta que lo pida.
+- **Indicador de estado del Cliente (Home) — Fase 1 hecha, Fase 2 pendiente (NO es solo visual):**
+  `HomeClientEstadoIndicator` ya tiene estilo moderno (bola 16.dp, padding 18.dp, título
+  `titleMedium`+Bold, fecha `bodyMedium`, fondo `azul.copy(alpha=0.08f)`, call-site
+  `padding(horizontal = 20.dp)`). Usa valores MOCK. La Fase 2 (conectar a datos reales de
+  Firestore vía campos de periodo mantenidos por el Admin) es trabajo de lógica, no de este archivo.
+- Ajustes finos que el usuario puede pedir en Home Admin: bajar `alpha` a `0.08f`, o icono sobre
+  blanco, o elevación `2.dp`.
 - Convención del proyecto: responder en español, no usar emojis salvo petición, no romper lógica
-  (solo estética salvo que se indique), color de acento cliente `0xFF1E88E5`.
+  (solo estética salvo que se indique), color de acento cliente `0xFF1E88E5` (azul selección).
 
 ## 6. Notas técnicas importantes
 
 - `TakePicture` no requiere permiso de cámara en el manifest (usa app de cámara del sistema).
 - Cliente ya tiene `FileProvider` + `res/xml/file_paths.xml` (cache-path `fotos_camara`).
-- `material-icons-extended` está en `appCliente/build.gradle.kts`.
+- `material-icons-extended` está en `app/build.gradle.kts` y `appCliente/build.gradle.kts`
+  (necesario para `LightMode`/`DarkMode`/`SettingsBrightness`/`Logout`).
 - `tonalElevation` NO existe como parámetro de `CardDefaults.cardElevation()` ni
   `surfaceColorAtElevation` en la versión de M3 del proyecto (usar `Surface(tonalElevation=...)` si hace falta).
-- Comando de build usado: `.\gradlew.bat :app:assembleDebug --offline -q`
-  (o `:appCliente:assembleDebug` para el cliente).
+- Comando de build usado: `.\gradlew.bat :app:assembleDebug` (Admin) /
+  `.\gradlew.bat :appCliente:assembleDebug` (Cliente). `BUILD SUCCESSFUL` en ambos rediseños.
 - El cliente `MainViewModel` SÍ expone `logoNegocio` (se puede reusar el mismo header que Admin).
 
 ## 7. Archivos clave para retomar
 
 - `app/src/main/java/com/roberto/gestorpro/ui/components/MenuCard.kt` (Admin)
 - `app/src/main/java/com/roberto/gestorpro/ui/home/HomeScreen.kt` (Admin)
+- `app/src/main/java/com/roberto/gestorpro/ui/configuracion/PreferenciasScreen.kt` (Admin, rediseñada)
 - `appCliente/src/main/java/com/roberto/gestorpro/cliente/ui/home/HomeScreen.kt` (Cliente, sin tocar)
 - `appCliente/src/main/java/com/roberto/gestorpro/cliente/ui/components/MenuCard.kt` (Cliente, sin tocar)
-- `app/src/main/java/com/roberto/gestorpro/ui/viewmodel/MainViewModel.kt` (tiene logoNegocio/nombreNegocio)
-- `appCliente/src/main/java/com/roberto/gestorpro/cliente/ui/viewmodel/MainViewModel.kt` (tiene logoNegocio)
+- `appCliente/src/main/java/com/roberto/gestorpro/cliente/ui/configuracion/ConfiguracionScreen.kt` (Cliente, rediseñada)
+- `app/src/main/java/com/roberto/gestorpro/ui/viewmodel/MainViewModel.kt` (logoNegocio/nombreNegocio)
+- `appCliente/src/main/java/com/roberto/gestorpro/cliente/ui/viewmodel/MainViewModel.kt` (logoNegocio)

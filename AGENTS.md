@@ -99,17 +99,18 @@ app/                                     -> GestorPro Admin
     │   ├── database/                    -> ClientesDatabase
     │   ├── entity/                      -> entidades Room
     │   ├── export/                      -> exportación de datos
-    │   ├── firebase/                    -> Firebase (Autenticacion, Negocio, ClienteRemoto)
+    │   ├── firebase/                    -> Firebase (Autenticacion, Negocio, ClienteRemoto, ServicioRemoto, SesionRemoto, ReservaRemoto)
     │   └── repository/                  -> repositorios de datos
     ├── di/AppModule.kt                  -> dependencias de Hilt
     └── ui/
         ├── auth/                        -> login y registro (ADMIN)
-        ├── clases/                      -> clases, sesiones y reservas
-        ├── clientes/                    -> clientes y perfiles
+        ├── clases/                      -> código ANTIGUO de Clase/SesionClase (transitorio)
+        ├── clientes/                    -> clientes y perfiles (+ diálogo de servicios contratados)
         ├── components/                  -> componentes Compose reutilizables
         ├── configuracion/               -> cuenta, negocio, preferencias y datos
         ├── economia/                    -> movimientos y gastos
         ├── home/                        -> inicio de administrador
+        ├── servicios/                   -> SERVICIOS y SESIONES (nuevo modelo)
         ├── theme/                       -> tema, colores y tipografía
         ├── utils/                       -> FotoUtils
         └── viewmodel/                   -> ViewModels
@@ -144,7 +145,10 @@ appCliente/                              -> GestorPro Cliente
 - Alta, edición, consulta, archivado y restauración de clientes (Room + réplica Firestore con write-through).
 - Réplica de clientes que crea `clientes/{idCliente}`, `indices_clientes/{negocio}_{dni}` y `clientes_privados/{idCliente}` en un único Batch.
 - Cambio de DNI de un cliente manteniendo el índice atómico (borra el viejo y crea el nuevo en el mismo Batch).
-- Gestión de clases, sesiones y reservas.
+- **Gestión de SERVICIOS y SESIONES (nuevo modelo):** `ServiciosScreen` (ACTIVOS/DE BAJA, crear/editar/dar de baja/reactivar/eliminar), detalle del servicio con la sesión del día, `ProgramarSesionesScreen` (desde/hasta + día con hora propia + duración + capacidad), `EditarSesionScreen` ("Ver / editar sesión") y `SesionReservasScreen` (clientes reservados). Modelo `Cliente → Servicio → Sesión → Reserva` (sin entidad Clase). `ClaseEntity`/`SesionClaseEntity` siguen en Room solo de forma TRANSITORIA.
+- **Servicios contratados del cliente (Room, perfil ADMIN):** `ClienteEntity.serviciosContratados: List<Int>` (ids de `ServicioEntity`); selector multi-servicio en el perfil del cliente (solo servicios activos; los ids inactivos se conservan).
+- **Reservas en Room:** creación/cancelación ATÓMICAS con `RoomDatabase.withTransaction` (comprueba sesión, plazas > 0, servicio activo, sin duplicado por `(idSesion, idCliente)`); cascadas de reservas al regenerar/desactivar/eliminar servicios y al eliminar sesiones. Movimientos independientes.
+- **Reservas en Firestore:** `reservas/{clienteId}_{sesionId}` con Transaction (crear = reserva + `plazasDisponibles-1`; cancelar = delete + `+1`, sin superar capacidad); `ReservaRemotoRepository`.
 - Gestión de movimientos, cuotas y gastos.
 - Configuración del negocio, nombre, logo, tema, cuenta y datos.
 - Subida del logo del negocio a Firebase Storage (`negocios/{negocioId}/logo.jpg`) y guardado de su URL en `negocios` + `negocios_publicos` (mismo WriteBatch).
@@ -178,9 +182,9 @@ clientes/{idCliente}
 clientes_privados/{idCliente}        <- observaciones y datos internos (solo ADMIN)
 indices_clientes/{negocioId}_{dni}   <- unicidad y localización negocio+DNI
 perfiles_pendientes/{uid}            <- perfil temporal del CLIENTE sin negocio
-clases/{claseId}
-sesiones/{sesionId}
-reservas/{reservaId}
+servicios/{idServicio}               <- SERVICIOS del negocio (nuevo modelo)
+sesiones/{idSesion}                  <- sesiones de un servicio (sin Clase)
+reservas/{clienteId}_{sesionId}      <- reserva atómica cliente+sesión
 solicitudes/{solicitudId}
 movimientos/{movimientoId}
 ```
@@ -191,13 +195,13 @@ Reglas de identidad y pertenencia:
 
 - El UID de Firebase es el ID del documento `usuarios/{uid}`.
 - Los roles remotos son exactamente `ADMIN` y `CLIENTE`.
-- `negocioId` es un `String` en Firestore.
-- `clienteId`, `idCliente` y `sesionId` se manejan como enteros (`int64`) cuando forman parte de los datos.
-- Los documentos de `clientes` usan el identificador numérico convertido a texto en la ruta, por ejemplo `clientes/2`.
+- `negocioId` es un `String` en Firestore (el `negocioId` del ADMIN es su UID).
+- `clienteId`, `idCliente`, `idServicio`, `idSesion` y `sesionId` se manejan como enteros (`int64`) cuando forman parte de los datos.
+- Los documentos de `clientes` y `servicios` usan el identificador numérico convertido a texto en la ruta, por ejemplo `clientes/2`, `servicios/7`.
 - `firebaseUid` es un `String`; en `clientes` nace `null` (ficha creada por el ADMIN) y solo lo rellena el CLIENTE al vincularse.
-- `serviciosContratados` y `clientesPermitidos` son arrays de strings.
+- `serviciosContratados` es un array de **enteros** (ids de `servicios`). **`clientesPermitidos` ya NO se usa** en sesiones (el acceso del CLIENTE se calcula en Rules con `get(clientes)` + `get(servicios)`).
 - Un administrador solo puede acceder a su negocio, identificado por `adminUid` y `negocioId`.
-- Un cliente solo puede acceder a sus datos, sus reservas, sus solicitudes y las sesiones para las que esté autorizado.
+- Un cliente solo puede acceder a sus datos, sus reservas, sus solicitudes y las sesiones de servicios que tenga contratados y activos.
 - Los clientes nunca pueden acceder a `movimientos` ni a `clientes_privados`.
 
 Estructura clave de documentos:
@@ -209,11 +213,15 @@ negocios_publicos/{negocioId} = { nombre, codigoMaestro, logo }
 clientes/{idCliente} = { idCliente, negocioId, firebaseUid, nombre, apellidos, dni,
                          telefono, email, foto, fechaNacimiento, fechaRegistro,
                          fechaAlta, fechaBaja, estado, tieneLlave,
-                         serviciosContratados, fechaInicioActual, fechaFinActual }
+                         serviciosContratados: [int...], fechaInicioActual, fechaFinActual }
                      (sin observaciones ni codigoVinculacion)
 clientes_privados/{idCliente} = { negocioId, observaciones }
 indices_clientes/{negocioId}_{dni} = { negocioId, dni, clienteId }
 perfiles_pendientes/{uid} = VÍA 1: { dni, negocioId } | VÍA 2: { nombre, apellidos, dni, telefono, email, foto, fechaNacimiento }
+servicios/{idServicio} = { idServicio, negocioId, nombre, descripcion, activo }
+sesiones/{idSesion} = { idSesion, negocioId, idServicio, fecha, hora,
+                        duracionMinutos, capacidad, plazasDisponibles }
+reservas/{clienteId}_{sesionId} = { idReserva, negocioId, sesionId, clienteId, fechaReserva }
 ```
 
 ### Almacenamiento remoto de imágenes (Firebase Storage, solo Admin)
@@ -229,7 +237,7 @@ Flujos funcionales remotos:
 - Un ADMIN nuevo puede registrarse con `negocioId = null` y debe crear su propio negocio con código maestro.
 - La creación del negocio, `negocios_publicos/{id}` y la asignación de `usuarios/{uid}.negocioId` deben ejecutarse en el mismo Batch.
 - Las solicitudes solo representan altas y bajas. Sus valores remotos son `ALTA` y `BAJA`.
-- Las clases definen servicios y horarios; las sesiones son instancias concretas; las reservas relacionan un cliente con una sesión mediante `sesionId`.
+- Los servicios definen el catálogo del negocio; las sesiones son instancias concretas de un servicio (`sesiones/{id}.idServicio`); las reservas relacionan un cliente con una sesión mediante `sesionId`.
 - Un cliente no solicita una clase mediante `solicitudes`; primero debe tener contratado el servicio y después puede reservar una sesión autorizada.
 
 ### Alta y vinculación del CLIENTE — dos vías
@@ -276,7 +284,9 @@ Security Rules (`firestore.rules`):
 - **`clientes`:** el CLIENTE solo puede leer su propia ficha (`firebaseUid == uid`) y editar solo sus campos personales; `list` solo ADMIN.
 - Un CLIENTE solo puede vincularse una vez (`usuarios/{uid}` exige `clienteId == null` y `negocioId == null`).
 - `negocios_publicos/{id}` permite `get/list` a cualquier autenticado; `create/update` solo el ADMIN del negocio (campos `codigoMaestro`, `nombre`, `logo`).
-- Una reserva de cliente debe apuntar a una sesión existente del mismo negocio y a una sesión cuyo `clientesPermitidos` contenga el UID autenticado.
+- **`servicios/{idServicio}`:** solo el ADMIN del negocio crea/modifica/elimina; el CLIENTE vinculado puede `get` servicios ACTIVOS de su negocio (necesario para la Transaction de reserva). create/update validan `hasOnly`, tipos y `negocioId`.
+- **`sesiones/{idSesion}`:** solo el ADMIN del negocio crea/modifica/elimina; la creación exige un servicio existente, del negocio y ACTIVO (`servicioValidoParaSesion`). El CLIENTE vinculado puede `get/list` solo sesiones de servicios contratados y activos de su negocio. `resource == null` en get ADMIN para comprobación de existencia.
+- **`reservas/{clienteId}_{sesionId}` (documentId determinista):** creación y cancelación ATÓMICAS (Transaction). El CLIENTE crea su reserva (validada contra Firestore con `reservaCreaValida`: negocio, servicio contratado+activo, `plazas == anterior-1 && >= 0`) y la elimina devolviendo la plaza (`reservaEliminadaValida`: `== anterior+1 && <= capacidad`). El decremento/incremento de `plazasDisponibles` de la sesión solo se permite al CLIENTE si la Transaction crea/elimina la reserva (`reservaCreadaEnTransaccion` / `reservaEliminadaEnTransaccion`). El ADMIN consulta y elimina reservas de su negocio con ajuste de plazas. `update` de CLIENTE: false.
 - **Storage Rules (`storage.rules`):** lectura para cualquier autenticado; escritura solo para el ADMIN propietario (`negocios/{negocioId}/logo.jpg`, `negocioId == usuarios/{uid}.negocioId`). Resto del bucket bloqueado.
 - Las Rules deben probarse con los casos ADMIN, CLIENTE, VÍA 1 y VÍA 2 antes de publicarse (`npm --prefix firestore-tests test`).
 
@@ -341,7 +351,7 @@ node firestore-tests/auditoria_backfill_indices.cjs
 
 ## Tests
 
-- **Rules de Firestore + Storage:** `npm --prefix firestore-tests test` (20 pruebas: 18 de Firestore + 2 de Storage/logo, en los emuladores `--only firestore,storage`). Deben pasar **antes** de desplegar las Rules.
+- **Rules de Firestore + Storage:** `npm --prefix firestore-tests test` (**76 pruebas** en los emuladores `--only firestore,storage`: 20 de clientes/vinculación/negocio/logo + 13 de servicios + 20 de sesiones + 23 de reservas). Deben pasar **antes** de desplegar las Rules.
 - Los tests de Android se mantienen para la fase final del proyecto salvo que el desarrollador los solicite expresamente antes. No crear archivos de test automáticamente durante una funcionalidad normal.
 
 ## Convenciones específicas de Firebase y navegación
@@ -354,23 +364,23 @@ node firestore-tests/auditoria_backfill_indices.cjs
 
 ## Estado actual y pendientes (2026-08-28)
 
-Implementado y compilado (BUILD SUCCESSFUL de `:app` y `:appCliente`):
+Implementado y compilado (`:app` y `:appCliente` BUILD SUCCESSFUL; `:app:compileDebugKotlin` EXITCODE 0; Rules **76/76 OK**):
 
 - **Dos aplicaciones independientes:** `:app` (Admin) y `:appCliente` (Cliente) en el mismo proyecto Gradle, con el mismo Firebase (`gestorpro-50e83`) compartido.
-- **`firestore.rules`** con el nuevo modelo: `indices_clientes`, `perfiles_pendientes`, `clientes_privados`, VÍA 1 (`vinculacionDniValida` + declaración temporal con merge + regla `clientes/get` VÍA 1), VÍA 2 (`creacionDirectaValida` + regla `clientes/get resource == null`), edición personal del CLIENTE, índice atómico al cambiar DNI, `logo` en `negocios_publicos`. Sin `vinculaciones`.
-- **Flujo CLIENTE sin vínculo (FASE 1, validado en dispositivo):** "No tengo vinculación" → perfil en `perfiles_pendientes/{uid}` → Home sin vincular (aviso + cards Mi perfil / Clases placeholder / Vincular con mi gimnasio / Mi cuenta / Configuración) → vincular con código maestro + DNI → VÍA 1 (ficha existente) o VÍA 2 (crea ficha + índice + `usuarios` en Transaction). El perfil pendiente **solo se borra al completar la vinculación con éxito**; `localizarFicha()` distingue índice inexistente de permisos/red; `CompletarPerfilScreen` rellena los campos desde Firestore al abrir.
-- **Sincronización del nombre del negocio (validado en dispositivo):** `MiNegocioScreen`/`MainViewModel.sincronizarNombreNegocio` actualiza `negocios` + `negocios_publicos` en un WriteBatch; el Cliente refresca nombre (y logo) desde `negocios_publicos` al arrancar con sesión restaurada (`cargarEstadoLocal()` en `destinoInicial()`, con caché en DataStore si no hay conexión).
-- **Logo del negocio (código implementado y compilado; PENDIENTE habilitar bucket):** `storage.rules` versionada; dependencia `firebase-storage` solo en `:app`; `NegocioRepository.guardarLogoRemoto()` sube a `negocios/{uid}/logo.jpg`, guarda la URL en `negocios` + `negocios_publicos` (WriteBatch) y el Cliente la muestra con Coil en Home.
-- **Tests de Rules:** 20/20 OK (`npm --prefix firestore-tests test`, emuladores firestore+storage; PRUEBA 19 Storage logo, PRUEBA 20 Firestore logo).
-- **appCliente** incluye selector de foto galería/cámara (`BotonSelectorFoto` + `FotoUtils` con `crearFotoTemporal`/`guardarFotoDeCamara`/`uriDeFotoTemporal`) y rutas `CLASES`/`CONFIGURACION`.
-- **`google-services.json`** de Admin y Cliente en `app/` y `appCliente/` (no versionados; proyecto `gestorpro-50e83`; bucket por defecto `gestorpro-50e83.firebasestorage.app`).
+- **Nuevo modelo SERVICIOS/SESIONES/RESERVAS (Fases 1–5C):** se sustituyó el concepto de "Clase" por un catálogo de **Servicios** (`ServicioEntity`/`servicios/{id}`) con sesiones propias (`SesionEntity`/`sesiones/{id}`). Relación final `Cliente → Servicio → Sesión → Reserva`, **sin entidad Clase** en el flujo nuevo.
+  - **Room (Fase 1, 2, 3, 5B):** `ServicioEntity`, `SesionEntity` (tablas `servicio`, `sesion`), `serviciosContratados: List<Int>` en `ClienteEntity`, DAOs/repositorios nuevos, `IntListConverter`, Room v11 (destructivo). UI Admin de Servicios/Sesiones (ACTIVOS/DE BAJA, programación por día con hora propia, "Ver / editar sesión", reservas de sesión). Reservas ATÓMICAS con `RoomDatabase.withTransaction` (duplicado por `(idSesion,idCliente)`, plazas ≥ 0 y ≤ capacidad, servicio activo) y cascadas. Gestión de servicios contratados en el perfil del cliente (solo Room, sin sincronizar aún).
+  - **Firestore (Fases 4A, 4B, 5C):** réplica de `servicios/{id}`, `sesiones/{id}` y `reservas/{clienteId}_{sesionId}` con write-through y patrón de colisión de ids Int. Transaction atómica de reservar/cancelar (plazas±1). Cascadas remotas: al desactivar/eliminar servicio y al eliminar sesión se borran sus reservas. El `negocioId` remoto es el UID del ADMIN (Room sigue con `""`).
+  - **Rules:** `servicios` (ADMIN CRUD, CLIENTE get de activos), `sesiones` (ADMIN CRUD, CLIENTE get/list solo contratadas+activas), `reservas` (create/delete atómicos con `getAfter`, `update` CLIENTE false, ADMIN por negocio). 76/76 tests.
+- **Resto de lo ya validado:** flujo CLIENTE sin vínculo/VÍA 1/VÍA 2, sincronización del nombre del negocio, logo con Storage (pendiente bucket), dos apps, etc. (ver secciones anteriores).
+- **`ClaseEntity`/`SesionClaseEntity` y su UI/DAOs/repositorios/ViewModel siguen en el código de forma TRANSITORIA** (Fase 5B los dejó desconectados del nuevo flujo); NO eliminar todavía sin una tarea específica.
 
 Pendiente para continuar:
 
-1. **Habilitar el bucket de Storage en Firebase Console** (proyecto `gestorpro-50e83` → Storage → Empezar) y desplegar `storage.rules` (`firebase deploy --only storage:rules`). Hasta entonces la subida del logo falla con "Object does not exist at location". Verificar el bucket real de producción (los tests 19/20 pasan porque el emulador lo crea automáticamente).
-2. **Desplegar las Rules de Firestore** (si no se hizo tras FASE 1) y verificar en consola que producción coincide con `firestore.rules` local.
-3. **Backfill de `indices_clientes`** para las fichas existentes con DNI (DRY-RUN realizado: 2 índices, sin colisiones; script `firestore-tests/auditoria_backfill_indices.cjs`). No ejecutar hasta aprobación. OJO: la ficha `clientes/1` pertenece al negocio `7X1KyM8...` (sin `negocios_publicos` vigente) → no localizable con el código maestro actual; decisión aparte.
-4. **Pruebas de Storage en producción:** subir/ver el logo desde el ADMIN y comprobar que el CLIENTE lo refresca al reabrir la app; revisar que el error "Object does not exist at location" desaparece tras habilitar el bucket.
-5. **Commits pendientes:** toda la sesión está en working tree sin commitear (dos apps, Rules, tests, docs).
-6. Limpieza de basura versionada: `build_*.txt` en raíz y `firestore-tests/firestore-debug.log`.
-7. Pendientes heredados de Sesión VI (abiertos): crear negocio con `PERMISSION_DENIED` en algún momento (hipótesis token de sesión) y verificar que el login de Admin valide `rol == "ADMIN"` (hoy solo exige doc existente + activo).
+1. **`appCliente` del nuevo modelo:** modelos con `serviciosContratados: List<Int>`, `SesionesScreen` (sesiones de servicios contratados y activos), reservar/ver/cancelar reservas del CLIENTE (reusar la Transaction de Firestore).
+2. **Sincronizar `serviciosContratados` del cliente a Firestore** (hoy el ADMIN solo lo guarda en Room; `clientes/{id}.serviciosContratados` debe escribirse con write-through como ints).
+3. **Habilitar el bucket de Storage en Firebase Console** y desplegar `storage.rules` (hasta entonces el logo falla con "Object does not exist at location").
+4. **Desplegar las Rules de Firestore** tras validar con los 76 tests (`firebase deploy --only firestore:rules`). Verificar producción coincide con `firestore.rules`.
+5. **Backfill de `indices_clientes`** (DRY-RUN: 2 índices; `clientes/1` sin `negocios_publicos` vigente, decisión aparte). NO ejecutar sin aprobación.
+6. **Limpieza definitiva de `Clase`/`SesionClase`** (entidades, DAOs, repos, VM, UI antigua `ui/clases`, rutas) y de `ServicioItem` (sin uso).
+7. **Commits pendientes** (toda la sesión en working tree: dos apps, Rules, tests, docs) y limpieza de basura versionada (`build_*.txt`, `firestore-tests/firestore-debug.log`).
+8. Pendientes heredados: crear negocio con `PERMISSION_DENIED` (hipótesis token) y validar `rol == "ADMIN"` en el login de Admin (hoy solo exige doc existente + activo).

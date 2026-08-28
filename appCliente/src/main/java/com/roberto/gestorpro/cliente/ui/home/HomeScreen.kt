@@ -1,18 +1,25 @@
 package com.roberto.gestorpro.cliente.ui.home
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Badge
@@ -23,6 +30,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,13 +41,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
 import com.roberto.gestorpro.cliente.navigation.Routes
-import com.roberto.gestorpro.cliente.ui.components.MenuCard
 import com.roberto.gestorpro.cliente.ui.viewmodel.MainViewModel
 
 @Composable
@@ -58,44 +69,46 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
         ) {
-            Spacer(modifier = Modifier.height(24.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .padding(horizontal = 20.dp, vertical = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                if (logoNegocio.isNotBlank()) {
+                    AsyncImage(
+                        model = logoNegocio,
+                        contentDescription = "Logo del gimnasio",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(96.dp)
+                            .clip(CircleShape)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
 
-            if (logoNegocio.isNotBlank()) {
-                AsyncImage(
-                    model = logoNegocio,
-                    contentDescription = "Logo del gimnasio",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(96.dp)
-                        .clip(CircleShape)
-                        .align(Alignment.CenterHorizontally)
+                Text(
+                    text = "GestorPro Cliente",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = if (vinculado) {
+                        nombreNegocio.ifBlank { "Tu gimnasio" }
+                    } else {
+                        "Todavía no estás vinculado a un gimnasio"
+                    },
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
-            Text(
-                text = "GestorPro Cliente",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(start = 16.dp)
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = if (vinculado) {
-                    nombreNegocio.ifBlank { "Tu gimnasio" }
-                } else {
-                    "Todavía no estás vinculado a un gimnasio"
-                },
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 16.dp)
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             if (!vinculado) {
                 Card(
@@ -103,7 +116,8 @@ fun HomeScreen(
                         .fillMaxWidth()
                         .padding(16.dp),
                     shape = RoundedCornerShape(20.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.errorContainer
                     )
@@ -121,42 +135,220 @@ fun HomeScreen(
                 }
             }
 
-            MenuCard(
-                titulo = "Mi perfil",
-                descripcion = "Ver y editar mis datos",
-                icono = Icons.Default.Person,
-                onClick = { navController.navigate(Routes.MI_PERFIL) }
-            )
-
-            MenuCard(
-                titulo = "Clases y sesiones",
-                descripcion = "Clases disponibles",
-                icono = Icons.Default.FitnessCenter,
-                onClick = { navController.navigate(Routes.CLASES) }
-            )
-
-            if (!vinculado) {
-                MenuCard(
-                    titulo = "Vinculación",
-                    descripcion = "Qué has hecho",
-                    icono = Icons.Default.Badge,
-                    onClick = { navController.navigate(Routes.INICIO) }
+            if (vinculado) {
+                HomeClientEstadoIndicator(
+                    estado = EstadoVisualCliente.ACTIVO,
+                    fecha = "31/08/2026",
+                    modifier = Modifier.padding(horizontal = 20.dp)
                 )
+                Spacer(modifier = Modifier.height(12.dp))
             }
 
-            MenuCard(
-                titulo = "Mi cuenta",
-                descripcion = "Cómo está",
-                icono = Icons.Default.AccountCircle,
-                onClick = { navController.navigate(Routes.CUENTA) }
-            )
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                item {
+                    HomeClientMenuCard(
+                        titulo = "Mi perfil",
+                        descripcion = "Mis datos personales",
+                        icono = Icons.Default.Person,
+                        color = Color(0xFF2196F3),
+                        onClick = { navController.navigate(Routes.MI_PERFIL) }
+                    )
+                }
+                item {
+                    HomeClientMenuCard(
+                            titulo = "Clases",
+                            descripcion = "Consulta y reserva",
+                            icono = Icons.Default.FitnessCenter,
+                            color = Color(0xFFFB8C00),
+                            onClick = { navController.navigate(Routes.CLASES) }
+                    )
+                }
+                if (!vinculado) {
+                    item {
+                        HomeClientMenuCard(
+                            titulo = "Vinculación",
+                            descripcion = "Vincular con mi gimnasio",
+                            icono = Icons.Default.Badge,
+                            onClick = { navController.navigate(Routes.INICIO) }
+                        )
+                    }
+                }
+                item {
+                    HomeClientMenuCard(
+                        titulo = "Mi cuenta",
+                        descripcion = "Cuenta y seguridad",
+                        icono = Icons.Default.AccountCircle,
+                        color = Color(0xFF43A047),
+                        onClick = { navController.navigate(Routes.CUENTA) }
+                    )
+                }
+                item {
+                    HomeClientMenuCard(
+                        titulo = "Ajustes",
+                        descripcion = "Preferencias de la app",
+                        icono = Icons.Default.Settings,
+                        color = Color(0xFF78909C),
+                        onClick = { navController.navigate(Routes.CONFIGURACION) }
+                    )
+                }
+            }
+        }
+    }
+}
 
-            MenuCard(
-                titulo = "Configuración",
-                descripcion = "Tema claro u oscuro",
-                icono = Icons.Default.Settings,
-                onClick = { navController.navigate(Routes.CONFIGURACION) }
+/**
+ * HomeClientMenuCard
+ * ------------------
+ * Tarjeta de navegación del Home de GestorPro Cliente.
+ *
+ * Comparte el mismo concepto visual que la MenuCard de GestorPro Admin:
+ * composición vertical (icono arriba en contenedor coloreado, título y
+ * descripción debajo), proporción compacta y bordes suaves. Es un componente
+ * privado del Home para no alterar la MenuCard compartida (usada en otras
+ * pantallas como Cuenta).
+ */
+@Composable
+private fun HomeClientMenuCard(
+    titulo: String,
+    descripcion: String,
+    icono: ImageVector,
+    color: Color = Color(0xFF1E88E5),
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(168.dp),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.12f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = color,
+                modifier = Modifier.size(44.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icono,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+
+            Column {
+                Text(
+                    text = titulo,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = descripcion,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+/**
+ * EstadoVisualCliente
+ * -------------------
+ * Modelo visual (sin datos) de los tres estados que puede mostrar el indicador
+ * de estado del cliente en el Home de GestorPro Cliente. Solo se usa para la
+ * presentación; la conexión con Firestore corresponde a la Fase 2.
+ */
+private enum class EstadoVisualCliente {
+    ACTIVO, PAGO_VENCIDO, BAJA
+}
+
+/**
+ * HomeClientEstadoIndicator
+ * -------------------------
+ * Bloque visual, neutro y discreto, que muestra el estado del cliente en el
+ * Home: una bola de color a la izquierda y el texto de estado (con protagonismo)
+ * junto a la fecha (secundaria). El fondo es neutro; solo la bola y el título
+ * adoptan el color semántico. Queda preparado para recibir estado y fecha reales
+ * en la Fase 2 sin alterar su presentación.
+ */
+@Composable
+private fun HomeClientEstadoIndicator(
+    estado: EstadoVisualCliente,
+    fecha: String,
+    modifier: Modifier = Modifier
+) {
+    val (color, titulo, prefijo) = when (estado) {
+        EstadoVisualCliente.ACTIVO ->
+            Triple(Color(0xFF43A047), "Activo", "Hasta el")
+        EstadoVisualCliente.PAGO_VENCIDO ->
+            Triple(Color(0xFFE53935), "Pago vencido", "Venció el")
+        EstadoVisualCliente.BAJA ->
+            Triple(Color(0xFF78909C), "Baja", "Desde el")
+    }
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = color.copy(alpha = 0.08f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 18.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(16.dp)
+                    .background(color, CircleShape)
             )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = titulo,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = color
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "$prefijo $fecha",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun HomeClientEstadoIndicatorPreview() {
+    MaterialTheme {
+        Column(modifier = Modifier.padding(16.dp)) {
+            HomeClientEstadoIndicator(EstadoVisualCliente.ACTIVO, "31/08/2026")
+            Spacer(modifier = Modifier.height(12.dp))
+            HomeClientEstadoIndicator(EstadoVisualCliente.PAGO_VENCIDO, "10/07/2026")
+            Spacer(modifier = Modifier.height(12.dp))
+            HomeClientEstadoIndicator(EstadoVisualCliente.BAJA, "05/03/2026")
         }
     }
 }

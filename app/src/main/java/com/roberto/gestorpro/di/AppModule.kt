@@ -9,7 +9,9 @@ import com.roberto.gestorpro.data.dao.ClienteDao
 import com.roberto.gestorpro.data.dao.GastoDao
 import com.roberto.gestorpro.data.dao.MovimientoDao
 import com.roberto.gestorpro.data.dao.ReservaDao
+import com.roberto.gestorpro.data.dao.ServicioDao
 import com.roberto.gestorpro.data.dao.SesionClaseDao
+import com.roberto.gestorpro.data.dao.SesionDao
 import com.roberto.gestorpro.data.dao.SolicitudDao
 import com.roberto.gestorpro.data.database.ClientesDatabase
 import com.google.firebase.auth.FirebaseAuth
@@ -21,8 +23,10 @@ import com.roberto.gestorpro.data.repository.ClienteRepository
 import com.roberto.gestorpro.data.repository.GastoRepository
 import com.roberto.gestorpro.data.repository.MovimientoRepository
 import com.roberto.gestorpro.data.repository.ReservaRepository
-import com.roberto.gestorpro.data.repository.SolicitudRepository
+import com.roberto.gestorpro.data.repository.ServicioRepository
 import com.roberto.gestorpro.data.repository.SesionClaseRepository
+import com.roberto.gestorpro.data.repository.SesionRepository
+import com.roberto.gestorpro.data.repository.SolicitudRepository
 import com.roberto.gestorpro.model.EstadoCliente
 import dagger.Module
 import dagger.Provides
@@ -353,8 +357,33 @@ object AppModule {
     }
 
     @Provides
-    fun provideReservaRepository(reservaDao: ReservaDao): ReservaRepository {
-        return ReservaRepository(reservaDao)
+    fun provideReservaRepository(
+        reservaDao: ReservaDao,
+        sesionDao: SesionDao,
+        servicioDao: ServicioDao,
+        database: ClientesDatabase
+    ): ReservaRepository {
+        return ReservaRepository(reservaDao, sesionDao, servicioDao, database)
+    }
+
+    @Provides
+    fun provideServicioDao(database: ClientesDatabase): ServicioDao {
+        return database.servicioDao()
+    }
+
+    @Provides
+    fun provideServicioRepository(servicioDao: ServicioDao): ServicioRepository {
+        return ServicioRepository(servicioDao)
+    }
+
+    @Provides
+    fun provideSesionDao(database: ClientesDatabase): SesionDao {
+        return database.sesionDao()
+    }
+
+    @Provides
+    fun provideSesionRepository(sesionDao: SesionDao): SesionRepository {
+        return SesionRepository(sesionDao)
     }
 
     @Provides

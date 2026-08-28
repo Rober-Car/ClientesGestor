@@ -18,7 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AccountBox
-import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -135,13 +135,13 @@ fun HomeScreen(
                 }
                 item {
                     MenuCard(
-                        titulo = "Clases",
-                        descripcion = "Horarios y grupos",
-                        icono = Icons.Default.Groups,
+                        titulo = "Servicios",
+                        descripcion = "Servicios y sesiones",
+                        icono = Icons.Default.FitnessCenter,
                         containerColor = Color(0xFF43A047).copy(alpha = 0.12f),
                         iconContainerColor = Color(0xFF43A047),
                         iconTint = Color.White,
-                        onClick = { navController.navigate(Routes.CLASES) }
+                        onClick = { navController.navigate(Routes.SERVICIOS) }
                     )
                 }
                 item {
