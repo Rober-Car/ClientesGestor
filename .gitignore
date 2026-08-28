@@ -1,5 +1,7 @@
 *.iml
 .gradle
+**/build/
+**/.kotlin/
 /local.properties
 /.idea/caches
 /.idea/libraries
@@ -8,11 +10,12 @@
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
 .DS_Store
-/build
 /captures
 .externalNativeBuild
 .cxx
 local.properties
 **/google-services.json
+firestore-debug.log
 firestore-tests/node_modules/
 firestore-tests/firestore.rules.generated
+firestore-tests/auditoria_backfill_indices.cjs
