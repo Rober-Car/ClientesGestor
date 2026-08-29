@@ -211,6 +211,10 @@ fun PerfilClienteScreen(
 
     val serviciosActivos by viewModel.serviciosActivos.collectAsStateWithLifecycle()
 
+    val errorSincronizacion by viewModel.errorSincronizacion.collectAsStateWithLifecycle()
+
+    val clienteSinSincronizar by viewModel.clienteSinSincronizar.collectAsStateWithLifecycle()
+
     /**
      * textoEstado
      * -----------
@@ -628,6 +632,42 @@ fun PerfilClienteScreen(
                         text = "Perfil de cliente",
                         style = MaterialTheme.typography.titleLarge
                     )
+                }
+            }
+
+            /**
+             * Aviso de sincronización con la nube
+             * -----------------------------------
+             * Aparece cuando un cambio local (p. ej. los servicios contratados)
+             * se guardó en Room pero la réplica a Firestore falló. Informa de
+             * que Room está actualizado pero Firestore no, y ofrece el reintento
+             * manual de sincronización sin revertir nada.
+             */
+            if (errorSincronizacion != null || clienteSinSincronizar != null) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
+                            CircleShape
+                        )
+                        .padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = errorSincronizacion
+                            ?: "Hay cambios pendientes de sincronizar con la nube.",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+
+                    OutlinedButton(
+                        onClick = { viewModel.reintentarSincronizacion() },
+                        enabled = clienteSinSincronizar != null
+                    ) {
+                        Text("Reintentar sincronización")
+                    }
                 }
             }
 

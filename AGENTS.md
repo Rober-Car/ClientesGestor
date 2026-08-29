@@ -351,7 +351,7 @@ node firestore-tests/auditoria_backfill_indices.cjs
 
 ## Tests
 
-- **Rules de Firestore + Storage:** `npm --prefix firestore-tests test` (**76 pruebas** en los emuladores `--only firestore,storage`: 20 de clientes/vinculación/negocio/logo + 13 de servicios + 20 de sesiones + 23 de reservas). Deben pasar **antes** de desplegar las Rules.
+- **Rules de Firestore + Storage:** `npm --prefix firestore-tests test` (**90 pruebas** en los emuladores `--only firestore,storage`: 20 de clientes/vinculación/negocio/logo + 13 de servicios + 20 de sesiones + 23 de reservas + 14 de regresión de cascadas/queries/activación, incluidas PRUEBA 9B, 33A–33H, 77–81). Deben pasar **antes** de desplegar las Rules.
 - Los tests de Android se mantienen para la fase final del proyecto salvo que el desarrollador los solicite expresamente antes. No crear archivos de test automáticamente durante una funcionalidad normal.
 
 ## Convenciones específicas de Firebase y navegación
@@ -362,25 +362,31 @@ node firestore-tests/auditoria_backfill_indices.cjs
 - **Vinculación del CLIENTE:** el flujo de código maestro + DNI vive en `appCliente` (repositorio `VinculacionRepository`, pantalla de vinculación accesible desde el Home). Las operaciones críticas (VÍA 1 y VÍA 2) deben ejecutarse en Transaction. Nunca reintroducir Vía B/deep links.
 - **Logo del negocio:** la subida vive en `NegocioRepository.guardarLogoRemoto()` (`:app`): `putFile` a `negocios/{uid}/logo.jpg` → `downloadUrl` → WriteBatch con `logo` en `negocios` + `negocios_publicos`. El Cliente lee `negocios_publicos/{id}.logo` y lo muestra con Coil. Requiere el bucket habilitado en Firebase Console.
 
-## Estado actual y pendientes (2026-08-28)
+## Estado actual y pendientes (2026-08-29)
 
-Implementado y compilado (`:app` y `:appCliente` BUILD SUCCESSFUL; `:app:compileDebugKotlin` EXITCODE 0; Rules **76/76 OK**):
+> ACTUALIZACIÓN: lo implementado el 28-29/08 (DeepSeek) y el 29/08 (corrección PERMISSION_DENIED + auditoría appCliente) está en el working tree **sin commit**. Tests de Rules en **90/90** y las Rules desplegadas en `gestorpro-50e83` son **byte-idénticas** al local `firestore.rules` (42.687 bytes, con `cascadaEliminaSesion` y `match /servicios/{servicioId}`). Detalle en `CONVERSACION_EXPORTADA.md` (Sesiones XII–XIV).
+
+Implementado y compilado (`:app` y `:appCliente` BUILD SUCCESSFUL; `:app:compileDebugKotlin` EXITCODE 0; Rules **90/90 OK**):
 
 - **Dos aplicaciones independientes:** `:app` (Admin) y `:appCliente` (Cliente) en el mismo proyecto Gradle, con el mismo Firebase (`gestorpro-50e83`) compartido.
-- **Nuevo modelo SERVICIOS/SESIONES/RESERVAS (Fases 1–5C):** se sustituyó el concepto de "Clase" por un catálogo de **Servicios** (`ServicioEntity`/`servicios/{id}`) con sesiones propias (`SesionEntity`/`sesiones/{id}`). Relación final `Cliente → Servicio → Sesión → Reserva`, **sin entidad Clase** en el flujo nuevo.
-  - **Room (Fase 1, 2, 3, 5B):** `ServicioEntity`, `SesionEntity` (tablas `servicio`, `sesion`), `serviciosContratados: List<Int>` en `ClienteEntity`, DAOs/repositorios nuevos, `IntListConverter`, Room v11 (destructivo). UI Admin de Servicios/Sesiones (ACTIVOS/DE BAJA, programación por día con hora propia, "Ver / editar sesión", reservas de sesión). Reservas ATÓMICAS con `RoomDatabase.withTransaction` (duplicado por `(idSesion,idCliente)`, plazas ≥ 0 y ≤ capacidad, servicio activo) y cascadas. Gestión de servicios contratados en el perfil del cliente (solo Room, sin sincronizar aún).
-  - **Firestore (Fases 4A, 4B, 5C):** réplica de `servicios/{id}`, `sesiones/{id}` y `reservas/{clienteId}_{sesionId}` con write-through y patrón de colisión de ids Int. Transaction atómica de reservar/cancelar (plazas±1). Cascadas remotas: al desactivar/eliminar servicio y al eliminar sesión se borran sus reservas. El `negocioId` remoto es el UID del ADMIN (Room sigue con `""`).
-  - **Rules:** `servicios` (ADMIN CRUD, CLIENTE get de activos), `sesiones` (ADMIN CRUD, CLIENTE get/list solo contratadas+activas), `reservas` (create/delete atómicos con `getAfter`, `update` CLIENTE false, ADMIN por negocio). 76/76 tests.
-- **Resto de lo ya validado:** flujo CLIENTE sin vínculo/VÍA 1/VÍA 2, sincronización del nombre del negocio, logo con Storage (pendiente bucket), dos apps, etc. (ver secciones anteriores).
-- **`ClaseEntity`/`SesionClaseEntity` y su UI/DAOs/repositorios/ViewModel siguen en el código de forma TRANSITORIA** (Fase 5B los dejó desconectados del nuevo flujo); NO eliminar todavía sin una tarea específica.
+- **Nuevo modelo SERVICIOS/SESIONES/RESERVAS (Fases 1–5C):** `Cliente → Servicio → Sesión → Reserva`, sin entidad Clase en el flujo nuevo.
+  - **Room (Fase 1, 2, 3, 5B):** `ServicioEntity`, `SesionEntity`, `serviciosContratados: List<Int>` en `ClienteEntity`, reservas atómicas con `RoomDatabase.withTransaction` y cascadas.
+  - **Firestore (Fases 4A, 4B, 5C):** réplica de `servicios/{id}`, `sesiones/{id}` y `reservas/{clienteId}_{sesionId}` con write-through; Transaction atómica reservar/cancelar (plazas±1). `negocioId` remoto = UID del ADMIN.
+- **Sync `serviciosContratados` Admin → Firestore (Fase 6, 28-29/08):** `ClienteRemotoRepository.actualizarServiciosContratadosRemoto(idCliente, ids)` (write-through ints); `ClienteViewModel` con reintento manual (`reintentarSincronizacion`) y bandera de pendiente; `PerfilClienteAdministradorScreen` muestra banner + botón reintentar. `appCliente` `Cliente.kt` pasa a `List<Int>`; parser en `ClienteRepository` y `VinculacionRepository` corregidos. **PRUEBA 9B** (ADMIN update serviciosContratados) → 77/77.
+- **Pantalla "Clases de hoy" del Cliente (Fase 7, 28-29/08):** modelo nuevo en `appCliente` (`model/Servicio.kt`, `model/Sesion.kt`), `data/firebase/SesionRepository.kt` (`obtenerServicioActivo`, `obtenerSesionesPorServicio`), `ui/viewmodel/SesionesClienteViewModel.kt` (filtra `fecha == inicioDeHoy()`, orden por hora, estados noVinculado/cargando/error/sinServicios/sinSesionesHoy) y `ui/home/ClasesScreen.kt` funcional. **Reservar/ver/cancelar reservas del CLIENTE aún NO implementado.**
+- **Cascadas administrativas de reservas (Fase 8, 28-29/08):** el borrado masivo `batch.delete` anterior fallaba en Rules (`reservaEliminadaValida` exige plazas+1). Sustituido por `runTransaction` por sesión con reintento de query fresca (3 intentos, `MAX_RESERVAS_POR_SESION = 498`), idempotente.
+  - **Fase 1 (Android):** `ReservaRemotoRepository.kt` (`eliminarSesionConReservasRemoto`, `eliminarSesionesFuturasConReservasRemoto`, `eliminarTodasLasSesionesConReservasRemoto`); `ServicioViewModel.replicarDesactivacionRemota`/`replicarEliminacionRemota` y `SesionViewModel.eliminarSesion`/`generarSesiones` las usan. `:app:assembleDebug` BUILD SUCCESSFUL.
+  - **Fase 2 (Rules + tests):** helper `cascadaEliminaSesion(sesionId)` y rama OR en `reservas/delete` ADMIN. **PRUEBA 77-81** → 82/82 OK. Rules desplegadas verificadas idénticas al local.
+- **Diagnóstico de Rules en producción (28-29/08):** se descubrió que el ruleset desplegado **no contenía `match /servicios/{servicioId}`** (Rules antiguas), causa de `PERMISSION_DENIED` en alta/baja de servicios. Tras redeploy, el ruleset coincide con el local. **Aclaración de UID:** el admin real en producción es `aSiZI8YWlLYOWhj2TXlznZWJP5O2` (minúscula `l` en posición 9 y 18: `WlLYO` y `TXlzn`); el `negocioId` de los servicios (`aSiZI8YWlLYOWhj2TXlznZWJP5O2`) es coherente con ese UID. La cadena `aSiZI8YWILYOWhj2TXIznZWJP5O2` (mayúscula `I`) que venía manejándose era un **typo I/l** del humano, no el UID real.
+- **Resto validado:** flujo CLIENTE sin vínculo/VÍA 1/VÍA 2, sync nombre de negocio, logo con Storage (pendiente bucket), dos apps.
+- **`ClaseEntity`/`SesionClaseEntity` y su UI/DAOs/repositorios/ViewModel siguen TRANSITORIOS** (Fase 5B desconectados); NO eliminar sin tarea específica.
 
 Pendiente para continuar:
 
-1. **`appCliente` del nuevo modelo:** modelos con `serviciosContratados: List<Int>`, `SesionesScreen` (sesiones de servicios contratados y activos), reservar/ver/cancelar reservas del CLIENTE (reusar la Transaction de Firestore).
-2. **Sincronizar `serviciosContratados` del cliente a Firestore** (hoy el ADMIN solo lo guarda en Room; `clientes/{id}.serviciosContratados` debe escribirse con write-through como ints).
-3. **Habilitar el bucket de Storage en Firebase Console** y desplegar `storage.rules` (hasta entonces el logo falla con "Object does not exist at location").
-4. **Desplegar las Rules de Firestore** tras validar con los 76 tests (`firebase deploy --only firestore:rules`). Verificar producción coincide con `firestore.rules`.
-5. **Backfill de `indices_clientes`** (DRY-RUN: 2 índices; `clientes/1` sin `negocios_publicos` vigente, decisión aparte). NO ejecutar sin aprobación.
-6. **Limpieza definitiva de `Clase`/`SesionClase`** (entidades, DAOs, repos, VM, UI antigua `ui/clases`, rutas) y de `ServicioItem` (sin uso).
-7. **Commits pendientes** (toda la sesión en working tree: dos apps, Rules, tests, docs) y limpieza de basura versionada (`build_*.txt`, `firestore-tests/firestore-debug.log`).
-8. Pendientes heredados: crear negocio con `PERMISSION_DENIED` (hipótesis token) y validar `rol == "ADMIN"` en el login de Admin (hoy solo exige doc existente + activo).
+1. **Concluir el diagnóstico abierto (28-29/08, interrumpido):** tras redeployar Rules idénticas al local y confirmar que `negocioId` de servicios coincide con el UID real del admin (`aSiZI8YWlLYOWhj2TXlznZWJP5O2`) y que en producción hay **0 sesiones** (la cascada debería saltar a `desactivarServicioRemoto` sin tocar reservas), `darDeBaja`/`eliminar` servicio **sigue reportando `PERMISSION_DENIED`** y la app **se cierra (crash) durante alta/reactivación**. Falta el informe A-H final: confirmar el `idServicio`/docId y el token usados por el build instalado, y obtener el stacktrace real del crash (logcat) para aislar la excepción no controlada.
+2. **Reservar/ver/cancelar reservas del CLIENTE** (resto de lo que faltaba de la pantalla "Clases de hoy"): reusar la Transaction de Firestore (`reservas/{clienteId}_{sesionId}`).
+3. **Habilitar el bucket de Storage** y desplegar `storage.rules` (hasta entonces el logo falla).
+4. **Backfill de `indices_clientes`** (DRY-RUN: 2 índices). NO ejecutar sin aprobación.
+5. **Limpieza definitiva de `Clase`/`SesionClase`** y de `ServicioItem` (sin uso).
+6. **Commits pendientes** (todo el working tree: dos apps, Rules, tests, docs) y limpieza de basura versionada (`build_*.txt`, `firestore-tests/firestore-debug.log`).
+7. Pendientes heredados: crear negocio con `PERMISSION_DENIED` (hipótesis token) y validar `rol == "ADMIN"` en el login de Admin (hoy solo exige doc existente + activo).

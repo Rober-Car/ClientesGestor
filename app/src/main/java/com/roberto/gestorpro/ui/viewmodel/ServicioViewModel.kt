@@ -6,7 +6,6 @@ import com.roberto.gestorpro.data.entity.ServicioEntity
 import com.roberto.gestorpro.data.firebase.ResultadoAutenticacion
 import com.roberto.gestorpro.data.firebase.ReservaRemotoRepository
 import com.roberto.gestorpro.data.firebase.ServicioRemotoRepository
-import com.roberto.gestorpro.data.firebase.SesionRemotoRepository
 import com.roberto.gestorpro.data.repository.ReservaRepository
 import com.roberto.gestorpro.data.repository.ServicioRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -31,7 +30,6 @@ class ServicioViewModel @Inject constructor(
     private val servicioRepository: ServicioRepository,
     private val reservaRepository: ReservaRepository,
     private val servicioRemotoRepository: ServicioRemotoRepository,
-    private val sesionRemotoRepository: SesionRemotoRepository,
     private val reservaRemotoRepository: ReservaRemotoRepository
 ) : ViewModel() {
 
@@ -248,37 +246,31 @@ class ServicioViewModel @Inject constructor(
     /**
      * replicarDesactivacionRemota
      * ---------------------------
-     * Al desactivar un servicio: elimina las reservas de sus sesiones futuras,
-     * después esas sesiones futuras y finalmente activo = false.
+     * Al desactivar un servicio: elimina de forma atómica las sesiones futuras
+     * con todas sus reservas y finalmente pone activo = false.
      */
     private suspend fun replicarDesactivacionRemota(
         servicio: ServicioEntity
     ): ResultadoAutenticacion {
         val desde = inicioDeHoy()
-        val reservas = reservaRemotoRepository
-            .eliminarReservasDeSesionesFuturasDelServicioRemoto(servicio.idServicio, desde)
-        if (!reservas.exito) return reservas
-        val borrado = sesionRemotoRepository
-            .eliminarSesionesFuturasDelServicioRemoto(servicio.idServicio, desde)
-        if (!borrado.exito) return borrado
+        val cascada = reservaRemotoRepository
+            .eliminarSesionesFuturasConReservasRemoto(servicio.idServicio, desde)
+        if (!cascada.exito) return cascada
         return servicioRemotoRepository.desactivarServicioRemoto(servicio.idServicio)
     }
 
     /**
      * replicarEliminacionRemota
      * -------------------------
-     * Al eliminar un servicio: elimina las reservas de sus sesiones, después
-     * todas las sesiones y finalmente el documento del servicio.
+     * Al eliminar un servicio: elimina de forma atómica todas sus sesiones con
+     * todas sus reservas y finalmente el documento del servicio.
      */
     private suspend fun replicarEliminacionRemota(
         servicio: ServicioEntity
     ): ResultadoAutenticacion {
-        val reservas = reservaRemotoRepository
-            .eliminarTodasLasReservasDelServicioRemoto(servicio.idServicio)
-        if (!reservas.exito) return reservas
-        val borrado = sesionRemotoRepository
-            .eliminarTodasLasSesionesDelServicioRemoto(servicio.idServicio)
-        if (!borrado.exito) return borrado
+        val cascada = reservaRemotoRepository
+            .eliminarTodasLasSesionesConReservasRemoto(servicio.idServicio)
+        if (!cascada.exito) return cascada
         return servicioRemotoRepository.eliminarServicioRemoto(servicio.idServicio)
     }
 

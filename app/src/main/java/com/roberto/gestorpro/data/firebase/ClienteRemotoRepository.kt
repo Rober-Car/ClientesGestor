@@ -169,6 +169,35 @@ class ClienteRemotoRepository @Inject constructor(
     }
 
     /**
+     * actualizarServiciosContratadosRemoto
+     * -------------------------------------
+     * Replica SOLO la lista de servicios contratados de la ficha
+     * (clientes/{idCliente}.serviciosContratados) con un update de un único
+     * campo. No toca el resto de campos ni el indice negocio+DNI, por lo que
+     * las Rules de indices_clientes (update: false) no se ven afectadas.
+     */
+    suspend fun actualizarServiciosContratadosRemoto(
+        idCliente: Int,
+        idsServicios: List<Int>
+    ): ResultadoAutenticacion {
+        val uid = auth.currentUser?.uid
+            ?: return ResultadoAutenticacion(false, "No hay ningún usuario autenticado")
+        if (uid.isBlank()) {
+            return ResultadoAutenticacion(false, "No hay ningún usuario autenticado")
+        }
+
+        return try {
+            db.collection(COLECCION_CLIENTES)
+                .document(idCliente.toString())
+                .update("serviciosContratados", idsServicios)
+                .esperar()
+            ResultadoAutenticacion(true, "Servicios sincronizados")
+        } catch (e: Exception) {
+            ResultadoAutenticacion(false, mensajeDe(e))
+        }
+    }
+
+    /**
      * mapaDeAlta
      * ----------
      * ✔ TIPO: método (fun) privado de Kotlin → Map<String, Any?>

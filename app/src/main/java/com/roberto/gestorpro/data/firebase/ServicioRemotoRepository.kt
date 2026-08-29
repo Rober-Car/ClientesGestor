@@ -1,7 +1,9 @@
 package com.roberto.gestorpro.data.firebase
 
+import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
 import com.roberto.gestorpro.data.entity.ServicioEntity
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -26,6 +28,7 @@ class ServicioRemotoRepository @Inject constructor(
 
     companion object {
         private const val COLECCION_SERVICIOS = "servicios"
+        private const val TAG = "ServicioRemotoRepository"
 
         /**
          * El negocioId del ADMIN es su propio UID, igual que en los demás
@@ -53,6 +56,7 @@ class ServicioRemotoRepository @Inject constructor(
         val existente = try {
             referencia.get().esperar()
         } catch (e: Exception) {
+            registrarError("GET de servicios/${servicio.idServicio}", e)
             // Siendo ADMIN, una lectura denegada solo ocurre si el documento ya
             // existe en otro negocio (un doc inexistente o propio sí es legible).
             if (e.message?.contains("permission", ignoreCase = true) == true) {
@@ -92,6 +96,7 @@ class ServicioRemotoRepository @Inject constructor(
         } catch (e: ColisionServicioException) {
             ResultadoAutenticacion(false, "El idServicio ya está en uso por otro negocio")
         } catch (e: Exception) {
+            registrarError("CREATE de servicios/${servicio.idServicio}", e)
             ResultadoAutenticacion(false, mensajeDe(e))
         }
     }
@@ -118,6 +123,7 @@ class ServicioRemotoRepository @Inject constructor(
                 .esperar()
             ResultadoAutenticacion(true, "Servicio actualizado")
         } catch (e: Exception) {
+            registrarError("UPDATE de servicios/${servicio.idServicio}", e)
             ResultadoAutenticacion(false, mensajeDe(e))
         }
     }
@@ -159,6 +165,7 @@ class ServicioRemotoRepository @Inject constructor(
                 .esperar()
             ResultadoAutenticacion(true, "Servicio actualizado")
         } catch (e: Exception) {
+            registrarError("DELETE de servicios/$idServicio", e)
             ResultadoAutenticacion(false, mensajeDe(e))
         }
     }
@@ -179,6 +186,7 @@ class ServicioRemotoRepository @Inject constructor(
                 .esperar()
             ResultadoAutenticacion(true, "Servicio eliminado")
         } catch (e: Exception) {
+            registrarError("UPDATE activo de servicios/$idServicio", e)
             ResultadoAutenticacion(false, mensajeDe(e))
         }
     }
@@ -210,6 +218,12 @@ class ServicioRemotoRepository @Inject constructor(
                 "No tienes permisos para esta operación"
             else -> e.message ?: "Error inesperado. Inténtalo de nuevo"
         }
+    }
+
+    /** Registra el código real de Firestore sin cambiar el mensaje de la UI. */
+    private fun registrarError(operacion: String, e: Exception) {
+        val codigo = (e as? FirebaseFirestoreException)?.code?.name ?: "NO_FIRESTORE_CODE"
+        Log.e(TAG, "$operacion falló. códigoFirebase=$codigo", e)
     }
 }
 

@@ -299,7 +299,7 @@ class VinculacionRepository @Inject constructor(
                                 "fechaBaja" to null,
                                 "estado" to "REGISTRADO",
                                 "tieneLlave" to false,
-                                "serviciosContratados" to emptyList<String>(),
+                                "serviciosContratados" to emptyList<Int>(),
                                 "fechaInicioActual" to null,
                                 "fechaFinActual" to null
                             )

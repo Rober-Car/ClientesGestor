@@ -754,6 +754,64 @@ test("PRUEBA 9: el ADMIN gestiona clientes e indices de su negocio", async () =>
     await assertFails(deleteDoc(doc(database, "clientes", "31")));
 });
 
+test("PRUEBA 9B: el ADMIN actualiza serviciosContratados de un cliente de su negocio -> ALLOW", async () => {
+    const adminUid = "admin-servicios-test";
+    const adminOtroUid = "admin-servicios-otro-test";
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+
+        await setDoc(doc(database, "usuarios", adminUid), {
+            rol: "ADMIN",
+            activo: true,
+            clienteId: null,
+            negocioId: NEGOCIO_A
+        });
+
+        await setDoc(doc(database, "usuarios", adminOtroUid), {
+            rol: "ADMIN",
+            activo: true,
+            clienteId: null,
+            negocioId: NEGOCIO_B
+        });
+
+        await setDoc(
+            doc(database, "clientes", "31"),
+            fichaCliente(31, NEGOCIO_A, null, "31313131X", {
+                serviciosContratados: [1, 2, 5]
+            })
+        );
+        await setDoc(
+            doc(database, "indices_clientes", indiceId(NEGOCIO_A, "31313131X")),
+            { negocioId: NEGOCIO_A, dni: "31313131X", clienteId: 31 }
+        );
+        await setDoc(doc(database, "clientes_privados", "31"), {
+            negocioId: NEGOCIO_A,
+            observaciones: "Cliente 31"
+        });
+    });
+
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    const databaseOtro = testEnvironment.authenticatedContext(adminOtroUid).firestore();
+
+    // El ADMIN de su negocio puede sustituir la lista completa de servicios.
+    await assertSucceeds(
+        updateDoc(doc(database, "clientes", "31"), { serviciosContratados: [1, 2, 5] })
+    );
+    await assertSucceeds(
+        updateDoc(doc(database, "clientes", "31"), { serviciosContratados: [5] })
+    );
+    // Lista vacia (quitar todos los servicios): permitido.
+    await assertSucceeds(
+        updateDoc(doc(database, "clientes", "31"), { serviciosContratados: [] })
+    );
+
+    // Un ADMIN de otro negocio no puede tocar los servicios de esta ficha.
+    await assertFails(
+        updateDoc(doc(databaseOtro, "clientes", "31"), { serviciosContratados: [7] })
+    );
+});
+
 test("PRUEBA 10: el ADMIN cambia el DNI manteniendo el indice atomico", async () => {
     const adminUid = "admin-cambiodni-test";
 
@@ -1485,6 +1543,225 @@ test("PRUEBA 33: usuario no autenticado no puede acceder a servicios -> DENY", a
     );
 });
 
+test("PRUEBA 33A: el ADMIN no puede listar sesiones solo por idServicio -> DENY", async () => {
+    const adminUid = "admin-query-sesiones-solo-id";
+    const negocioId = "negocio-query-sesiones";
+    const idServicio = 1100;
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", adminUid), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId
+        });
+        await setDoc(
+            doc(database, "sesiones", "1100"),
+            sesionDoc(1100, negocioId, idServicio)
+        );
+    });
+
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertFails(
+        getDocs(
+            query(
+                collection(database, "sesiones"),
+                where("idServicio", "==", idServicio)
+            )
+        )
+    );
+});
+
+test("PRUEBA 33B: el ADMIN lista sesiones por idServicio y negocioId -> ALLOW", async () => {
+    const adminUid = "admin-query-sesiones-con-negocio";
+    const negocioId = "negocio-query-sesiones-con-negocio";
+    const idServicio = 1101;
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", adminUid), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId
+        });
+        await setDoc(
+            doc(database, "sesiones", "1101"),
+            sesionDoc(1101, negocioId, idServicio)
+        );
+    });
+
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertSucceeds(
+        getDocs(
+            query(
+                collection(database, "sesiones"),
+                where("idServicio", "==", idServicio),
+                where("negocioId", "==", negocioId)
+            )
+        )
+    );
+});
+
+test("PRUEBA 33C: el ADMIN no puede listar reservas solo por sesionId -> DENY", async () => {
+    const adminUid = "admin-query-reservas-solo-sesion";
+    const negocioId = "negocio-query-reservas";
+    const sesionId = 1102;
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", adminUid), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId
+        });
+        await setDoc(
+            doc(database, "reservas", "9000_1102"),
+            reservaDoc(9000, sesionId, negocioId)
+        );
+    });
+
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertFails(
+        getDocs(
+            query(
+                collection(database, "reservas"),
+                where("sesionId", "==", sesionId)
+            )
+        )
+    );
+});
+
+test("PRUEBA 33D: el ADMIN lista reservas por sesionId y negocioId -> ALLOW", async () => {
+    const adminUid = "admin-query-reservas-con-negocio";
+    const negocioId = "negocio-query-reservas-con-negocio";
+    const sesionId = 1103;
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", adminUid), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId
+        });
+        await setDoc(
+            doc(database, "reservas", "9001_1103"),
+            reservaDoc(9001, sesionId, negocioId)
+        );
+    });
+
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertSucceeds(
+        getDocs(
+            query(
+                collection(database, "reservas"),
+                where("sesionId", "==", sesionId),
+                where("negocioId", "==", negocioId)
+            )
+        )
+    );
+});
+
+test("PRUEBA 33E: la transaccion Android elimina una reserva y su sesion", async () => {
+    const adminUid = "admin-transaccion-android";
+    const negocioId = "negocio-transaccion-android";
+    const sesionId = 1104;
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", adminUid), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId
+        });
+        await setDoc(
+            doc(database, "sesiones", String(sesionId)),
+            sesionDoc(sesionId, negocioId, 1104)
+        );
+        await setDoc(
+            doc(database, "reservas", `9002_${sesionId}`),
+            reservaDoc(9002, sesionId, negocioId)
+        );
+    });
+
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertSucceeds(
+        runTransaction(database, async (transaction) => {
+            await transaction.get(doc(database, "sesiones", String(sesionId)));
+            transaction.delete(doc(database, "reservas", `9002_${sesionId}`));
+            transaction.delete(doc(database, "sesiones", String(sesionId)));
+        })
+    );
+});
+
+test("PRUEBA 33F: la transaccion Android elimina varias reservas de una sesion", async () => {
+    const adminUid = "admin-transaccion-varias-reservas";
+    const negocioId = "negocio-transaccion-varias-reservas";
+    const sesionId = 1105;
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", adminUid), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId
+        });
+        await setDoc(
+            doc(database, "sesiones", String(sesionId)),
+            sesionDoc(sesionId, negocioId, 1105)
+        );
+        await setDoc(
+            doc(database, "reservas", `9003_${sesionId}`),
+            reservaDoc(9003, sesionId, negocioId)
+        );
+        await setDoc(
+            doc(database, "reservas", `9004_${sesionId}`),
+            reservaDoc(9004, sesionId, negocioId)
+        );
+    });
+
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertSucceeds(
+        runTransaction(database, async (transaction) => {
+            await transaction.get(doc(database, "sesiones", String(sesionId)));
+            transaction.delete(doc(database, "reservas", `9003_${sesionId}`));
+            transaction.delete(doc(database, "reservas", `9004_${sesionId}`));
+            transaction.delete(doc(database, "sesiones", String(sesionId)));
+        })
+    );
+});
+
+test("PRUEBA 33G: el ADMIN puede actualizar solo activo manteniendo la Rule estricta", async () => {
+    const adminUid = "admin-update-activo";
+    const negocioId = "negocio-update-activo";
+    const idServicio = 1106;
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        await setDoc(
+            doc(context.firestore(), "usuarios", adminUid),
+            { rol: "ADMIN", activo: true, clienteId: null, negocioId }
+        );
+        await setDoc(
+            doc(context.firestore(), "servicios", String(idServicio)),
+            servicioDoc(idServicio, negocioId)
+        );
+    });
+
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertSucceeds(
+        updateDoc(doc(database, "servicios", String(idServicio)), { activo: false })
+    );
+});
+
+test("PRUEBA 33H: actualizar un servicio incompleto -> DENY", async () => {
+    const adminUid = "admin-update-servicio-incompleto";
+    const negocioId = "negocio-update-servicio-incompleto";
+    const idServicio = 1107;
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        await setDoc(
+            doc(context.firestore(), "usuarios", adminUid),
+            { rol: "ADMIN", activo: true, clienteId: null, negocioId }
+        );
+        await setDoc(
+            doc(context.firestore(), "servicios", String(idServicio)),
+            { idServicio, negocioId, activo: true }
+        );
+    });
+
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertFails(
+        updateDoc(doc(database, "servicios", String(idServicio)), { activo: false })
+    );
+});
+
 test("PRUEBA 34: el ADMIN crea una sesion de su servicio activo -> ALLOW", async () => {
     const adminUid = "admin-sesiones-a";
     await testEnvironment.withSecurityRulesDisabled(async (context) => {
@@ -2078,6 +2355,130 @@ test("PRUEBA 76: no se permite reservar si el servicio no pertenece al negocio -
             await tx.get(doc(database, "sesiones", "604"));
             await tx.set(doc(database, "reservas", "804_604"), reservaDoc(804, 604, NEGOCIO_A));
             await tx.update(doc(database, "sesiones", "604"), { plazasDisponibles: 4 });
+        })
+    );
+});
+
+test("PRUEBA 77: el ADMIN borra una reserva y elimina su sesion en la misma operacion -> ALLOW", async () => {
+    const adminUid = "admin-cascada-ok";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", adminUid), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId: NEGOCIO_A
+        });
+        await setDoc(
+            doc(database, "sesiones", "900"),
+            sesionDoc(900, NEGOCIO_A, 2000, { plazasDisponibles: 3, capacidad: 5 })
+        );
+        await setDoc(doc(database, "reservas", "900_900"), reservaDoc(900, 900, NEGOCIO_A));
+    });
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertSucceeds(
+        runTransaction(database, async (tx) => {
+            await tx.get(doc(database, "reservas", "900_900"));
+            await tx.get(doc(database, "sesiones", "900"));
+            await tx.delete(doc(database, "reservas", "900_900"));
+            await tx.delete(doc(database, "sesiones", "900"));
+        })
+    );
+});
+
+test("PRUEBA 78: el ADMIN no puede borrar una reserva sin eliminar su sesion ni incrementar plazas -> DENY", async () => {
+    const adminUid = "admin-cascada-sin-sesion";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", adminUid), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId: NEGOCIO_A
+        });
+        await setDoc(
+            doc(database, "sesiones", "901"),
+            sesionDoc(901, NEGOCIO_A, 2000, { plazasDisponibles: 3, capacidad: 5 })
+        );
+        await setDoc(doc(database, "reservas", "900_901"), reservaDoc(900, 901, NEGOCIO_A));
+    });
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertFails(
+        runTransaction(database, async (tx) => {
+            await tx.get(doc(database, "reservas", "900_901"));
+            await tx.delete(doc(database, "reservas", "900_901"));
+        })
+    );
+});
+
+test("PRUEBA 79: el ADMIN de otro negocio no puede realizar la cascada -> DENY", async () => {
+    const adminUid = "admin-cascada-ajena";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", adminUid), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId: NEGOCIO_B
+        });
+        await setDoc(
+            doc(database, "sesiones", "902"),
+            sesionDoc(902, NEGOCIO_A, 2000, { plazasDisponibles: 3, capacidad: 5 })
+        );
+        await setDoc(doc(database, "reservas", "900_902"), reservaDoc(900, 902, NEGOCIO_A));
+    });
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertFails(
+        runTransaction(database, async (tx) => {
+            await tx.get(doc(database, "reservas", "900_902"));
+            await tx.get(doc(database, "sesiones", "902"));
+            await tx.delete(doc(database, "reservas", "900_902"));
+            await tx.delete(doc(database, "sesiones", "902"));
+        })
+    );
+});
+
+test("PRUEBA 80: el CLIENTE no puede realizar la cascada (reserva + sesion) -> DENY", async () => {
+    const clienteUid = "cliente-cascada-deny";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE", activo: true, clienteId: 900, negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "servicios", "2000"), servicioDoc(2000, NEGOCIO_A));
+        await setDoc(
+            doc(database, "clientes", "900"),
+            fichaCliente(900, NEGOCIO_A, clienteUid, "88888900X", { serviciosContratados: [2000] })
+        );
+        await setDoc(
+            doc(database, "sesiones", "903"),
+            sesionDoc(903, NEGOCIO_A, 2000, { plazasDisponibles: 3, capacidad: 5 })
+        );
+        await setDoc(doc(database, "reservas", "900_903"), reservaDoc(900, 903, NEGOCIO_A));
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertFails(
+        runTransaction(database, async (tx) => {
+            await tx.get(doc(database, "reservas", "900_903"));
+            await tx.get(doc(database, "sesiones", "903"));
+            await tx.delete(doc(database, "reservas", "900_903"));
+            await tx.delete(doc(database, "sesiones", "903"));
+        })
+    );
+});
+
+test("PRUEBA 81: la cancelacion normal del ADMIN (reserva + plazas+1, sin eliminar sesion) sigue permitida -> ALLOW", async () => {
+    const adminUid = "admin-cascada-normal";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", adminUid), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "servicios", "2000"), servicioDoc(2000, NEGOCIO_A));
+        await setDoc(
+            doc(database, "sesiones", "904"),
+            sesionDoc(904, NEGOCIO_A, 2000, { plazasDisponibles: 4, capacidad: 5 })
+        );
+        await setDoc(doc(database, "reservas", "900_904"), reservaDoc(900, 904, NEGOCIO_A));
+    });
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertSucceeds(
+        runTransaction(database, async (tx) => {
+            await tx.get(doc(database, "reservas", "900_904"));
+            await tx.get(doc(database, "sesiones", "904"));
+            await tx.delete(doc(database, "reservas", "900_904"));
+            await tx.update(doc(database, "sesiones", "904"), { plazasDisponibles: 5 });
         })
     );
 });

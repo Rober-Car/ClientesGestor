@@ -92,6 +92,15 @@ class ClienteViewModel @Inject constructor(
      * Sirve al reintento para llamar a la operación remota correcta.
      */
     private val _sincronizacionPendienteEsAlta = MutableStateFlow(false)
+
+    /**
+     * _sincronizacionPendienteServicios
+     * ----------------------------------
+     * Indica si la réplica pendiente es la de SOLO los servicios contratados
+     * (true) en lugar de un alta/edición completa (false). Sirve al reintento
+     * para llamar a la operación remota correcta.
+     */
+    private val _sincronizacionPendienteServicios = MutableStateFlow(false)
     /**
      * _error
      * ------
@@ -221,16 +230,34 @@ class ClienteViewModel @Inject constructor(
     /**
      * guardarServiciosContratados
      * ---------------------------
-     * Actualiza SOLO la lista de servicios contratados del cliente en Room,
-     * conservando el resto de campos. No replica a Firestore (se hará en una
-     * fase posterior). La nueva lista sustituye a la anterior por completo.
+     * Actualiza SOLO la lista de servicios contratados del cliente, tanto en
+     * Room (fuente de verdad local) como en Firestore (write-through). La
+     * nueva lista sustituye a la anterior por completo. Si la réplica remota
+     * falla, el cambio local se conserva, se informa y queda preparado el
+     * reintento manual con el mismo mecanismo que el alta/edición.
      */
     fun guardarServiciosContratados(idCliente: Int, idsServicios: List<Int>) {
         viewModelScope.launch {
             val actual = clienteRepository.obtenerClientePorIdRepo(idCliente) ?: return@launch
-            clienteRepository.actualizarClienteRepo(
-                actual.copy(serviciosContratados = idsServicios.distinct())
+            val actualizado = actual.copy(serviciosContratados = idsServicios.distinct())
+            clienteRepository.actualizarClienteRepo(actualizado)
+
+            _errorSincronizacion.value = null
+            _clienteSinSincronizar.value = null
+            _sincronizacionPendienteServicios.value = false
+
+            val resultado = clienteRemotoRepository.actualizarServiciosContratadosRemoto(
+                idCliente,
+                actualizado.serviciosContratados
             )
+            if (resultado.exito) {
+                _sincronizacionPendienteEsAlta.value = false
+            } else {
+                _errorSincronizacion.value =
+                    "Guardado en el dispositivo, pero no sincronizado con la nube: ${resultado.mensaje}"
+                _clienteSinSincronizar.value = actualizado
+                _sincronizacionPendienteServicios.value = true
+            }
         }
     }
 
@@ -282,6 +309,7 @@ class ClienteViewModel @Inject constructor(
     ) {
         _errorSincronizacion.value = null
         _clienteSinSincronizar.value = null
+        _sincronizacionPendienteServicios.value = false
 
         val resultado = if (esAlta) {
             clienteRemotoRepository.crearClienteRemoto(entidad)
@@ -309,7 +337,23 @@ class ClienteViewModel @Inject constructor(
     fun reintentarSincronizacion() {
         val pendiente = _clienteSinSincronizar.value ?: return
         viewModelScope.launch {
-            replicar(pendiente, _sincronizacionPendienteEsAlta.value)
+            if (_sincronizacionPendienteServicios.value) {
+                _errorSincronizacion.value = null
+                val resultado = clienteRemotoRepository.actualizarServiciosContratadosRemoto(
+                    pendiente.idCliente,
+                    pendiente.serviciosContratados
+                )
+                if (resultado.exito) {
+                    _clienteSinSincronizar.value = null
+                    _sincronizacionPendienteServicios.value = false
+                    _sincronizacionPendienteEsAlta.value = false
+                } else {
+                    _errorSincronizacion.value =
+                        "Guardado en el dispositivo, pero no sincronizado con la nube: ${resultado.mensaje}"
+                }
+            } else {
+                replicar(pendiente, _sincronizacionPendienteEsAlta.value)
+            }
         }
     }
 

@@ -59,9 +59,9 @@ class ClienteRepository @Inject constructor(
                     else -> EstadoCliente.REGISTRADO
                 },
                 tieneLlave = datos["tieneLlave"] as? Boolean ?: false,
-                serviciosContratados = (datos["serviciosContratados"] as? List<*>)?.mapNotNull {
-                    it as? String
-                } ?: emptyList(),
+                serviciosContratados = (datos["serviciosContratados"] as? List<*>)
+                    ?.mapNotNull { (it as? Number)?.toInt() }
+                    ?: emptyList(),
                 fechaInicioActual = (datos["fechaInicioActual"] as? Number)?.toLong(),
                 fechaFinActual = (datos["fechaFinActual"] as? Number)?.toLong()
             )

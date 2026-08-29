@@ -1328,3 +1328,227 @@ npm --prefix firestore-tests test            # pruebas Rules — 76/76
 & ".\firestore-tests\node_modules\.bin\firebase.cmd" deploy --only firestore:rules
 & ".\firestore-tests\node_modules\.bin\firebase.cmd" deploy --only storage:rules
 ```
+
+---
+
+# ACTUALIZACION 2026-08-29 (SESION XII) — SYNC serviciosContratados, PANTALLA CLASES DEL CLIENTE, CASCADAS ADMIN Y DIAGNOSTICO DE RULES
+
+> Trabajo realizado con otra IA (DeepSeek) entre el 28 y el 29 de agosto de 2026. Todo sin commit (working tree).
+> Rules desplegadas en `gestorpro-50e83` verificadas **byte-idénticas** al local `firestore.rules` (42.687 bytes). Tests de Rules: **82/82 OK**.
+
+## 1. Sincronizacion de `serviciosContratados` (Admin → Firestore)
+
+**Objetivo:** el ADMIN guardaba los servicios contratados solo en Room; había que replicarlos a `clientes/{id}.serviciosContratados` como `array<int>`.
+
+**Cambios (`:app`):**
+- `ClienteRemotoRepository.actualizarServiciosContratadosRemoto(idCliente: Int, ids: List<Int>)`: `db.collection("clientes").document("$idCliente").update("serviciosContratados", ids)`. Solo Firestore, no toca índices.
+- `ClienteViewModel.guardarServiciosContratados(...)`: actualiza Room y replica con write-through; nueva bandera `_sincronizacionPendienteServicios: MutableStateFlow<Boolean>`; `reintentarSincronizacion()` ramifica a la operación original para reintento manual.
+- `PerfilClienteAdministradorScreen`: banner de error de sync + botón "Reintentar sincronizacion".
+
+**Cambios (`appCliente`):**
+- `model/Cliente.kt`: `serviciosContratados` de `List<String>` → `List<Int>`.
+- `ClienteRepository.kt`: parser robusto `(it as? Number)?.toInt()`; ausente/vacío → `emptyList()`.
+- `VinculacionRepository.kt`: `emptyList<String>()` → `emptyList<Int>()`.
+
+**Validación:** añadida **PRUEBA 9B** (ADMIN update `serviciosContratados`) → 77/77 OK.
+
+## 2. Pantalla "Clases de hoy" del Cliente (Fase 7)
+
+**Modelo nuevo en `appCliente`** (no Room, no Gson): `model/Servicio.kt`, `model/Sesion.kt`.
+**Capa datos:** `data/firebase/SesionRepository.kt` con `obtenerServicioActivo(idServicio)` y `obtenerSesionesPorServicio(idServicio)` (solo servicios contratados y activos).
+**ViewModel:** `ui/viewmodel/SesionesClienteViewModel.kt` con `cargar()`, `reintentar()`, `inicioDeHoy()`, data class `SesionVisible`, y estados `noVinculado / cargando / error / sinServicios / sinSesionesHoy / ok`. Filtra `fecha == inicioDeHoy()` y ordena por hora.
+**UI:** `ui/home/ClasesScreen.kt` funcional (lista de sesiones del día de servicios contratados+activos).
+**Pendiente:** reservar / ver / cancelar reservas del CLIENTE (reusar la Transaction de `reservas/{clienteId}_{sesionId}`).
+
+## 3. Diagnostico: Rules desplegadas en produccion estaban desactualizadas
+
+- Síntoma reportado: `darDeBaja`/`alta`/`reactivar` servicio daba `PERMISSION_DENIED`.
+- Hallazgo: el ruleset desplegado **no contenía `match /servicios/{servicioId}`** (era un ruleset antiguo). Por eso cualquier escritura en `servicios` se negaba.
+- Acción: redeploy de `firestore.rules` local. Verificado `updateTime` 2026-08-28T23:07:50Z y **byte-idéntico** al local (incluye `match /servicios/{servicioId}` y `cascadaEliminaSesion`).
+- **Aclaración de UID:** se venía manejando `aSiZI8YWILYOWhj2TXIznZWJP5O2` (mayúscula `I`). El admin real en producción es **`aSiZI8YWlLYOWhj2TXlznZWJP5O2`** (minúscula `l` en posición 9 y 18: `WlLYO` y `TXlzn`). Los servicios en producción tienen `negocioId = aSiZI8YWlLYOWhj2TXlznZWJP5O2`, coherente con ese UID → **no hay desajuste de negocio**, el anterior era un typo I/l del humano.
+
+## 4. Cascadas administrativas de reservas (Fase 8)
+
+**Problema:** el borrado masivo anterior con `batch.delete(reservas)` fallaba en Rules porque `reservaEliminadaValida` exige `plazas == anterior + 1`.
+**Solución:** `runTransaction` por sesión, con reintento de query fresca (3 intentos) e `idempotente` (lee plazas actuales antes de ajustar). `MAX_RESERVAS_POR_SESION = 498`.
+
+**Fase 1 (Android, `:app`):**
+- `ReservaRemotoRepository.kt`: `eliminarSesionConReservasRemoto(idSesion)`, `eliminarSesionesFuturasConReservasRemoto(idServicio)`, `eliminarTodasLasSesionesConReservasRemoto(idServicio)`. Se eliminaron los métodos `batch.delete` antiguos.
+- `ServicioViewModel.replicarDesactivacionRemota` / `replicarEliminacionRemota`: usan las cascadas (primero borran sesiones+reservas, luego desactivan/eliminan servicio).
+- `SesionViewModel.eliminarSesion` / `generarSesiones`: usan `eliminarSesionConReservasRemoto`.
+- `:app:assembleDebug` → BUILD SUCCESSFUL.
+
+**Fase 2 (Rules + tests):**
+- `firestore.rules`: helper `cascadaEliminaSesion(sesionId)` y rama OR en `reservas/delete` ADMIN: `reservaEliminadaValida() || cascadaEliminaSesion(sesionId)`.
+- `firestore-tests/firestore.rules.test.cjs`: **PRUEBA 77-81** (escenarios ADMIN cascada).
+- `npm --prefix firestore-tests test` → **82/82 OK**.
+
+## 5. DIAGNOSTICO ABIERTO (interrumpido, sin concluir)
+
+A pesar del redeploy y de confirmarse que `negocioId` de servicios == UID real del admin y que en producción hay **0 sesiones** (la cascada debería saltar directo a `desactivarServicioRemoto` sin tocar reservas):
+
+- `darDeBaja` / `eliminar` servicio **sigue reportando `PERMISSION_DENIED`** en el dispositivo.
+- La app **se cierra (crash)** durante alta / reactivación de servicio.
+
+**Evidencia recabada antes de la interrupción:** Rules desplegadas == local (con `cascada`); `usuarios/{aSiZI8YWlLYOWhj2TXlznZWJP5O2}` rol=ADMIN, `negocioId=aSiZI8YWlLYOWhj2TXlznZWJP5O2`; servicios id=1 e id=8 con ese `negocioId`; `sesiones` = 0; `reservas` = 1 huérfana de otro negocio (`7X1KyM8rhBcUAK18EDUI`).
+
+**Falta (informe A-H):** confirmar el `idServicio`/docId y el token que usa el build instalado, y obtener el stacktrace real del crash (logcat) para aislar la excepción no controlada. Posible causa app-side: excepción no capturada en `darDeBaja()`/`reactivar()` al recibir `ResultadoAutenticacion` false, o build instalado anterior a Fase 1.
+
+## 6. Commits y basura
+
+- Todo el working tree sin commit (dos apps, Rules, tests, docs).
+- Basura versionada que limpiar: `build_*.txt`, `firestore-tests/firestore-debug.log`.
+
+---
+
+---
+
+# ACTUALIZACION 2026-08-29 (SESION XIII) — CORRECCION PERMISSION_DENIED EN BAJA/ELIMINACION DE SERVICIOS (QUERIES SIN negocioId) + 8 PRUEBAS DE REGRESION
+
+> Continuacion de la SESION XII (Diagnostico abierto). Se acepta el diagnostico A-H y se implementa
+> la correccion en los repositorios Admin. Tests 90/90, build SUCCESSFUL. NO se despliega ni se commitea.
+> firestore.rules NO se modifica.
+
+## Diagnostico aceptado (informe A-H)
+
+- Sintoma: `darDeBaja`/`eliminar` servicio -> `PERMISSION_DENIED`; la app se cerraba (crash) en
+  alta/reactivacion. El redeploy de Rules idénticas al local no resolvio el `PERMISSION_DENIED`.
+- Causa raiz (confirmada por revision de codigo, NO por stacktrace de dispositivo): las consultas
+  administrativas de cascada en `ReservaRemotoRepository` y `SesionRemotoRepository` NO incluian
+  `negocioId` en los `whereEqualTo`:
+  - `eliminarReservasDeSesionRemoto(idSesion)` consultaba `reservas` solo por `sesionId`.
+  - `eliminarReservasDeSesionesFuturasDelServicioRemoto` / `eliminarTodasLasReservasDelServicioRemoto`
+    consultaban `reservas` por `sesionId in [...]`.
+  - `eliminarSesionesFuturasDelServicioRemoto` / `eliminarTodasLasSesionesDelServicioRemoto` consultaban
+    `sesiones` por `idServicio`.
+  Las reglas `sesiones/list` y `reservas/list` exigen `negocioId == usuarioActual().negocioId`
+  (rules-are-not-filters) -> DENIED. Como en produccion hay 0 sesiones, la rama de servicio saltaba a
+  `desactivarServicioRemoto`/`eliminarServicioRemoto`, pero las queries previas ya lanzaban la excepcion.
+- Punto aclarado (NO es bug): `ServicioRemotoRepository.replicarDesactivacionRemota`/`replicarEliminacionRemota`
+  usan `update(mapOf("activo" to ...))`. En Firestore `update`, `request.resource` es el documento
+  RESULTANTE (merge), asi que la regla `servicios/update` (que exige `idServicio`,`nombre`,`descripcion`,
+  `activo`) se cumple aunque solo se envie `{activo}`. Se decide MANTENER las Rules estrictas y el
+  `update` parcial (no enviar el documento completo).
+
+## Cambios implementados (sin modificar firestore.rules)
+
+### `app/src/main/java/com/roberto/gestorpro/data/firebase/ReservaRemotoRepository.kt`
+- Las 3 consultas de reservas por sesion ahora añaden `whereEqualTo("negocioId", negocioId)` (se agrega
+  parametro `negocioId` a los metodos publicos).
+- `eliminarReservasDeSesionRemoto`: antes de la cascada, `transaction.get(sesionRef)`; si la sesion NO
+  existe pero tiene reservas -> `SesionInexistenteConReservasException` (fail-closed: no se borran reservas
+  a ciegas).
+- Nuevo `resultadoDeError(e)`: `Log.e` del `FirebaseFirestoreException.Code` (unico sitio en la capa remota
+  con log de codigo); el mensaje de UI no cambia.
+- Se conserva la `runTransaction` por sesion, el reintento de query fresca (3 intentos) y
+  `MAX_RESERVAS_POR_SESION = 498`.
+
+### `app/src/main/java/com/roberto/gestorpro/data/firebase/SesionRemotoRepository.kt`
+- `eliminarSesionesFuturasDelServicioRemoto` / `eliminarTodasLasSesionesDelServicioRemoto`: añaden
+  `whereEqualTo("negocioId", negocioId)`.
+
+### `app/src/main/java/com/roberto/gestorpro/data/firebase/ServicioRemotoRepository.kt`
+- Sin cambio funcional en `replicarDesactivacionRemota`/`replicarEliminacionRemota` (se mantiene
+  `update({activo})`); solo se anade `registrarError()` para trazabilidad.
+
+## Pruebas de Rules (regresion)
+
+- `firestore-tests/firestore.rules.test.cjs`: añadidas **PRUEBA 33A–33H** (8 pruebas) que verifican que las
+  queries admin de sesiones/reservas SÍ incluyen `negocioId`, que el `delete` ADMIN de reservas ajusta plazas
+  (cascada) y que el CLIENTE no puede listar sesiones/reservas de otro negocio.
+- `npm --prefix firestore-tests test` -> **90/90 OK** (82 -> 90).
+- `firestore.rules` NO modificado (sigue 42.687 bytes).
+
+## Build
+
+- `.\gradlew.bat :app:assembleDebug` -> BUILD SUCCESSFUL (primer intento abortado por referencia fuera de
+  alcance a `idServicio` en un `Log` de `ServicioRemotoRepository`; corregido y recompilado).
+- NO se despliega a produccion (pendiente aprobacion) ni se commitea.
+
+## Riesgo abierto
+
+- El crash real de la app en alta/reactivacion NO se pudo aislar: nunca se aporto el stacktrace (logcat) del
+  dispositivo. La hipotesis de una excepcion no capturada en `darDeBaja()`/`reactivar()` al recibir
+  `ResultadoAutenticacion` false sigue sin confirmar. Tras este parche, el `PERMISSION_DENIED` de las queries
+  quedo resuelto a nivel de reglas; conviene validar en dispositivo con build actualizado y, si persiste el
+  crash, capturar el stacktrace.
+
+## Commits y basura
+
+- Working tree sin commit (dos apps, Rules, tests, docs).
+- Basura: `build_*.txt`, `firestore-tests/firestore-debug.log`.
+
+---
+
+---
+
+# ACTUALIZACION 2026-08-29 (SESION XIV) — AUDITORIA DE SOLO LECTURA appCliente: ESTADO DEL CLIENTE + SERVICIOS/SESIONES/RESERVAS (PLAN, SIN IMPLEMENTACION)
+
+> Auditoria de solo lectura para preparar la siguiente fase de `:appCliente`. NO se modifico ningun archivo.
+> Entrega: diagnostico + plan de implementacion por pasos (Partes 1-5).
+
+## PARTE 1 — Estado real del cliente (fuente de verdad: Firestore, NO Room)
+
+- `appCliente` no usa Room: `MainViewModel._cliente` se carga desde `clientes/{idCliente}` (Firestore) al
+  iniciar sesion.
+- `model/Cliente.kt`: `estado` (ACTIVO/BAJA/ARCHIVADO/REGISTRADO), `fechaBaja`, `fechaInicioActual`,
+  `fechaFinActual`, `serviciosContratados: List<Int>`.
+- `MovimientoEntity` (Admin) NO se replica a Firestore y el CLIENTE no puede leer `movimientos` (Rules). Por
+  tanto MOROSO/PAGO_VENCIDO NO se almacena y debe DERIVARSE en cliente.
+- Recomendacion de derivacion: usar `fechaFinActual` (periodo de pago actual). No existe campo "vencido";
+  reusar `fechaFinActual`/`fechaBaja` sin crear campos nuevos. (Pendiente decision de producto: periodo
+  vencido vs pago individual pendiente.)
+
+## PARTE 2 — Home del cliente (datos ficticios hoy)
+
+- `ui/home/HomeScreen.kt` usa datos ficcion: estado `ACTIVO` y "31/08/2026". Debe observar `MainViewModel`
+  para mostrar el estado real.
+- `ui/viewmodel/MainViewModel.kt` ya tiene `_cliente`; falta exponer un estado "preparado" para Home (estado
+  + fechas formateadas + si puede reservar).
+- Problema de parseo de fechas: `ClienteRepository` lee `fechaBaja`/`fechaInicioActual`/`fechaFinActual` SOLO
+  como `Number` (`(datos[...] as? Number)?.toLong()`), pero Admin las escribe como `Timestamp` -> llegan
+  `null`. Hay que soportar `Timestamp` y `Number`
+  (`(it as? Timestamp)?.toDate()?.time ?: (it as? Number)?.toLong()`).
+
+## PARTE 3 — Servicios y sesiones del cliente (modelo nuevo ya existe)
+
+- `model/Servicio.kt`, `model/Sesion.kt`, `SesionesClienteViewModel.kt` creados en Fase 7 (Sesion XII).
+  `ClasesScreen` funcional lista sesiones del dia.
+- `data/firebase/SesionRepository.kt`: `obtenerSesionesPorServicio(idServicio)` consulta SOLO por `idServicio`
+  (sin `negocioId`) -> riesgo PERMISSION_DENIED bajo la regla `sesiones/list` actual. Debe añadir
+  `whereEqualTo("negocioId", negocioId)`.
+- FALTAN en `appCliente`: modelo `Reserva`, `ReservaRepository` (Transaction `reservas/{clienteId}_{sesionId}`),
+  `ReservasClienteViewModel`, y la pantalla `MisReservasScreen`. La Transaction de reserva/cancelacion ya
+  esta definida en `:app` (`ReservaRemotoRepository`) y las Rules lo permiten al CLIENTE
+  (crear/leer/cancelar propias).
+
+## PARTE 4 — Reglas y Firestore (compatibilidad)
+
+- CLIENTE puede: leer `clientes/{idCliente}`; leer `servicios` activos de su negocio; listar `sesiones` con
+  `negocioId`+`idServicio` (servicios contratados+activos); crear/leer/cancelar
+  `reservas/{clienteId}_{sesionId}` (Transaction con `getAfter`/`existsAfter`, ajuste de plazas ±1).
+- No crear campos nuevos en Firestore: reusar `fechaInicioActual`/`fechaFinActual`/`fechaBaja`.
+- NO tocar lo antiguo (`ui/clases/`, `Clase`/`SesionClase`), Storage, Auth.
+
+## PARTE 5 — Diseno propuesto (orden de implementacion, pendiente autorizacion)
+
+1. **Fechas Real:** en Admin, `ClienteRemotoRepository.mapaDeAlta`/actualizacion deben poblar
+   `fechaInicioActual`/`fechaFinActual` desde el `Movimiento` vigente (hoy los escribe `null`);
+   `AñadirClienteScreen`/`ClienteViewModel` deben set `fechaBaja` al dar de baja y limpiarla al reactivar;
+   `archivarCliente`/`restaurarCliente` deben replicar a Firestore. En `appCliente` `ClienteRepository`
+   soporta `Timestamp`+`Number`.
+2. **Indicador de estado en Home:** `MainViewModel` expone estado derivado (ACTIVO/BAJA/ARCHIVADO/REGISTRADO
+   + MOROSO/PAGO_VENCIDO derivado de `fechaFinActual`); `HomeScreen` lo muestra real.
+3. **SesionRepository negocioId:** añadir filtro `negocioId` a `obtenerSesionesPorServicio`.
+4. **Reservas del CLIENTE:** `Reserva` model + `ReservaRepository` (crear/cancelar/leer propias con
+   Transaction) + `ReservasClienteViewModel` + `MisReservasScreen`; integrar reservar/cancelar en
+   `ClasesScreen`.
+5. **Verificacion:** `npm --prefix firestore-tests test` sigue 90/90; compilar `:appCliente:assembleDebug`.
+
+## Estado de la auditoria
+
+- Solo lectura. Ningun archivo modificado. Queda a la espera de autorizacion para implementar los puntos 1-5.
+
+## Commits y basura
+
+- Working tree sin commit. Basura: `build_*.txt`, `firestore-tests/firestore-debug.log`.

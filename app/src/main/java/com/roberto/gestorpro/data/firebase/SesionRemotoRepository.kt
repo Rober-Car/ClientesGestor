@@ -155,7 +155,10 @@ class SesionRemotoRepository @Inject constructor(
         val uid = auth.currentUser?.uid
             ?: return ResultadoAutenticacion(false, "No hay ningún usuario autenticado")
         return try {
-            val ids = obtenerIdsSesionesDelServicio(idServicio) { fecha -> fecha >= desde }
+            val ids = obtenerIdsSesionesDelServicio(
+                idServicio,
+                negocioIdDeAdmin(uid)
+            ) { fecha -> fecha >= desde }
             borrarSesionesPorIds(ids)
             ResultadoAutenticacion(true, "Sesiones futuras eliminadas")
         } catch (e: Exception) {
@@ -174,7 +177,10 @@ class SesionRemotoRepository @Inject constructor(
         val uid = auth.currentUser?.uid
             ?: return ResultadoAutenticacion(false, "No hay ningún usuario autenticado")
         return try {
-            val ids = obtenerIdsSesionesDelServicio(idServicio) { true }
+            val ids = obtenerIdsSesionesDelServicio(
+                idServicio,
+                negocioIdDeAdmin(uid)
+            ) { true }
             borrarSesionesPorIds(ids)
             ResultadoAutenticacion(true, "Sesiones eliminadas")
         } catch (e: Exception) {
@@ -198,7 +204,10 @@ class SesionRemotoRepository @Inject constructor(
             ?: return ResultadoAutenticacion(false, "No hay ningún usuario autenticado")
         val negocioId = negocioIdDeAdmin(uid)
         return try {
-            val idsFuturas = obtenerIdsSesionesDelServicio(idServicio) { fecha -> fecha >= desde }
+            val idsFuturas = obtenerIdsSesionesDelServicio(
+                idServicio,
+                negocioId
+            ) { fecha -> fecha >= desde }
             val batch = db.batch()
             idsFuturas.forEach { id ->
                 batch.delete(db.collection(COLECCION_SESIONES).document(id.toString()))
@@ -219,16 +228,17 @@ class SesionRemotoRepository @Inject constructor(
     /**
      * obtenerIdsSesionesDelServicio
      * -----------------------------
-     * Consulta las sesiones de un servicio (solo con el filtro de igualdad
-     * de idServicio para no necesitar índices compuestos) y filtra en memoria
-     * con el predicado indicado.
+     * Consulta las sesiones de un servicio y su negocio con filtros de igualdad
+     * y filtra en memoria con el predicado indicado.
      */
     private suspend fun obtenerIdsSesionesDelServicio(
         idServicio: Int,
+        negocioId: String,
         aceptarFecha: (Long) -> Boolean
     ): List<Int> {
         val snapshots = db.collection(COLECCION_SESIONES)
             .whereEqualTo("idServicio", idServicio)
+            .whereEqualTo("negocioId", negocioId)
             .get()
             .esperar()
         return snapshots.documents.mapNotNull { documento ->

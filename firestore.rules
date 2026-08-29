@@ -205,6 +205,16 @@ service cloud.firestore {
       return !existsAfter(reservaRef);
     }
 
+    // Cascada administrativa: la reserva se borra porque su SESIÓN se elimina
+    // en la MISMA operación (la plaza muere con la sesión). Solo el ADMIN puede
+    // borrar reservas sin liberar plaza, y solo si la sesión desaparece con ella.
+    function cascadaEliminaSesion(sesionId) {
+      let sesionRef = /databases/$(database)/documents/sesiones/$(sesionId);
+      return exists(sesionRef)
+        && get(sesionRef).data.negocioId == usuarioActual().negocioId
+        && !existsAfter(sesionRef);
+    }
+
 
     // =========================================================
     // NEGOCIOS
@@ -943,10 +953,12 @@ service cloud.firestore {
       allow update: if false;
 
       // El ADMIN elimina una reserva de su negocio dentro de una Transaction
-      // que incrementa las plazas de la sesión.
+      // que incrementa las plazas de la sesión, o en una CASCADA administrativa
+      // que elimina la propia sesión en la misma operación (cascadaEliminaSesion).
       allow delete: if esAdmin()
         && resource.data.negocioId == usuarioActual().negocioId
-        && reservaEliminadaValida(resource.data.sesionId, resource.data.negocioId);
+        && (reservaEliminadaValida(resource.data.sesionId, resource.data.negocioId)
+            || cascadaEliminaSesion(resource.data.sesionId));
 
       // El CLIENTE elimina su propia reserva dentro de una Transaction que
       // incrementa las plazas de la sesión.

@@ -187,10 +187,11 @@ class SesionViewModel @Inject constructor(
                     desde = inicioHoy,
                     nuevas = nuevas
                 )
-                // Remoto: primero reservas de las futuras, después programación.
-                val reservas = reservaRemotoRepository
-                    .eliminarReservasDeSesionesFuturasDelServicioRemoto(servicio.idServicio, inicioHoy)
-                if (reservas.exito) {
+                // Remoto: primero la cascada (sesiones futuras con sus reservas,
+                // atómica por sesión), después la programación nueva.
+                val cascada = reservaRemotoRepository
+                    .eliminarSesionesFuturasConReservasRemoto(servicio.idServicio, inicioHoy)
+                if (cascada.exito) {
                     replicar(
                         PendienteSesion(
                             operacion = OperacionSesion.GENERAR,
@@ -201,7 +202,7 @@ class SesionViewModel @Inject constructor(
                     )
                 } else {
                     _errorSincronizacion.value =
-                        "Cambio guardado en el dispositivo, pero no sincronizado con la nube: ${reservas.mensaje}"
+                        "Cambio guardado en el dispositivo, pero no sincronizado con la nube: ${cascada.mensaje}"
                 }
             } finally {
                 _operando.value = false
@@ -213,20 +214,15 @@ class SesionViewModel @Inject constructor(
      * eliminarSesion
      * --------------
      * Elimina una sesión individual de forma atómica en Room (reservas + sesión)
-     * y replica a Firestore: primero sus reservas y después la sesión.
+     * y replica a Firestore con una sola operación remota que borra la sesión
+     * junto con todas sus reservas (eliminarSesionConReservasRemoto).
      */
     fun eliminarSesion(idSesion: Int) {
         viewModelScope.launch {
             _operando.value = true
             try {
                 reservaRepository.eliminarSesionConReservas(idSesion)
-                val reservas = reservaRemotoRepository.eliminarReservasDeSesionRemoto(idSesion)
-                if (!reservas.exito) {
-                    _errorSincronizacion.value =
-                        "Cambio guardado en el dispositivo, pero no sincronizado con la nube: ${reservas.mensaje}"
-                    return@launch
-                }
-                val resultado = sesionRemotoRepository.eliminarSesionRemoto(idSesion)
+                val resultado = reservaRemotoRepository.eliminarSesionConReservasRemoto(idSesion)
                 if (!resultado.exito) {
                     _errorSincronizacion.value =
                         "Cambio guardado en el dispositivo, pero no sincronizado con la nube: ${resultado.mensaje}"

@@ -1,8 +1,10 @@
 package com.roberto.gestorpro.data.firebase
 
+import android.util.Log
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -32,9 +34,21 @@ class ReservaRemotoRepository @Inject constructor(
         private const val COLECCION_SESIONES = "sesiones"
         private const val COLECCION_SERVICIOS = "servicios"
         private const val COLECCION_CLIENTES = "clientes"
+        private const val TAG = "ReservaRemotoRepository"
 
-        /** Máximo de valores permitidos por cláusula `in` de Firestore. */
-        private const val MAX_IN_QUERY = 10
+        /**
+         * Máximo de reintentos de la cascada ante conflictos de transacción.
+         * Cada reintento vuelve a consultar las reservas en FRESCO para capturar
+         * reservas creadas entre consultas (máx. intentos = MAX_REINTENTOS + 1).
+         */
+        private const val MAX_REINTENTOS_CASCADA = 3
+
+        /**
+         * Máximo de reservas por sesión para poder eliminarlas de forma atómica:
+         * 1 lectura de la sesión + N borrados de reserva + 1 borrado de sesión
+         * no deben superar las 500 operaciones de la Transaction.
+         */
+        private const val MAX_RESERVAS_POR_SESION = 498
 
         /**
          * documentId de una reserva: {clienteId}_{sesionId}.
@@ -173,98 +187,168 @@ class ReservaRemotoRepository @Inject constructor(
     }
 
     /**
-     * eliminarReservasDeSesionRemoto
-     * ------------------------------
-     * Elimina todas las reservas de una sesión concreta.
+     * eliminarSesionConReservasRemoto
+     * -------------------------------
+     * Elimina de forma ATÓMICA una sesión y TODAS sus reservas dentro de la
+     * misma Transaction: lee primero la sesión (detección de conflictos con la
+     * reserva concurrente de un CLIENTE) y borra sus reservas + la sesión.
+     *
+     * Ante un conflicto de transacción se REINTENTA con una consulta FRESCA de
+     * reservas (máx. MAX_REINTENTOS_CASCADA reintentos) para capturar reservas
+     * creadas entre consultas. La operación es idempotente: si la sesión ya no
+     * existe y no conserva reservas, termina con éxito sin hacer nada. Si aún
+     * conserva reservas, devuelve error para no ocultar datos huérfanos.
+     *
+     * Una sesión con más de MAX_RESERVAS_POR_SESION reservas no puede
+     * eliminarse atómicamente sin superar el límite de 500 operaciones de la
+     * Transaction; en ese caso se devuelve un error claro y NO se elimina nada.
      */
-    suspend fun eliminarReservasDeSesionRemoto(sesionId: Int): ResultadoAutenticacion {
-        return try {
-            val reservas = db.collection(COLECCION_RESERVAS)
-                .whereEqualTo("sesionId", sesionId)
-                .get()
-                .esperar()
-            borrarDocumentos(reservas.documents.map { it.reference })
-            ResultadoAutenticacion(true, "Reservas eliminadas")
-        } catch (e: Exception) {
-            ResultadoAutenticacion(false, mensajeDe(e))
+    suspend fun eliminarSesionConReservasRemoto(sesionId: Int): ResultadoAutenticacion {
+        val negocioId = auth.currentUser?.uid
+            ?: return ResultadoAutenticacion(false, "No hay ningún usuario autenticado")
+        val sesionRef = db.collection(COLECCION_SESIONES).document(sesionId.toString())
+
+        var intentos = 0
+        while (true) {
+            intentos++
+
+            val refsReservas = try {
+                db.collection(COLECCION_RESERVAS)
+                    .whereEqualTo("sesionId", sesionId)
+                    .whereEqualTo("negocioId", negocioId)
+                    .get()
+                    .esperar()
+                    .documents.map { it.reference }
+            } catch (e: Exception) {
+                return resultadoDeError(
+                    "Query de reservas para la sesión $sesionId",
+                    e
+                )
+            }
+
+            if (refsReservas.size > MAX_RESERVAS_POR_SESION) {
+                return ResultadoAutenticacion(
+                    false,
+                    "La sesión tiene demasiadas reservas (${refsReservas.size}) " +
+                        "para eliminarse de forma atómica"
+                )
+            }
+
+            try {
+                db.runTransaction { transaction ->
+                    val sesion = transaction.get(sesionRef)
+                    if (!sesion.exists()) {
+                        if (refsReservas.isNotEmpty()) {
+                            throw SesionInexistenteConReservasException(refsReservas.size)
+                        }
+                        return@runTransaction
+                    }
+                    refsReservas.forEach { transaction.delete(it) }
+                    transaction.delete(sesionRef)
+                }.esperar()
+                return ResultadoAutenticacion(true, "Sesión y reservas eliminadas")
+            } catch (e: FirebaseFirestoreException) {
+                if (e.code == FirebaseFirestoreException.Code.ABORTED && intentos <= MAX_REINTENTOS_CASCADA) {
+                    continue
+                }
+                return resultadoDeError(
+                    "Transaction de eliminación de la sesión $sesionId",
+                    e
+                )
+            } catch (e: SesionInexistenteConReservasException) {
+                return ResultadoAutenticacion(false, e.message ?: "La sesión no existe")
+            } catch (e: Exception) {
+                return resultadoDeError(
+                    "Transaction de eliminación de la sesión $sesionId",
+                    e
+                )
+            }
         }
     }
 
     /**
-     * eliminarReservasDeSesionesFuturasDelServicioRemoto
-     * --------------------------------------------------
-     * Elimina las reservas de las sesiones futuras (fecha >= desde) de un
-     * servicio. Se usa al dar de baja un servicio o regenerar su programación.
+     * eliminarSesionesFuturasConReservasRemoto
+     * -----------------------------------------
+     * Elimina las sesiones futuras (fecha >= desde) de un servicio junto con
+     * todas sus reservas, de una en una y de forma atómica. Se usa al dar de
+     * baja un servicio o regenerar su programación. Las sesiones pasadas se
+     * conservan.
      */
-    suspend fun eliminarReservasDeSesionesFuturasDelServicioRemoto(
+    suspend fun eliminarSesionesFuturasConReservasRemoto(
         idServicio: Int,
         desde: Long
     ): ResultadoAutenticacion {
+        val negocioId = auth.currentUser?.uid
+            ?: return ResultadoAutenticacion(false, "No hay ningún usuario autenticado")
         return try {
-            val idsFuturas = obtenerIdsSesionesFuturasDelServicio(idServicio, desde)
-            eliminarReservasDeSesionesRemoto(idsFuturas)
-            ResultadoAutenticacion(true, "Reservas eliminadas")
+            val idsFuturas = obtenerIdsSesionesFuturasDelServicio(
+                idServicio,
+                desde,
+                negocioId
+            )
+            eliminarSesionesConReservas(idsFuturas)
         } catch (e: Exception) {
-            ResultadoAutenticacion(false, mensajeDe(e))
+            resultadoDeError(
+                "Query de sesiones futuras del servicio $idServicio",
+                e
+            )
         }
     }
 
     /**
-     * eliminarTodasLasReservasDelServicioRemoto
+     * eliminarTodasLasSesionesConReservasRemoto
      * -----------------------------------------
-     * Elimina todas las reservas de todas las sesiones de un servicio.
-     * Se usa al eliminar un servicio.
+     * Elimina TODAS las sesiones de un servicio junto con sus reservas, de una
+     * en una y de forma atómica. Se usa al eliminar un servicio.
      */
-    suspend fun eliminarTodasLasReservasDelServicioRemoto(
+    suspend fun eliminarTodasLasSesionesConReservasRemoto(
         idServicio: Int
     ): ResultadoAutenticacion {
+        val negocioId = auth.currentUser?.uid
+            ?: return ResultadoAutenticacion(false, "No hay ningún usuario autenticado")
         return try {
-            val ids = obtenerIdsSesionesDelServicio(idServicio)
-            eliminarReservasDeSesionesRemoto(ids)
-            ResultadoAutenticacion(true, "Reservas eliminadas")
+            val ids = obtenerIdsSesionesDelServicio(idServicio, negocioId)
+            eliminarSesionesConReservas(ids)
         } catch (e: Exception) {
-            ResultadoAutenticacion(false, mensajeDe(e))
+            resultadoDeError(
+                "Query de sesiones del servicio $idServicio",
+                e
+            )
         }
     }
 
     /**
-     * eliminarReservasDeSesionesRemoto
-     * --------------------------------
-     * Borra las reservas de las sesiones indicadas agrupando las consultas con
-     * `in` (máx. 10 valores) y los borrados en WriteBatch.
+     * eliminarSesionesConReservas
+     * ---------------------------
+     * Elimina las sesiones indicadas con sus reservas, de una en una. Cada
+     * sesión se borra en su propia Transaction (nunca separada de sus reservas)
+     * y dentro del límite de 500 operaciones. Si una sesión falla, se detiene
+     * y se devuelve ese error para que el reintento exterior converja.
      */
-    private suspend fun eliminarReservasDeSesionesRemoto(sesionIds: List<Int>) {
-        if (sesionIds.isEmpty()) return
-        sesionIds.chunked(MAX_IN_QUERY).forEach { chunk ->
-            val reservas = db.collection(COLECCION_RESERVAS)
-                .whereIn("sesionId", chunk)
-                .get()
-                .esperar()
-            borrarDocumentos(reservas.documents.map { it.reference })
+    private suspend fun eliminarSesionesConReservas(sesionIds: List<Int>): ResultadoAutenticacion {
+        if (sesionIds.isEmpty()) {
+            return ResultadoAutenticacion(true, "No hay sesiones que eliminar")
         }
-    }
-
-    /**
-     * borrarDocumentos
-     * ----------------
-     * Borra los documentos indicados en un único WriteBatch.
-     */
-    private suspend fun borrarDocumentos(referencias: List<com.google.firebase.firestore.DocumentReference>) {
-        if (referencias.isEmpty()) return
-        val batch = db.batch()
-        referencias.forEach { batch.delete(it) }
-        batch.commit().esperar()
+        for (id in sesionIds) {
+            val resultado = eliminarSesionConReservasRemoto(id)
+            if (!resultado.exito) return resultado
+        }
+        return ResultadoAutenticacion(true, "Sesiones y reservas eliminadas")
     }
 
     /**
      * obtenerIdsSesionesDelServicio
      * -----------------------------
-     * Consulta las sesiones de un servicio (igualdad sobre idServicio, sin
-     * índices compuestos) y devuelve sus ids.
+     * Consulta las sesiones de un servicio y su negocio con filtros de igualdad
+     * y devuelve sus ids.
      */
-    private suspend fun obtenerIdsSesionesDelServicio(idServicio: Int): List<Int> {
+    private suspend fun obtenerIdsSesionesDelServicio(
+        idServicio: Int,
+        negocioId: String
+    ): List<Int> {
         val snapshots = db.collection(COLECCION_SESIONES)
             .whereEqualTo("idServicio", idServicio)
+            .whereEqualTo("negocioId", negocioId)
             .get()
             .esperar()
         return snapshots.documents.mapNotNull { it.getLong("idSesion")?.toInt() }
@@ -277,10 +361,12 @@ class ReservaRemotoRepository @Inject constructor(
      */
     private suspend fun obtenerIdsSesionesFuturasDelServicio(
         idServicio: Int,
-        desde: Long
+        desde: Long,
+        negocioId: String
     ): List<Int> {
         val snapshots = db.collection(COLECCION_SESIONES)
             .whereEqualTo("idServicio", idServicio)
+            .whereEqualTo("negocioId", negocioId)
             .get()
             .esperar()
         return snapshots.documents.mapNotNull { documento ->
@@ -302,6 +388,13 @@ class ReservaRemotoRepository @Inject constructor(
             else -> e.message ?: "Error inesperado. Inténtalo de nuevo"
         }
     }
+
+    /** Registra el código real de Firestore sin cambiar el mensaje de la UI. */
+    private fun resultadoDeError(operacion: String, e: Exception): ResultadoAutenticacion {
+        val codigo = (e as? FirebaseFirestoreException)?.code?.name ?: "NO_FIRESTORE_CODE"
+        Log.e(TAG, "$operacion falló. códigoFirebase=$codigo", e)
+        return ResultadoAutenticacion(false, mensajeDe(e))
+    }
 }
 
 /**
@@ -310,3 +403,6 @@ class ReservaRemotoRepository @Inject constructor(
  * Excepción interna para errores de negocio de reservas (mensajes amigables).
  */
 private class ReservaException(message: String) : Exception(message)
+
+private class SesionInexistenteConReservasException(cantidadReservas: Int) :
+    Exception("La sesión no existe y conserva $cantidadReservas reserva(s)")
