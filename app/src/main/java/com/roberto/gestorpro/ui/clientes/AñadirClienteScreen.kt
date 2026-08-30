@@ -1040,7 +1040,11 @@ fun AñadirClienteScreen(
                                 fechaNacimiento = fechaNacimiento!!,
                                 fechaRegistro = original.fechaRegistro,
                                 fechaAlta = original.fechaAlta,
-                                fechaBaja = original.fechaBaja,
+                                fechaBaja = if (esActivo) {
+                                    null
+                                } else {
+                                    original.fechaBaja ?: System.currentTimeMillis()
+                                },
                                 estado = if (esActivo) EstadoCliente.ACTIVO else EstadoCliente.BAJA,
                                 tieneLlave = tieneLlave,
                                 observaciones = observaciones.ifBlank { null },
@@ -1075,6 +1079,8 @@ fun AñadirClienteScreen(
                                 email = email,
                                 foto = foto,
                                 fechaNacimiento = fechaNacimiento!!,
+                                fechaAlta = if (esActivo) System.currentTimeMillis() else null,
+                                fechaBaja = if (esActivo) null else System.currentTimeMillis(),
                                 estado = if (esActivo) EstadoCliente.ACTIVO else EstadoCliente.BAJA,
                                 tieneLlave = tieneLlave,
                                 observaciones = observaciones.ifBlank { null },

@@ -286,8 +286,9 @@ class ClienteViewModel @Inject constructor(
             try {
                 val nuevoId = clienteRepository.insertarClienteRepo(cliente)
                 val entidadCreada = cliente.copy(idCliente = nuevoId.toInt())
-                replicar(entidadCreada, esAlta = true)
-                onExito(nuevoId.toInt())
+                if (replicar(entidadCreada, esAlta = true)) {
+                    onExito(nuevoId.toInt())
+                }
             } catch (e: SQLiteConstraintException) {
                 _error.value = "El DNI ya está registrado"
             }
@@ -306,7 +307,7 @@ class ClienteViewModel @Inject constructor(
         entidad: ClienteEntity,
         esAlta: Boolean,
         dniAnterior: String? = null
-    ) {
+    ): Boolean {
         _errorSincronizacion.value = null
         _clienteSinSincronizar.value = null
         _sincronizacionPendienteServicios.value = false
@@ -319,11 +320,13 @@ class ClienteViewModel @Inject constructor(
 
         if (resultado.exito) {
             _sincronizacionPendienteEsAlta.value = false
+            return true
         } else {
             _errorSincronizacion.value =
                 "Guardado en el dispositivo, pero no sincronizado con la nube: ${resultado.mensaje}"
             _clienteSinSincronizar.value = entidad
             _sincronizacionPendienteEsAlta.value = esAlta
+            return false
         }
     }
 
@@ -393,8 +396,9 @@ class ClienteViewModel @Inject constructor(
 
             try {
                 clienteRepository.actualizarClienteRepo(cliente)
-                replicar(cliente, esAlta = false, dniAnterior = dniAnterior)
-                onExito()
+                if (replicar(cliente, esAlta = false, dniAnterior = dniAnterior)) {
+                    onExito()
+                }
             } catch (e: SQLiteConstraintException) {
                 _error.value = "El DNI ya está registrado"
             }
@@ -432,18 +436,18 @@ class ClienteViewModel @Inject constructor(
      */
     fun archivarCliente(cliente: ClienteEntity) {
         viewModelScope.launch {
-            clienteRepository.actualizarClienteRepo(
-                cliente.copy(estado = EstadoCliente.ARCHIVADO)
-            )
+            val actualizado = cliente.copy(estado = EstadoCliente.ARCHIVADO)
+            clienteRepository.actualizarClienteRepo(actualizado)
+            replicar(actualizado, esAlta = false)
         }
     }
 
     fun archivarCliente(cliente: Cliente) {
         viewModelScope.launch {
             val entity = clienteRepository.obtenerClientePorIdRepo(cliente.idCliente) ?: return@launch
-            clienteRepository.actualizarClienteRepo(
-                entity.copy(estado = EstadoCliente.ARCHIVADO)
-            )
+            val actualizado = entity.copy(estado = EstadoCliente.ARCHIVADO)
+            clienteRepository.actualizarClienteRepo(actualizado)
+            replicar(actualizado, esAlta = false)
         }
     }
 
@@ -456,18 +460,24 @@ class ClienteViewModel @Inject constructor(
      */
     fun restaurarCliente(cliente: ClienteEntity) {
         viewModelScope.launch {
-            clienteRepository.actualizarClienteRepo(
-                cliente.copy(estado = EstadoCliente.ACTIVO)
+            val actualizado = cliente.copy(
+                estado = EstadoCliente.ACTIVO,
+                fechaBaja = null
             )
+            clienteRepository.actualizarClienteRepo(actualizado)
+            replicar(actualizado, esAlta = false)
         }
     }
 
     fun restaurarCliente(cliente: Cliente) {
         viewModelScope.launch {
             val entity = clienteRepository.obtenerClientePorIdRepo(cliente.idCliente) ?: return@launch
-            clienteRepository.actualizarClienteRepo(
-                entity.copy(estado = EstadoCliente.ACTIVO)
+            val actualizado = entity.copy(
+                estado = EstadoCliente.ACTIVO,
+                fechaBaja = null
             )
+            clienteRepository.actualizarClienteRepo(actualizado)
+            replicar(actualizado, esAlta = false)
         }
     }
 

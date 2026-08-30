@@ -67,4 +67,31 @@ object Routes {
      * Ajustes de la aplicación (tema claro/oscuro).
      */
     const val CONFIGURACION = "configuracion"
+
+    /**
+     * NOTIFICACIONES
+     * --------------
+     * Configuración visual temporal de avisos del cliente.
+     */
+    const val NOTIFICACIONES = "notificaciones"
+
+    /**
+     * CONFIGURACION_NOTIFICACIONES
+     * -----------------------------
+     * Configuración visual temporal de los avisos del cliente.
+     */
+    const val CONFIGURACION_NOTIFICACIONES = "configuracion_notificaciones"
+
+    /**
+     * RUTINAS
+     * -------
+     * Apartado visual de rutinas de entrenamiento.
+     */
+    const val RUTINAS = "rutinas"
+
+    /** Destino visual provisional de la política de privacidad. */
+    const val POLITICA_PRIVACIDAD = "politica_privacidad"
+
+    /** Destino visual provisional de los términos y condiciones. */
+    const val TERMINOS_CONDICIONES = "terminos_condiciones"
 }

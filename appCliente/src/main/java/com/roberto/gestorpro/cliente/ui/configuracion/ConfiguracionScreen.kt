@@ -9,16 +9,27 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.SettingsBrightness
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -29,8 +40,10 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -41,6 +54,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.roberto.gestorpro.cliente.data.repository.PreferencesRepository
+import com.roberto.gestorpro.cliente.navigation.Routes
 import com.roberto.gestorpro.cliente.ui.viewmodel.MainViewModel
 
 /**
@@ -57,12 +71,16 @@ fun ConfiguracionScreen(
 ) {
     val themeMode by mainViewModel.themeMode.collectAsStateWithLifecycle()
     val azul = Color(0xFF1E88E5)
+    var mostrarDialogoCerrarSesion by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
 
     Scaffold { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
         ) {
             Column(
                 modifier = Modifier
@@ -95,7 +113,67 @@ fun ConfiguracionScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "Apariencia",
+                text = "CUENTA",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+            )
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                AjusteNavigationOption(
+                    icon = Icons.Filled.Person,
+                    label = "Mi perfil",
+                    description = "Mis datos personales",
+                    tint = Color(0xFF2196F3),
+                    onClick = { navController.navigate(Routes.MI_PERFIL) }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                text = "PREFERENCIAS",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+            )
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                AjusteNavigationOption(
+                    icon = Icons.Filled.Notifications,
+                    label = "Notificaciones",
+                    description = "Configura tus avisos",
+                    tint = Color(0xFF7E57C2),
+                    onClick = {
+                        navController.navigate(Routes.CONFIGURACION_NOTIFICACIONES)
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                text = "APARIENCIA",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
@@ -144,7 +222,213 @@ fun ConfiguracionScreen(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                text = "ACCIÓN",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+            )
+
+            Card(
+                onClick = { mostrarDialogoCerrarSesion = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f)
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ExitToApp,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Cerrar sesión",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Salir de la aplicación",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 20.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                text = "INFORMACIÓN",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+            ) {
+                AjusteInformacionOption(
+                    icon = Icons.Filled.PrivacyTip,
+                    label = "Política de privacidad",
+                    onClick = { navController.navigate(Routes.POLITICA_PRIVACIDAD) }
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                AjusteInformacionOption(
+                    icon = Icons.Filled.Description,
+                    label = "Términos y condiciones",
+                    onClick = { navController.navigate(Routes.TERMINOS_CONDICIONES) }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+
+    if (mostrarDialogoCerrarSesion) {
+        AlertDialog(
+            onDismissRequest = { mostrarDialogoCerrarSesion = false },
+            title = {
+                Text(
+                    text = "Cerrar sesión",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = azul
+                )
+            },
+            text = {
+                Text("¿Seguro que quieres cerrar sesión?")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        mostrarDialogoCerrarSesion = false
+                        mainViewModel.cerrarSesion()
+                        navController.navigate(Routes.LOGIN) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
+                ) {
+                    Text("Cerrar sesión", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarDialogoCerrarSesion = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun AjusteNavigationOption(
+    icon: ImageVector,
+    label: String,
+    description: String,
+    tint: Color,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(24.dp)
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Icon(
+            imageVector = Icons.Filled.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(22.dp)
+        )
+    }
+}
+
+@Composable
+private fun AjusteInformacionOption(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(22.dp)
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        Icon(
+            imageVector = Icons.Filled.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(22.dp)
+        )
     }
 }
 

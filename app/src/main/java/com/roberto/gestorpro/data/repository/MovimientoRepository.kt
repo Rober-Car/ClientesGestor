@@ -1,10 +1,22 @@
 package com.roberto.gestorpro.data.repository
 
+import android.util.Log
 import com.roberto.gestorpro.data.dao.MovimientoDao
+import com.roberto.gestorpro.data.firebase.ClienteRemotoRepository
 import com.roberto.gestorpro.data.entity.MovimientoEntity
 import com.roberto.gestorpro.model.EstadoMovimiento
 import javax.inject.Inject
+import javax.inject.Singleton
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /**
  * MovimientoRepository.kt
@@ -22,6 +34,7 @@ import kotlinx.coroutines.flow.Flow
  * Sirve para centralizar las operaciones con movimientos usando MovimientoDao internamente.
  * Se inyecta automáticamente con Hilt gracias a la anotación @Inject.
  */
+@Singleton
 class MovimientoRepository @Inject constructor(
 
     /**
@@ -31,8 +44,20 @@ class MovimientoRepository @Inject constructor(
      * Es el DAO de movimientos que recibirá el repositorio.
      * Sirve para que el repositorio acceda a la base de datos a través de las operaciones del DAO.
      */
-    private val movimientoDao: MovimientoDao
+    private val movimientoDao: MovimientoDao,
+    private val clienteRemotoRepository: ClienteRemotoRepository
 ){
+
+    private val sincronizacionMutex = Mutex()
+    private val _periodosPendientes = MutableStateFlow<Set<Int>>(emptySet())
+    val periodosPendientes: StateFlow<Set<Int>> = _periodosPendientes.asStateFlow()
+
+    private val _errorSincronizacion = MutableStateFlow<String?>(null)
+    val errorSincronizacion: StateFlow<String?> = _errorSincronizacion.asStateFlow()
+
+    companion object {
+        private const val TAG = "MovimientoRepository"
+    }
 
     /**
      * insertarMovimiento
@@ -42,7 +67,9 @@ class MovimientoRepository @Inject constructor(
      * Sirve para guardar un nuevo MovimientoEntity desde la capa de repositorio.
      */
     suspend fun insertarMovimiento(movimiento: MovimientoEntity) {
-        movimientoDao.insertarMovimiento(movimiento)
+        ejecutarPersistenciaYPeriodo(movimiento.idCliente, "INSERTAR") {
+            movimientoDao.insertarMovimiento(movimiento)
+        }
     }
 
     /**
@@ -53,7 +80,9 @@ class MovimientoRepository @Inject constructor(
      * Sirve para guardar los cambios de un MovimientoEntity a través del DAO.
      */
     suspend fun actualizarMovimiento(movimiento: MovimientoEntity) {
-        movimientoDao.actualizarMovimiento(movimiento)
+        ejecutarPersistenciaYPeriodo(movimiento.idCliente, "ACTUALIZAR") {
+            movimientoDao.actualizarMovimiento(movimiento)
+        }
     }
 
     /**
@@ -64,7 +93,90 @@ class MovimientoRepository @Inject constructor(
      * Sirve para borrar un MovimientoEntity a través del DAO.
      */
     suspend fun eliminarMovimiento(movimiento: MovimientoEntity) {
-        movimientoDao.eliminarMovimiento(movimiento)
+        ejecutarPersistenciaYPeriodo(movimiento.idCliente, "ELIMINAR") {
+            movimientoDao.eliminarMovimiento(movimiento)
+        }
+    }
+
+    /**
+     * Recalcula el periodo usando el contenido ya persistido en Room y lo
+     * replica sin depender de que exista una pantalla observando movimientos.
+     */
+    suspend fun sincronizarPeriodoActual(idCliente: Int) {
+        withContext(NonCancellable + Dispatchers.IO) {
+            sincronizarPeriodoActualInterno(idCliente, "RECONCILIAR")
+        }
+    }
+
+    private suspend fun ejecutarPersistenciaYPeriodo(
+        idCliente: Int,
+        operacion: String,
+        persistir: suspend () -> Unit
+    ) {
+        // La escritura local y el disparo de la réplica sobreviven al cierre de
+        // la pantalla que inició la operación.
+        withContext(NonCancellable + Dispatchers.IO) {
+            persistir()
+            sincronizarPeriodoActualInterno(idCliente, operacion)
+        }
+    }
+
+    private suspend fun sincronizarPeriodoActualInterno(
+        idCliente: Int,
+        operacion: String
+    ) {
+        sincronizacionMutex.withLock {
+            try {
+                val movimientos = movimientoDao
+                    .obtenerMovimientosPorCliente(idCliente)
+                    .first()
+                val actual = movimientos.maxByOrNull { it.fechaFin }
+
+                Log.d(
+                    TAG,
+                    "Sincronizando periodo: idCliente=$idCliente " +
+                        "operacion=$operacion " +
+                        "fechaInicioActual=${actual?.fechaInicio} " +
+                        "fechaFinActual=${actual?.fechaFin}"
+                )
+
+                val resultado = clienteRemotoRepository.actualizarPeriodoActualRemoto(
+                    idCliente = idCliente,
+                    fechaInicioActual = actual?.fechaInicio,
+                    fechaFinActual = actual?.fechaFin
+                )
+
+                if (resultado.exito) {
+                    _periodosPendientes.value =
+                        _periodosPendientes.value - idCliente
+                    _errorSincronizacion.value = null
+                    Log.i(
+                        TAG,
+                        "Periodo sincronizado: idCliente=$idCliente resultado=OK"
+                    )
+                } else {
+                    _periodosPendientes.value =
+                        _periodosPendientes.value + idCliente
+                    _errorSincronizacion.value =
+                        "Cliente $idCliente: ${resultado.mensaje}"
+                    Log.w(
+                        TAG,
+                        "Periodo pendiente: idCliente=$idCliente " +
+                            "resultado=ERROR mensaje=${resultado.mensaje}"
+                    )
+                }
+            } catch (e: Exception) {
+                _periodosPendientes.value =
+                    _periodosPendientes.value + idCliente
+                _errorSincronizacion.value =
+                    "Cliente $idCliente: ${e.message ?: "error inesperado"}"
+                Log.e(
+                    TAG,
+                    "Error calculando/sincronizando periodo: idCliente=$idCliente",
+                    e
+                )
+            }
+        }
     }
 
     /**

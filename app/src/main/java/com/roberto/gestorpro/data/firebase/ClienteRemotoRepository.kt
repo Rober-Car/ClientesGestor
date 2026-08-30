@@ -1,8 +1,10 @@
 package com.roberto.gestorpro.data.firebase
 
+import android.util.Log
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
 import com.roberto.gestorpro.data.entity.ClienteEntity
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -29,6 +31,7 @@ class ClienteRemotoRepository @Inject constructor(
         private const val COLECCION_CLIENTES = "clientes"
         private const val COLECCION_INDICES = "indices_clientes"
         private const val COLECCION_PRIVADOS = "clientes_privados"
+        private const val TAG = "ClienteRemotoRepository"
 
         /**
          * negocioIdDelAdmin
@@ -112,8 +115,20 @@ class ClienteRemotoRepository @Inject constructor(
                 )
             )
             batch.commit().esperar()
+            Log.i(
+                TAG,
+                "Alta de cliente sincronizada: idCliente=${entidad.idCliente} resultado=OK"
+            )
             ResultadoAutenticacion(true, "Ficha sincronizada")
+        } catch (e: FirebaseFirestoreException) {
+            Log.e(
+                TAG,
+                "Error en alta de cliente: idCliente=${entidad.idCliente} codigo=${e.code}",
+                e
+            )
+            ResultadoAutenticacion(false, mensajeDe(e))
         } catch (e: Exception) {
+            Log.e(TAG, "Error en alta de cliente: idCliente=${entidad.idCliente}", e)
             ResultadoAutenticacion(false, mensajeDe(e))
         }
     }
@@ -162,8 +177,20 @@ class ClienteRemotoRepository @Inject constructor(
                 )
             }
             batch.commit().esperar()
+            Log.i(
+                TAG,
+                "Edicion de cliente sincronizada: idCliente=${entidad.idCliente} resultado=OK"
+            )
             ResultadoAutenticacion(true, "Cambios sincronizados")
+        } catch (e: FirebaseFirestoreException) {
+            Log.e(
+                TAG,
+                "Error en edicion de cliente: idCliente=${entidad.idCliente} codigo=${e.code}",
+                e
+            )
+            ResultadoAutenticacion(false, mensajeDe(e))
         } catch (e: Exception) {
+            Log.e(TAG, "Error en edicion de cliente: idCliente=${entidad.idCliente}", e)
             ResultadoAutenticacion(false, mensajeDe(e))
         }
     }
@@ -191,8 +218,73 @@ class ClienteRemotoRepository @Inject constructor(
                 .document(idCliente.toString())
                 .update("serviciosContratados", idsServicios)
                 .esperar()
+            Log.i(
+                TAG,
+                "Servicios de cliente sincronizados: idCliente=$idCliente resultado=OK"
+            )
             ResultadoAutenticacion(true, "Servicios sincronizados")
+        } catch (e: FirebaseFirestoreException) {
+            Log.e(
+                TAG,
+                "Error en servicios de cliente: idCliente=$idCliente codigo=${e.code}",
+                e
+            )
+            ResultadoAutenticacion(false, mensajeDe(e))
         } catch (e: Exception) {
+            Log.e(TAG, "Error en servicios de cliente: idCliente=$idCliente", e)
+            ResultadoAutenticacion(false, mensajeDe(e))
+        }
+    }
+
+    /**
+     * Replica las fechas del movimiento actual en la ficha pública del cliente.
+     * Los movimientos siguen siendo exclusivamente locales del ADMIN.
+     */
+    suspend fun actualizarPeriodoActualRemoto(
+        idCliente: Int,
+        fechaInicioActual: Long?,
+        fechaFinActual: Long?
+    ): ResultadoAutenticacion {
+        val uid = auth.currentUser?.uid
+            ?: return ResultadoAutenticacion(false, "No hay ningún usuario autenticado")
+        if (uid.isBlank()) {
+            return ResultadoAutenticacion(false, "No hay ningún usuario autenticado")
+        }
+
+        return try {
+            db.collection(COLECCION_CLIENTES)
+                .document(idCliente.toString())
+                .update(
+                    mapOf(
+                        "fechaInicioActual" to fechaInicioActual?.let { timestampDe(it) },
+                        "fechaFinActual" to fechaFinActual?.let { timestampDe(it) }
+                    )
+                )
+                .esperar()
+            Log.i(
+                TAG,
+                "Periodo de cliente sincronizado: idCliente=$idCliente " +
+                    "fechaInicioActual=$fechaInicioActual " +
+                    "fechaFinActual=$fechaFinActual resultado=OK"
+            )
+            ResultadoAutenticacion(true, "Periodo sincronizado")
+        } catch (e: FirebaseFirestoreException) {
+            Log.e(
+                TAG,
+                "Error en periodo de cliente: idCliente=$idCliente " +
+                    "fechaInicioActual=$fechaInicioActual " +
+                    "fechaFinActual=$fechaFinActual codigo=${e.code}",
+                e
+            )
+            ResultadoAutenticacion(false, mensajeDe(e))
+        } catch (e: Exception) {
+            Log.e(
+                TAG,
+                "Error en periodo de cliente: idCliente=$idCliente " +
+                    "fechaInicioActual=$fechaInicioActual " +
+                    "fechaFinActual=$fechaFinActual",
+                e
+            )
             ResultadoAutenticacion(false, mensajeDe(e))
         }
     }

@@ -215,6 +215,10 @@ fun PerfilClienteScreen(
 
     val clienteSinSincronizar by viewModel.clienteSinSincronizar.collectAsStateWithLifecycle()
 
+    val errorSincronizacionPeriodo by movimientoViewModel.errorSincronizacion.collectAsStateWithLifecycle()
+    val periodosPendientes by movimientoViewModel.periodosPendientes.collectAsStateWithLifecycle()
+    val periodoPendiente = idCliente in periodosPendientes
+
     /**
      * textoEstado
      * -----------
@@ -643,7 +647,12 @@ fun PerfilClienteScreen(
              * que Room está actualizado pero Firestore no, y ofrece el reintento
              * manual de sincronización sin revertir nada.
              */
-            if (errorSincronizacion != null || clienteSinSincronizar != null) {
+            if (
+                    errorSincronizacion != null ||
+                    clienteSinSincronizar != null ||
+                    (errorSincronizacionPeriodo != null && periodoPendiente) ||
+                    periodoPendiente
+            ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -657,14 +666,21 @@ fun PerfilClienteScreen(
                 ) {
                     Text(
                         text = errorSincronizacion
+                            ?: errorSincronizacionPeriodo.takeIf { periodoPendiente }
                             ?: "Hay cambios pendientes de sincronizar con la nube.",
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall
                     )
 
                     OutlinedButton(
-                        onClick = { viewModel.reintentarSincronizacion() },
-                        enabled = clienteSinSincronizar != null
+                        onClick = {
+                            if (clienteSinSincronizar != null) {
+                                viewModel.reintentarSincronizacion()
+                            } else {
+                                movimientoViewModel.reintentarSincronizacionPeriodo(idCliente)
+                            }
+                        },
+                        enabled = clienteSinSincronizar != null || periodoPendiente
                     ) {
                         Text("Reintentar sincronización")
                     }

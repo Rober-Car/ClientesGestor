@@ -539,6 +539,149 @@ test("PRUEBA 6: VIA 1 - un CLIENTE vincula una ficha creada por el ADMIN", async
     });
 });
 
+test("PRUEBA 6B: VIA 1 no puede actualizar una ficha inexistente sin indice", async () => {
+    const clienteUid = "cliente-via1-ficha-inexistente-test";
+    const negocioId = "negocio-via1-ficha-inexistente-6b";
+    const dni = "88888888H";
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE",
+            activo: true,
+            clienteId: null,
+            negocioId: null
+        });
+
+        await setDoc(doc(database, "perfiles_pendientes", clienteUid), {
+            dni,
+            negocioId
+        });
+    });
+
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    const batch = writeBatch(database);
+    batch.update(doc(database, "clientes", "749"), {
+        firebaseUid: clienteUid,
+        negocioId
+    });
+    batch.update(doc(database, "usuarios", clienteUid), {
+        clienteId: 749,
+        negocioId
+    });
+
+    await assertFails(batch.commit());
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        const ficha = await getDoc(doc(database, "clientes", "749"));
+        const indice = await getDoc(
+            doc(database, "indices_clientes", indiceId(negocioId, dni))
+        );
+        const usuario = await getDoc(doc(database, "usuarios", clienteUid));
+
+        assert.strictEqual(ficha.exists(), false);
+        assert.strictEqual(indice.exists(), false);
+        assert.strictEqual(usuario.data().clienteId, null);
+        assert.strictEqual(usuario.data().negocioId, null);
+    });
+});
+
+test("PRUEBA 6C: cada DNI solo puede vincular su ficha correspondiente", async () => {
+    const clienteUid = "cliente-via1-dni-a-test";
+    const otroClienteUid = "cliente-via1-dni-b-test";
+    const negocioId = "negocio-via1-dnis-6c";
+    const dniA = "88888881A";
+    const dniB = "88888882B";
+    const idFichaA = 750;
+    const idFichaB = 751;
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE",
+            activo: true,
+            clienteId: null,
+            negocioId: null
+        });
+        await setDoc(doc(database, "usuarios", otroClienteUid), {
+            rol: "CLIENTE",
+            activo: true,
+            clienteId: null,
+            negocioId: null
+        });
+        await setDoc(doc(database, "negocios_publicos", negocioId), {
+            nombre: "Gimnasio Via1 DNI",
+            codigoMaestro: "MAESTRO-6C"
+        });
+        await setDoc(
+            doc(database, "perfiles_pendientes", clienteUid),
+            { dni: dniA, negocioId }
+        );
+        await setDoc(
+            doc(database, "perfiles_pendientes", otroClienteUid),
+            { dni: dniB, negocioId }
+        );
+        await setDoc(
+            doc(database, "clientes", String(idFichaA)),
+            fichaCliente(idFichaA, negocioId, null, dniA)
+        );
+        await setDoc(
+            doc(database, "clientes", String(idFichaB)),
+            fichaCliente(idFichaB, negocioId, null, dniB)
+        );
+        await setDoc(
+            doc(database, "indices_clientes", indiceId(negocioId, dniA)),
+            { negocioId, dni: dniA, clienteId: idFichaA }
+        );
+        await setDoc(
+            doc(database, "indices_clientes", indiceId(negocioId, dniB)),
+            { negocioId, dni: dniB, clienteId: idFichaB }
+        );
+    });
+
+    const databaseClienteA = testEnvironment.authenticatedContext(clienteUid).firestore();
+    const intentoIntercambio = writeBatch(databaseClienteA);
+    intentoIntercambio.update(doc(databaseClienteA, "clientes", String(idFichaB)), {
+        firebaseUid: clienteUid,
+        negocioId
+    });
+    intentoIntercambio.update(doc(databaseClienteA, "usuarios", clienteUid), {
+        clienteId: idFichaB,
+        negocioId
+    });
+    await assertFails(intentoIntercambio.commit());
+
+    const databaseClienteB = testEnvironment
+        .authenticatedContext(otroClienteUid)
+        .firestore();
+    const vinculacionCorrecta = writeBatch(databaseClienteB);
+    vinculacionCorrecta.update(
+        doc(databaseClienteB, "clientes", String(idFichaB)),
+        { firebaseUid: otroClienteUid, negocioId }
+    );
+    vinculacionCorrecta.update(doc(databaseClienteB, "usuarios", otroClienteUid), {
+        clienteId: idFichaB,
+        negocioId
+    });
+    await assertSucceeds(vinculacionCorrecta.commit());
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        const fichaA = await getDoc(doc(database, "clientes", String(idFichaA)));
+        const fichaB = await getDoc(doc(database, "clientes", String(idFichaB)));
+        const usuarioA = await getDoc(doc(database, "usuarios", clienteUid));
+        const usuarioB = await getDoc(doc(database, "usuarios", otroClienteUid));
+
+        assert.strictEqual(fichaA.data().firebaseUid, null);
+        assert.strictEqual(fichaB.data().firebaseUid, otroClienteUid);
+        assert.strictEqual(usuarioA.data().clienteId, null);
+        assert.strictEqual(usuarioB.data().clienteId, idFichaB);
+    });
+});
+
 test("PRUEBA 7: un CLIENTE vinculado solo puede editar sus datos personales", async () => {
     const clienteUid = "cliente-personal-test";
 

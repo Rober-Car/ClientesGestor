@@ -351,7 +351,8 @@ node firestore-tests/auditoria_backfill_indices.cjs
 
 ## Tests
 
-- **Rules de Firestore + Storage:** `npm --prefix firestore-tests test` (**90 pruebas** en los emuladores `--only firestore,storage`: 20 de clientes/vinculación/negocio/logo + 13 de servicios + 20 de sesiones + 23 de reservas + 14 de regresión de cascadas/queries/activación, incluidas PRUEBA 9B, 33A–33H, 77–81). Deben pasar **antes** de desplegar las Rules.
+- **Rules de Firestore + Storage:** `npm --prefix firestore-tests test` (**92 pruebas** en los emuladores `--only firestore,storage`, incluidas PRUEBA 6B y 6C para Vía A, 9B, 33A–33H y 77–81). Deben pasar **antes** de desplegar las Rules.
+- **Test unitario appCliente:** `:appCliente:testDebugUnitTest` cubre el rechazo de Vía A cuando no existe el índice `negocioId_DNI`.
 - Los tests de Android se mantienen para la fase final del proyecto salvo que el desarrollador los solicite expresamente antes. No crear archivos de test automáticamente durante una funcionalidad normal.
 
 ## Convenciones específicas de Firebase y navegación
@@ -362,11 +363,11 @@ node firestore-tests/auditoria_backfill_indices.cjs
 - **Vinculación del CLIENTE:** el flujo de código maestro + DNI vive en `appCliente` (repositorio `VinculacionRepository`, pantalla de vinculación accesible desde el Home). Las operaciones críticas (VÍA 1 y VÍA 2) deben ejecutarse en Transaction. Nunca reintroducir Vía B/deep links.
 - **Logo del negocio:** la subida vive en `NegocioRepository.guardarLogoRemoto()` (`:app`): `putFile` a `negocios/{uid}/logo.jpg` → `downloadUrl` → WriteBatch con `logo` en `negocios` + `negocios_publicos`. El Cliente lee `negocios_publicos/{id}.logo` y lo muestra con Coil. Requiere el bucket habilitado en Firebase Console.
 
-## Estado actual y pendientes (2026-08-29)
+## Estado actual y pendientes (2026-08-30)
 
-> ACTUALIZACIÓN: lo implementado el 28-29/08 (DeepSeek) y el 29/08 (corrección PERMISSION_DENIED + auditoría appCliente) está en el working tree **sin commit**. Tests de Rules en **90/90** y las Rules desplegadas en `gestorpro-50e83` son **byte-idénticas** al local `firestore.rules` (42.687 bytes, con `cascadaEliminaSesion` y `match /servicios/{servicioId}`). Detalle en `CONVERSACION_EXPORTADA.md` (Sesiones XII–XIV).
+> ACTUALIZACIÓN: lo implementado el 28-30/08 está en el working tree **sin commit**. Tests de Rules en **92/92** y las Rules desplegadas en `gestorpro-50e83` siguen siendo **byte-idénticas** al local `firestore.rules` (42.687 bytes, con `cascadaEliminaSesion` y `match /servicios/{servicioId}`). Detalle en `CONVERSACION_EXPORTADA.md` (Sesiones XII–XVII).
 
-Implementado y compilado (`:app` y `:appCliente` BUILD SUCCESSFUL; `:app:compileDebugKotlin` EXITCODE 0; Rules **90/90 OK**):
+Implementado y compilado (`:app` y `:appCliente` BUILD SUCCESSFUL; `:app:compileDebugKotlin` EXITCODE 0; Rules **92/92 OK**):
 
 - **Dos aplicaciones independientes:** `:app` (Admin) y `:appCliente` (Cliente) en el mismo proyecto Gradle, con el mismo Firebase (`gestorpro-50e83`) compartido.
 - **Nuevo modelo SERVICIOS/SESIONES/RESERVAS (Fases 1–5C):** `Cliente → Servicio → Sesión → Reserva`, sin entidad Clase en el flujo nuevo.
@@ -379,12 +380,15 @@ Implementado y compilado (`:app` y `:appCliente` BUILD SUCCESSFUL; `:app:compile
   - **Fase 2 (Rules + tests):** helper `cascadaEliminaSesion(sesionId)` y rama OR en `reservas/delete` ADMIN. **PRUEBA 77-81** → 82/82 OK. Rules desplegadas verificadas idénticas al local.
 - **Diagnóstico de Rules en producción (28-29/08):** se descubrió que el ruleset desplegado **no contenía `match /servicios/{servicioId}`** (Rules antiguas), causa de `PERMISSION_DENIED` en alta/baja de servicios. Tras redeploy, el ruleset coincide con el local. **Aclaración de UID:** el admin real en producción es `aSiZI8YWlLYOWhj2TXlznZWJP5O2` (minúscula `l` en posición 9 y 18: `WlLYO` y `TXlzn`); el `negocioId` de los servicios (`aSiZI8YWlLYOWhj2TXlznZWJP5O2`) es coherente con ese UID. La cadena `aSiZI8YWILYOWhj2TXIznZWJP5O2` (mayúscula `I`) que venía manejándose era un **typo I/l** del humano, no el UID real.
 - **Resto validado:** flujo CLIENTE sin vínculo/VÍA 1/VÍA 2, sync nombre de negocio, logo con Storage (pendiente bucket), dos apps.
+- **Sincronización de períodos Admin → Firestore (30/08):** `MovimientoRepository` persiste primero en Room, recalcula `fechaInicioActual`/`fechaFinActual` desde los movimientos persistidos y replica el período después de insertar, actualizar o eliminar. Los errores quedan pendientes para reintento manual y `ClienteRemotoRepository` registra la operación y el código de error Firebase. El alta Admin asigna `fechaAlta` a clientes creados como `ACTIVO` y `ClienteViewModel` solo confirma el alta/edición cuando la réplica remota termina correctamente.
+- **Vía A código maestro + DNI (30/08):** corregida la regresión del commit `653f117de71a169dcb9f2f75e2dcdf6b6d4c44f5`. `VinculacionRepository` busca exactamente `indices_clientes/{negocioId}_{dni}`; si no existe devuelve `No existe ningún cliente registrado con ese DNI.` y no llama a `crearFicha()`. La vinculación de una ficha existente mantiene la Transaction de `clientes/{idCliente}` + `usuarios/{uid}`. El código de Vía 2 permanece conservado, pero no se ejecuta desde esta entrada Vía A. Añadidas PRUEBA 6B, PRUEBA 6C y test unitario de rechazo.
+- **Card de estado del Home Cliente (validado 30/08):** no modificar. Un cliente `ACTIVO` sin movimientos muestra el estado sin fecha; después de crear un movimiento, `fechaInicioActual`/`fechaFinActual` llegan desde Firestore y el card muestra correctamente la fecha de fin del período. La lógica actual queda validada manualmente.
 - **`ClaseEntity`/`SesionClaseEntity` y su UI/DAOs/repositorios/ViewModel siguen TRANSITORIOS** (Fase 5B desconectados); NO eliminar sin tarea específica.
 
 Pendiente para continuar:
 
 1. **Diagnóstico PERMISSION_DENIED en baja/eliminación de servicios — RESUELTO a nivel de Rules (Sesión XIII):** la causa era que las queries administrativas de cascada (`reservas` por `sesionId`, `sesiones` por `idServicio`) no incluían `negocioId`, así las reglas `sesiones/list` y `reservas/list` las negaban (rules-are-not-filters). Se corrigió en `ReservaRemotoRepository`/`SesionRemotoRepository` (filtro `negocioId` + fail-closed si la sesión no existe pero tiene reservas) y se añadieron 8 pruebas de regresión (PRUEBA 33A–33H). Tests **90/90**, `:app:assembleDebug` BUILD SUCCESSFUL. **Riesgo abierto:** el crash de la app en alta/reactivación no se aisló (no se aportó stacktrace/logcat); conviene validar en dispositivo con el build corregido y, si persiste, capturar el logcat.
-2. **Reservar/ver/cancelar reservas del CLIENTE + indicador de estado real en Home (Sesión XIV, plan listo):** reusar la Transaction `reservas/{clienteId}_{sesionId}`; añadir `Reserva` model/`ReservaRepository`/`ReservasClienteViewModel`/`MisReservasScreen`; `SesionRepository` debe filtrar por `negocioId`; `ClienteRepository` debe parsear `Timestamp` (hoy solo `Number`) y `MainViewModel`/`HomeScreen` mostrar el estado real derivado (ACTIVO/BAJA/ARCHIVADO/REGISTRADO + MOROSO/PAGO_VENCIDO derivado de `fechaFinActual`). Sin implementar aún (pendiente autorización; ver Partes 1–5 de la Sesión XIV). En Admin: poblar `fechaInicioActual`/`fechaFinActual` desde el `Movimiento` vigente y set `fechaBaja` al dar de baja.
+2. **Reservar/ver/cancelar reservas del CLIENTE:** reusar la Transaction `reservas/{clienteId}_{sesionId}`; añadir `Reserva` model/`ReservaRepository`/`ReservasClienteViewModel`/`MisReservasScreen` e integrar reservar/cancelar en `ClasesScreen`. `SesionRepository` debe mantener el filtro `negocioId`. El parseo `Timestamp`/`Number`, el estado real del Home y el card de período ya están implementados y validados; no modificarlos como parte de esta tarea.
 3. **Habilitar el bucket de Storage** y desplegar `storage.rules` (hasta entonces el logo falla).
 4. **Backfill de `indices_clientes`** (DRY-RUN: 2 índices). NO ejecutar sin aprobación.
 5. **Limpieza definitiva de `Clase`/`SesionClase`** y de `ServicioItem` (sin uso).

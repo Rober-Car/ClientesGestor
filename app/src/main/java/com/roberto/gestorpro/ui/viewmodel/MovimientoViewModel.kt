@@ -11,6 +11,7 @@ import com.roberto.gestorpro.model.EstadoMovimiento
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
@@ -82,6 +83,9 @@ class MovimientoViewModel @Inject constructor(
      */
     val movimientos = _movimientos.asStateFlow()
 
+    val errorSincronizacion: StateFlow<String?> = movimientoRepository.errorSincronizacion
+    val periodosPendientes: StateFlow<Set<Int>> = movimientoRepository.periodosPendientes
+
     /* ============================================================
      * ============ BLOQUE 5: OPERACIONES DEL VIEWMODEL ===========
      * ============================================================ */
@@ -109,6 +113,10 @@ class MovimientoViewModel @Inject constructor(
          * Sirve para no bloquear el hilo principal de la UI mientras se consulta la BD.
          */
         viewModelScope.launch {
+
+            // Reconciliación al abrir el perfil: es un respaldo, no el disparador
+            // principal, que ahora ocurre después de cada escritura en Room.
+            movimientoRepository.sincronizarPeriodoActual(idCliente)
 
             /**
              * movimientoRepository.obtenerMovimientosPorCliente(idCliente)
@@ -138,6 +146,12 @@ class MovimientoViewModel @Inject constructor(
                      */
                     _movimientos.value = lista
                 }
+        }
+    }
+
+    fun reintentarSincronizacionPeriodo(idCliente: Int) {
+        viewModelScope.launch {
+            movimientoRepository.sincronizarPeriodoActual(idCliente)
         }
     }
 

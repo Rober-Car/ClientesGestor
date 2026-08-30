@@ -14,6 +14,7 @@ import com.roberto.gestorpro.data.dao.SesionClaseDao
 import com.roberto.gestorpro.data.dao.SesionDao
 import com.roberto.gestorpro.data.dao.SolicitudDao
 import com.roberto.gestorpro.data.database.ClientesDatabase
+import com.roberto.gestorpro.data.firebase.ClienteRemotoRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
@@ -316,9 +317,10 @@ object AppModule {
          * Es el DAO de movimientos de la base de datos.
          * Sirve para construir el repositorio de movimientos a partir de él.
          */
-        movimientoDao: MovimientoDao
+        movimientoDao: MovimientoDao,
+        clienteRemotoRepository: ClienteRemotoRepository
     ): MovimientoRepository {
-        return MovimientoRepository(movimientoDao)
+        return MovimientoRepository(movimientoDao, clienteRemotoRepository)
     }
 
     @Provides

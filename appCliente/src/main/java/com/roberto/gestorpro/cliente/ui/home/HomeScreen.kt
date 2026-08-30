@@ -21,10 +21,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.FitnessCenter
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -45,22 +43,34 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
 import com.roberto.gestorpro.cliente.navigation.Routes
+import com.roberto.gestorpro.cliente.model.EstadoIndicadorCliente
 import com.roberto.gestorpro.cliente.ui.viewmodel.MainViewModel
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun HomeScreen(
     navController: NavHostController,
-    mainViewModel: MainViewModel = hiltViewModel()
+    mainViewModel: MainViewModel
 ) {
     val idCliente by mainViewModel.idCliente.collectAsStateWithLifecycle()
     val nombreNegocio by mainViewModel.nombreNegocio.collectAsStateWithLifecycle()
     val logoNegocio by mainViewModel.logoNegocio.collectAsStateWithLifecycle()
+    val estadoHome by mainViewModel.estadoHome.collectAsStateWithLifecycle()
     val vinculado = idCliente != null
+
+    LifecycleResumeEffect(idCliente) {
+        if (idCliente != null) {
+            mainViewModel.refrescarEstadoHome()
+        }
+        onPauseOrDispose { }
+    }
 
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing
@@ -135,10 +145,25 @@ fun HomeScreen(
                 }
             }
 
-            if (vinculado) {
+            val estadoVisual = when (estadoHome.estado) {
+                EstadoIndicadorCliente.ACTIVO -> EstadoVisualCliente.ACTIVO
+                EstadoIndicadorCliente.PAGO_VENCIDO -> EstadoVisualCliente.PAGO_VENCIDO
+                EstadoIndicadorCliente.BAJA -> EstadoVisualCliente.BAJA
+                EstadoIndicadorCliente.REGISTRADO -> EstadoVisualCliente.REGISTRADO
+                EstadoIndicadorCliente.ARCHIVADO -> EstadoVisualCliente.ARCHIVADO
+                null -> null
+            }
+
+            if (vinculado && estadoVisual != null) {
                 HomeClientEstadoIndicator(
-                    estado = EstadoVisualCliente.ACTIVO,
-                    fecha = "31/08/2026",
+                    estado = estadoVisual,
+                    fecha = estadoHome.fechaRelevante?.let(::formatearFecha) ?: when {
+                        estadoVisual == EstadoVisualCliente.ACTIVO ||
+                            estadoVisual == EstadoVisualCliente.PAGO_VENCIDO ||
+                            estadoVisual == EstadoVisualCliente.BAJA ->
+                            "Fecha no disponible"
+                        else -> null
+                    },
                     modifier = Modifier.padding(horizontal = 20.dp)
                 )
                 Spacer(modifier = Modifier.height(12.dp))
@@ -153,48 +178,38 @@ fun HomeScreen(
             ) {
                 item {
                     HomeClientMenuCard(
-                        titulo = "Mi perfil",
-                        descripcion = "Mis datos personales",
-                        icono = Icons.Default.Person,
-                        color = Color(0xFF2196F3),
-                        onClick = { navController.navigate(Routes.MI_PERFIL) }
+                        titulo = "Clases",
+                        descripcion = "Consulta y reserva",
+                        icono = Icons.Default.FitnessCenter,
+                        color = Color(0xFFFB8C00),
+                        onClick = { navController.navigate(Routes.CLASES) }
                     )
                 }
                 item {
                     HomeClientMenuCard(
-                            titulo = "Clases",
-                            descripcion = "Consulta y reserva",
-                            icono = Icons.Default.FitnessCenter,
-                            color = Color(0xFFFB8C00),
-                            onClick = { navController.navigate(Routes.CLASES) }
-                    )
-                }
-                if (!vinculado) {
-                    item {
-                        HomeClientMenuCard(
-                            titulo = "Vinculación",
-                            descripcion = "Vincular con mi gimnasio",
-                            icono = Icons.Default.Badge,
-                            onClick = { navController.navigate(Routes.INICIO) }
-                        )
-                    }
-                }
-                item {
-                    HomeClientMenuCard(
-                        titulo = "Mi cuenta",
-                        descripcion = "Cuenta y seguridad",
-                        icono = Icons.Default.AccountCircle,
-                        color = Color(0xFF43A047),
-                        onClick = { navController.navigate(Routes.CUENTA) }
+                        titulo = "Notificaciones",
+                        descripcion = "Consulta tus avisos",
+                        icono = Icons.Default.Notifications,
+                        color = Color(0xFF7E57C2),
+                        onClick = { navController.navigate(Routes.NOTIFICACIONES) }
                     )
                 }
                 item {
                     HomeClientMenuCard(
                         titulo = "Ajustes",
-                        descripcion = "Preferencias de la app",
+                        descripcion = "Configuración general",
                         icono = Icons.Default.Settings,
                         color = Color(0xFF78909C),
                         onClick = { navController.navigate(Routes.CONFIGURACION) }
+                    )
+                }
+                item {
+                    HomeClientMenuCard(
+                        titulo = "Rutinas",
+                        descripcion = "Rutinas de entrenamiento",
+                        icono = Icons.Default.FitnessCenter,
+                        color = Color(0xFF26A69A),
+                        onClick = { navController.navigate(Routes.RUTINAS) }
                     )
                 }
             }
@@ -278,7 +293,7 @@ private fun HomeClientMenuCard(
  * presentación; la conexión con Firestore corresponde a la Fase 2.
  */
 private enum class EstadoVisualCliente {
-    ACTIVO, PAGO_VENCIDO, BAJA
+    ACTIVO, PAGO_VENCIDO, BAJA, REGISTRADO, ARCHIVADO
 }
 
 /**
@@ -293,7 +308,7 @@ private enum class EstadoVisualCliente {
 @Composable
 private fun HomeClientEstadoIndicator(
     estado: EstadoVisualCliente,
-    fecha: String,
+    fecha: String?,
     modifier: Modifier = Modifier
 ) {
     val (color, titulo, prefijo) = when (estado) {
@@ -303,6 +318,10 @@ private fun HomeClientEstadoIndicator(
             Triple(Color(0xFFE53935), "Pago vencido", "Venció el")
         EstadoVisualCliente.BAJA ->
             Triple(Color(0xFF78909C), "Baja", "Desde el")
+        EstadoVisualCliente.REGISTRADO ->
+            Triple(Color(0xFF64B5F6), "Registrado", null)
+        EstadoVisualCliente.ARCHIVADO ->
+            Triple(Color(0xFF78909C), "Archivado", null)
     }
 
     Surface(
@@ -329,15 +348,22 @@ private fun HomeClientEstadoIndicator(
                     color = color
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "$prefijo $fecha",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (prefijo != null && fecha != null) {
+                    Text(
+                        text = "$prefijo $fecha",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
 }
+
+private fun formatearFecha(millis: Long): String = Instant.ofEpochMilli(millis)
+    .atZone(ZoneId.systemDefault())
+    .toLocalDate()
+    .format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
 
 @Preview(showBackground = true)
 @Composable

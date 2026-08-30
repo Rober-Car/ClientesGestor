@@ -1,5 +1,6 @@
 package com.roberto.gestorpro.cliente.data.firebase
 
+import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.roberto.gestorpro.cliente.model.Cliente
 import com.roberto.gestorpro.cliente.model.EstadoCliente
@@ -29,45 +30,48 @@ class ClienteRepository @Inject constructor(
      * Lee clientes/{idCliente} y la convierte en el modelo Cliente.
      */
     suspend fun leerFicha(idCliente: Int): Cliente? {
-        return try {
-            val documento = db.collection(COLECCION_CLIENTES)
-                .document(idCliente.toString())
-                .get()
-                .esperar()
-            if (!documento.exists()) return null
-            val datos = documento.data ?: return null
+        val documento = db.collection(COLECCION_CLIENTES)
+            .document(idCliente.toString())
+            .get()
+            .esperar()
+        if (!documento.exists()) return null
+        val datos = documento.data ?: return null
 
-            Cliente(
-                idCliente = datos["idCliente"]?.let { (it as? Number)?.toInt() } ?: idCliente,
-                negocioId = datos["negocioId"] as? String ?: "",
-                firebaseUid = datos["firebaseUid"] as? String,
-                nombre = datos["nombre"] as? String ?: "",
-                apellidos = datos["apellidos"] as? String ?: "",
-                dni = datos["dni"] as? String ?: "",
-                telefono = datos["telefono"] as? String ?: "",
-                email = datos["email"] as? String,
-                foto = datos["foto"] as? String ?: "",
-                fechaNacimiento = (datos["fechaNacimiento"] as? Number)?.toLong() ?: 0L,
-                fechaRegistro = (datos["fechaRegistro"] as? Number)?.toLong() ?: 0L,
-                fechaAlta = (datos["fechaAlta"] as? Number)?.toLong(),
-                fechaBaja = (datos["fechaBaja"] as? Number)?.toLong(),
-                estado = when (datos["estado"]) {
-                    "ACTIVO" -> EstadoCliente.ACTIVO
-                    "BAJA" -> EstadoCliente.BAJA
-                    "ARCHIVADO" -> EstadoCliente.ARCHIVADO
-                    "REGISTRADO" -> EstadoCliente.REGISTRADO
-                    else -> EstadoCliente.REGISTRADO
-                },
-                tieneLlave = datos["tieneLlave"] as? Boolean ?: false,
-                serviciosContratados = (datos["serviciosContratados"] as? List<*>)
-                    ?.mapNotNull { (it as? Number)?.toInt() }
-                    ?: emptyList(),
-                fechaInicioActual = (datos["fechaInicioActual"] as? Number)?.toLong(),
-                fechaFinActual = (datos["fechaFinActual"] as? Number)?.toLong()
-            )
-        } catch (_: Exception) {
-            null
-        }
+        return Cliente(
+            idCliente = datos["idCliente"]?.let { (it as? Number)?.toInt() } ?: idCliente,
+            negocioId = datos["negocioId"] as? String ?: "",
+            firebaseUid = datos["firebaseUid"] as? String,
+            nombre = datos["nombre"] as? String ?: "",
+            apellidos = datos["apellidos"] as? String ?: "",
+            dni = datos["dni"] as? String ?: "",
+            telefono = datos["telefono"] as? String ?: "",
+            email = datos["email"] as? String,
+            foto = datos["foto"] as? String ?: "",
+            fechaNacimiento = fechaEnMilisegundos(datos["fechaNacimiento"]) ?: 0L,
+            fechaRegistro = fechaEnMilisegundos(datos["fechaRegistro"]) ?: 0L,
+            fechaAlta = fechaEnMilisegundos(datos["fechaAlta"]),
+            fechaBaja = fechaEnMilisegundos(datos["fechaBaja"]),
+            estado = when (datos["estado"]) {
+                "ACTIVO" -> EstadoCliente.ACTIVO
+                "MOROSO" -> EstadoCliente.MOROSO
+                "BAJA" -> EstadoCliente.BAJA
+                "ARCHIVADO" -> EstadoCliente.ARCHIVADO
+                "REGISTRADO" -> EstadoCliente.REGISTRADO
+                else -> EstadoCliente.REGISTRADO
+            },
+            tieneLlave = datos["tieneLlave"] as? Boolean ?: false,
+            serviciosContratados = (datos["serviciosContratados"] as? List<*>)
+                ?.mapNotNull { (it as? Number)?.toInt() }
+                ?: emptyList(),
+            fechaInicioActual = fechaEnMilisegundos(datos["fechaInicioActual"]),
+            fechaFinActual = fechaEnMilisegundos(datos["fechaFinActual"])
+        )
+    }
+
+    private fun fechaEnMilisegundos(valor: Any?): Long? = when (valor) {
+        is Timestamp -> valor.toDate().time
+        is Number -> valor.toLong()
+        else -> null
     }
 
     /**

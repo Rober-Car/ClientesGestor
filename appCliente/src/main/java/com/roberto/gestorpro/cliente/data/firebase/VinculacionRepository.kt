@@ -64,6 +64,12 @@ class VinculacionRepository @Inject constructor(
 
         private const val MAX_INTENTOS_ID = 5
         private const val ID_CLIENTE_MINIMO = 1_000_000_000
+
+        internal fun resultadoCuandoIndiceNoExiste(): ResultadoVinculacion =
+            ResultadoVinculacion(
+                false,
+                "No existe ningún cliente registrado con ese DNI."
+            )
     }
 
     /**
@@ -105,8 +111,8 @@ class VinculacionRepository @Inject constructor(
      * (sin destruir el perfil completo) y, según el índice:
      *   - si la ficha existe y está libre (firebaseUid == null): la vincula (VÍA 1);
      *   - si la ficha ya está vinculada: rechaza;
-     *   - si el índice NO existe (VÍA 2): crea la ficha con los datos de
-     *     perfiles_pendientes/{uid} (fuente de verdad) en una Transaction.
+     *   - si el índice NO existe: rechaza la vinculación VÍA A; la creación de
+     *     fichas de VÍA 2 no se ejecuta desde esta entrada.
      * El perfil pendiente SOLO se elimina cuando la vinculación se completa con
      * éxito. Ante cualquier error (falta de perfil, permisos, red, fallo
      * intermedio) se conserva.
@@ -149,25 +155,9 @@ class VinculacionRepository @Inject constructor(
                     resultado
                 }
 
-                // VÍA 2: el índice no existe → el gimnasio aún no creó una ficha
-                // para este DNI. Se crea con los datos de perfiles_pendientes/{uid}.
-                ResultadoIndice.NoExiste -> {
-                    val perfil = leerPerfilPendiente(uid) ?: return ResultadoVinculacion(
-                        false,
-                        "Completa primero tu perfil para registrarte"
-                    )
-                    if (perfil.dni.trim().uppercase() != dniNorm) {
-                        return ResultadoVinculacion(
-                            false,
-                            "El DNI del perfil no coincide con el introducido"
-                        )
-                    }
-                    val resultado = crearFicha(uid, negocioId, dniNorm, perfil)
-                    if (resultado.exito) {
-                        perfilPendienteRepository.borrar(uid)
-                    }
-                    resultado
-                }
+                // VÍA A: la ausencia del índice significa que el gimnasio no
+                // tiene ningún cliente registrado con el DNI introducido.
+                ResultadoIndice.NoExiste -> resultadoCuandoIndiceNoExiste()
             }
         } catch (e: Exception) {
             ResultadoVinculacion(false, mensajeDe(e))

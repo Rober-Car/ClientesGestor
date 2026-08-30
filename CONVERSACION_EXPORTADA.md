@@ -1,6 +1,6 @@
 # Conversación GestorPro - Análisis Firestore Rules Límite 1000 Expresiones
-## Fecha: 2026-08-24
-## Estado: ⭐ RESUELTO Y AVANZADO — Ver la última "ACTUALIZACIÓN SESIÓN X" (2026-08-28) al final: flujo CLIENTE sin vínculo y VÍA 2 validados en dispositivo, sincronización del nombre del negocio validada y logo del negocio con Firebase Storage implementado (20/20 tests OK). Pendiente: habilitar el bucket de Storage en Firebase Console.
+## Fecha: 2026-08-30
+## Estado: ⭐ RESUELTO Y AVANZADO — Ver las últimas actualizaciones al final: sincronización de períodos Admin → Firestore, estado real del Home Cliente, corrección de Vía A código maestro+DNI y tests 92/92. Pendiente: reservas del CLIENTE, bucket de Storage, backfill de índices y commits.
 
 ---
 
@@ -1552,3 +1552,71 @@ A pesar del redeploy y de confirmarse que `negocioId` de servicios == UID real d
 ## Commits y basura
 
 - Working tree sin commit. Basura: `build_*.txt`, `firestore-tests/firestore-debug.log`.
+
+---
+
+# ACTUALIZACIÓN 2026-08-30 (SESIONES XV-XVII) — SINCRONIZACIÓN DE PERÍODOS, VALIDACIÓN DEL CARD Y CORRECCIÓN VÍA A
+
+## SESIÓN XV — Sincronización Admin → Firestore de períodos
+
+- `MovimientoRepository` es el punto único de persistencia y sincronización de movimientos.
+- Cada insertar, actualizar o eliminar persiste primero en Room, recalcula el período desde los movimientos persistidos y replica después `fechaInicioActual`/`fechaFinActual` en `clientes/{idCliente}`.
+- La sincronización usa `NonCancellable + Dispatchers.IO` y un `Mutex` para evitar carreras entre operaciones del mismo repositorio.
+- Los fallos no deshacen Room: quedan señalados como pendientes y se pueden reintentar desde el perfil del cliente.
+- `ClienteRemotoRepository` registra operación, cliente, fechas y código de error Firebase.
+- El alta Admin asigna `fechaAlta` cuando el cliente se crea como `ACTIVO`.
+- `ClienteViewModel` solo confirma alta/edición como éxito cuando termina correctamente la réplica remota.
+- Se corrigió el proveedor Hilt de `MovimientoRepository` para inyectar `ClienteRemotoRepository`.
+
+## SESIÓN XVI — Estado real del Home Cliente y validación manual
+
+- `ClienteRepository` interpreta fechas remotas tanto como `Timestamp` como `Number`.
+- `MainViewModel` carga el estado remoto del cliente y `HomeScreen` muestra el estado derivado.
+- El comportamiento queda validado y NO debe modificarse:
+  - Cliente `ACTIVO` sin movimientos: aparece activo y no muestra fecha de período porque `fechaFinActual` aún no existe.
+  - Después de crear un movimiento: `fechaInicioActual` y `fechaFinActual` se calculan, se sincronizan con Firestore y el card muestra correctamente la fecha de fin.
+- No modificar el card, su lógica, la UI de `appCliente` ni la sincronización de fechas por este asunto.
+
+## SESIÓN XVII — Auditoría y corrección de Vía A código maestro + DNI
+
+### Causa de la regresión
+
+- `InicioScreen` llama a `MainViewModel.vincularConCodigoYDNI(codigo, dni)`.
+- `VinculacionRepository` resuelve el negocio mediante `negocios_publicos` y `whereEqualTo("codigoMaestro", codigo)`.
+- Después consulta exactamente `indices_clientes/{negocioId}_{dni}`.
+- El commit `653f117de71a169dcb9f2f75e2dcdf6b6d4c44f5` eliminó el perfil pendiente pasado desde memoria, guardó la declaración temporal con el DNI introducido y luego leyó esa misma declaración como perfil.
+- Si el índice no existía, la comparación del DNI siempre coincidía consigo misma y se ejecutaba Vía 2 mediante `crearFicha()`.
+- La versión de `b31533bb9b4975b26cff68529837554813f111a6` comparaba el DNI introducido con el perfil original antes de permitir crear una ficha, por lo que rechazaba el DNI diferente.
+
+### Corrección aplicada
+
+- En `appCliente/.../VinculacionRepository.kt`, `ResultadoIndice.NoExiste` devuelve exactamente:
+  `No existe ningún cliente registrado con ese DNI.`
+- La rama sale antes de `crearFicha()`.
+- No se modificó la vinculación de una ficha existente: mantiene la Transaction que actualiza `clientes/{idCliente}.firebaseUid` y `usuarios/{uid}`.
+- El código de Vía 2 permanece en el repositorio, pero ya no se ejecuta automáticamente desde esta entrada Vía A.
+- `firestore.rules` no se modificó.
+
+### Tests añadidos
+
+- `firestore-tests/firestore.rules.test.cjs`:
+  - PRUEBA 6B: una Vía A no puede actualizar una ficha inexistente sin índice y no deja ficha, índice ni usuario vinculado.
+  - PRUEBA 6C: dos DNI del mismo negocio solo pueden vincular sus fichas correspondientes; también se mantiene el aislamiento entre negocios de las pruebas anteriores.
+- `appCliente/src/test/.../VinculacionRepositoryTest.kt` comprueba el resultado de rechazo para índice inexistente.
+- Las pruebas existentes de Vía 2 se conservan sin modificar.
+
+### Validación
+
+- `npm --prefix firestore-tests test` → **92/92 OK**.
+- `.\gradlew.bat :appCliente:testDebugUnitTest` → **BUILD SUCCESSFUL**.
+- `.\gradlew.bat :appCliente:assembleDebug` → **BUILD SUCCESSFUL**.
+- No se ejecutó `:app:assembleDebug` para esta corrección porque no hubo cambios compartidos del Admin.
+- No hubo deploy ni commit.
+
+## Estado de continuidad
+
+- El working tree contiene cambios sin commit de las dos aplicaciones, Rules, tests y documentación. No revertir cambios ajenos.
+- `firestore.rules` y sesiones/reservas no deben tocarse para continuar esta línea de trabajo.
+- Vía B/deep link sigue descartada y no debe reintroducirse.
+- Siguiente funcionalidad pendiente: reservas del CLIENTE (ver, reservar y cancelar) sobre `reservas/{clienteId}_{sesionId}`.
+- Pendientes operativos: habilitar bucket de Storage, backfill de `indices_clientes` solo con aprobación, limpieza de basura versionada y commits agrupados.

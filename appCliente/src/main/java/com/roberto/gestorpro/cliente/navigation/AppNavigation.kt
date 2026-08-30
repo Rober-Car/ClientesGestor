@@ -18,6 +18,8 @@ import androidx.navigation.compose.rememberNavController
 import com.roberto.gestorpro.cliente.ui.auth.CuentaScreen
 import com.roberto.gestorpro.cliente.ui.auth.CompletarPerfilScreen
 import com.roberto.gestorpro.cliente.ui.configuracion.ConfiguracionScreen
+import com.roberto.gestorpro.cliente.ui.configuracion.InformacionLegalScreen
+import com.roberto.gestorpro.cliente.ui.configuracion.NotificacionesScreen
 import com.roberto.gestorpro.cliente.ui.auth.EditarPerfilScreen
 import com.roberto.gestorpro.cliente.ui.auth.InicioScreen
 import com.roberto.gestorpro.cliente.ui.auth.LoginScreen
@@ -26,6 +28,8 @@ import com.roberto.gestorpro.cliente.ui.auth.RecuperarPasswordScreen
 import com.roberto.gestorpro.cliente.ui.auth.RegistroScreen
 import com.roberto.gestorpro.cliente.ui.home.ClasesScreen
 import com.roberto.gestorpro.cliente.ui.home.HomeScreen
+import com.roberto.gestorpro.cliente.ui.notificaciones.ListaNotificacionesScreen
+import com.roberto.gestorpro.cliente.ui.rutinas.RutinasScreen
 import com.roberto.gestorpro.cliente.ui.viewmodel.MainViewModel
 
 /**
@@ -83,7 +87,7 @@ fun AppNavigation() {
         }
 
         composable(Routes.HOME) {
-            HomeScreen(navController)
+            HomeScreen(navController, mainViewModel)
         }
 
         composable(Routes.CLASES) {
@@ -104,6 +108,32 @@ fun AppNavigation() {
 
         composable(Routes.CONFIGURACION) {
             ConfiguracionScreen(navController)
+        }
+
+        composable(Routes.NOTIFICACIONES) {
+            ListaNotificacionesScreen(navController)
+        }
+
+        composable(Routes.CONFIGURACION_NOTIFICACIONES) {
+            NotificacionesScreen(navController)
+        }
+
+        composable(Routes.RUTINAS) {
+            RutinasScreen(navController)
+        }
+
+        composable(Routes.POLITICA_PRIVACIDAD) {
+            InformacionLegalScreen(
+                navController = navController,
+                titulo = "Política de privacidad"
+            )
+        }
+
+        composable(Routes.TERMINOS_CONDICIONES) {
+            InformacionLegalScreen(
+                navController = navController,
+                titulo = "Términos y condiciones"
+            )
         }
     }
 }
