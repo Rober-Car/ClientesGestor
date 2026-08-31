@@ -28,6 +28,7 @@ import com.roberto.gestorpro.cliente.ui.auth.RecuperarPasswordScreen
 import com.roberto.gestorpro.cliente.ui.auth.RegistroScreen
 import com.roberto.gestorpro.cliente.ui.home.ClasesScreen
 import com.roberto.gestorpro.cliente.ui.home.HomeScreen
+import com.roberto.gestorpro.cliente.ui.home.MisReservasScreen
 import com.roberto.gestorpro.cliente.ui.notificaciones.ListaNotificacionesScreen
 import com.roberto.gestorpro.cliente.ui.rutinas.RutinasScreen
 import com.roberto.gestorpro.cliente.ui.viewmodel.MainViewModel
@@ -92,6 +93,10 @@ fun AppNavigation() {
 
         composable(Routes.CLASES) {
             ClasesScreen(navController)
+        }
+
+        composable(Routes.MIS_RESERVAS) {
+            MisReservasScreen(navController)
         }
 
         composable(Routes.MI_PERFIL) {

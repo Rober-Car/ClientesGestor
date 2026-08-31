@@ -5,6 +5,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,16 +22,23 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -60,6 +68,11 @@ import com.roberto.gestorpro.cliente.ui.utils.guardarFotoDeCamara
 import com.roberto.gestorpro.cliente.ui.utils.uriDeFotoTemporal
 import com.roberto.gestorpro.cliente.ui.viewmodel.MainViewModel
 import java.io.File
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
 
 /**
@@ -83,7 +96,8 @@ fun CompletarPerfilScreen(
     var dni by rememberSaveable { mutableStateOf("") }
     var telefono by rememberSaveable { mutableStateOf("") }
     var email by rememberSaveable { mutableStateOf("") }
-    var fechaNacimiento by rememberSaveable { mutableStateOf("") }
+    var fechaNacimientoMillis by rememberSaveable { mutableStateOf<Long?>(null) }
+    var mostrarSelectorFecha by rememberSaveable { mutableStateOf(false) }
     var foto by rememberSaveable { mutableStateOf("") }
     var mensajeError by rememberSaveable { mutableStateOf("") }
     var fotoTemporal by remember { mutableStateOf<File?>(null) }
@@ -105,8 +119,8 @@ fun CompletarPerfilScreen(
         if (telefono.isBlank()) telefono = p.telefono
         if (email.isBlank()) email = p.email ?: ""
         if (foto.isBlank()) foto = p.foto
-        if (fechaNacimiento.isBlank() && p.fechaNacimiento > 0L) {
-            fechaNacimiento = formatearFechaCompletarPerfil(p.fechaNacimiento)
+        if (fechaNacimientoMillis == null && p.fechaNacimiento > 0L) {
+            fechaNacimientoMillis = p.fechaNacimiento
         }
     }
 
@@ -174,7 +188,23 @@ fun CompletarPerfilScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "Los campos marcados con * son obligatorios.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
             Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "Foto del rostro *",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -227,7 +257,7 @@ fun CompletarPerfilScreen(
             OutlinedTextField(
                 value = nombre,
                 onValueChange = { nombre = it },
-                label = { Text("Nombre") },
+                label = { Text("Nombre *") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -237,7 +267,7 @@ fun CompletarPerfilScreen(
             OutlinedTextField(
                 value = apellidos,
                 onValueChange = { apellidos = it },
-                label = { Text("Apellidos") },
+                label = { Text("Apellidos *") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -247,7 +277,7 @@ fun CompletarPerfilScreen(
             OutlinedTextField(
                 value = dni,
                 onValueChange = { dni = it.uppercase() },
-                label = { Text("DNI") },
+                label = { Text("DNI *") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -257,7 +287,7 @@ fun CompletarPerfilScreen(
             OutlinedTextField(
                 value = telefono,
                 onValueChange = { telefono = it },
-                label = { Text("Teléfono") },
+                label = { Text("Teléfono *") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -275,11 +305,30 @@ fun CompletarPerfilScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             OutlinedTextField(
-                value = fechaNacimiento,
-                onValueChange = { fechaNacimiento = it },
-                label = { Text("Fecha de nacimiento (dd/MM/aaaa, opcional)") },
+                value = fechaNacimientoMillis?.let(::formatearFechaCompletarPerfil) ?: "",
+                onValueChange = {},
+                label = { Text("Fecha de nacimiento *") },
+                leadingIcon = {
+                    Icon(Icons.Default.DateRange, contentDescription = null)
+                },
+                supportingText = {
+                    Text("Toca para abrir el calendario")
+                },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                readOnly = true,
+                enabled = false,
+                colors = OutlinedTextFieldDefaults.colors(
+                    disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                    disabledContainerColor = Color.Transparent,
+                    disabledBorderColor = MaterialTheme.colorScheme.outline,
+                    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    disabledSupportingTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { mostrarSelectorFecha = true }
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -297,23 +346,6 @@ fun CompletarPerfilScreen(
                 onClick = {
                     mensajeError = ""
                     scope.launch {
-                        val fecha = fechaNacimiento
-                            .split("/")
-                            .filter { it.isNotBlank() }
-                            .mapNotNull { it.toLongOrNull() }
-                        val fechaMillis = if (fecha.size == 3) {
-                            java.time.LocalDate.of(
-                                fecha[2].toInt(),
-                                fecha[1].toInt(),
-                                fecha[0].toInt()
-                            )
-                                .atStartOfDay(java.time.ZoneId.systemDefault())
-                                .toInstant()
-                                .toEpochMilli()
-                        } else {
-                            0L
-                        }
-
                         val perfil = PerfilPendiente(
                             nombre = nombre.trim(),
                             apellidos = apellidos.trim(),
@@ -321,7 +353,7 @@ fun CompletarPerfilScreen(
                             telefono = telefono.trim(),
                             email = email.trim().ifBlank { null },
                             foto = foto,
-                            fechaNacimiento = fechaMillis
+                            fechaNacimiento = fechaNacimientoMillis ?: 0L
                         )
                         val error = mainViewModel.guardarPerfilPendiente(perfil)
                         if (error != null) {
@@ -337,7 +369,8 @@ fun CompletarPerfilScreen(
                     }
                 },
                 enabled = !operandoRemoto &&
-                    nombre.isNotBlank() && apellidos.isNotBlank() && dni.isNotBlank(),
+                    nombre.isNotBlank() && apellidos.isNotBlank() && dni.isNotBlank() &&
+                    telefono.isNotBlank() && fechaNacimientoMillis != null && foto.isNotBlank(),
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E88E5))
             ) {
@@ -350,6 +383,39 @@ fun CompletarPerfilScreen(
             }
         }
     }
+
+    if (mostrarSelectorFecha) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = fechaNacimientoMillis?.let(::fechaParaDatePicker),
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+                    utcTimeMillis <= fechaMaximaParaDatePicker()
+            }
+        )
+
+        DatePickerDialog(
+            onDismissRequest = { mostrarSelectorFecha = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let {
+                            fechaNacimientoMillis = fechaDesdeDatePicker(it)
+                        }
+                        mostrarSelectorFecha = false
+                    }
+                ) {
+                    Text("Aceptar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarSelectorFecha = false }) {
+                    Text("Cancelar")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 }
 
 /**
@@ -360,11 +426,35 @@ fun CompletarPerfilScreen(
  */
 private fun formatearFechaCompletarPerfil(millis: Long): String {
     return try {
-        java.time.Instant.ofEpochMilli(millis)
-            .atZone(java.time.ZoneId.systemDefault())
+        Instant.ofEpochMilli(millis)
+            .atZone(ZoneId.systemDefault())
             .toLocalDate()
-            .format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+            .format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
     } catch (_: Exception) {
         ""
     }
 }
+
+/** Convierte el epoch local almacenado al formato UTC que usa el DatePicker. */
+private fun fechaParaDatePicker(millis: Long): Long =
+    Instant.ofEpochMilli(millis)
+        .atZone(ZoneId.systemDefault())
+        .toLocalDate()
+        .atStartOfDay(ZoneOffset.UTC)
+        .toInstant()
+        .toEpochMilli()
+
+/** Convierte el día elegido por el DatePicker al epoch local del modelo. */
+private fun fechaDesdeDatePicker(utcMillis: Long): Long =
+    Instant.ofEpochMilli(utcMillis)
+        .atZone(ZoneOffset.UTC)
+        .toLocalDate()
+        .atStartOfDay(ZoneId.systemDefault())
+        .toInstant()
+        .toEpochMilli()
+
+private fun fechaMaximaParaDatePicker(): Long =
+    LocalDate.now(ZoneId.systemDefault())
+        .atStartOfDay(ZoneOffset.UTC)
+        .toInstant()
+        .toEpochMilli()

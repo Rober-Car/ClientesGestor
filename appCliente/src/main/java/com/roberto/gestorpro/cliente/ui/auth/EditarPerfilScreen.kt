@@ -348,6 +348,7 @@ fun EditarPerfilScreen(
                 },
                 enabled = !operandoRemoto &&
                     nombre.isNotBlank() && apellidos.isNotBlank() &&
+                    telefono.isNotBlank() &&
                     (!vinculado && dni.isNotBlank() || vinculado),
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E88E5))

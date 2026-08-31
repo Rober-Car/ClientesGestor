@@ -17,7 +17,8 @@ import javax.inject.Singleton
  * no autorizada falla entera). Por eso el acceso se hace por servicio:
  *
  *   1. getDoc servicios/{idServicio}  -> null si inactivo/eliminado (permiso);
- *   2. getDocs sesiones.where("idServicio","==",id) -> solo ese servicio.
+     *   2. getDocs sesiones.where("idServicio","==",id)
+     *      .where("negocioId","==",negocioId) -> solo ese servicio y negocio.
  *
  * Un error de red o de otro tipo se propaga para que el ViewModel muestre un
  * estado de error; los errores de permiso (servicio inactivo/eliminado) se
@@ -37,10 +38,10 @@ class SesionRepository @Inject constructor(
      * obtenerServicioActivo
      * ---------------------
      * Lee servicios/{idServicio}. Las Rules solo permiten al CLIENTE leer un
-     * servicio ACTIVO de su negocio: si el documento no existe o es inactivo,
-     * la lectura se deniega y se devuelve null (el servicio se excluye).
+     * servicio ACTIVO de su negocio. El negocio se comprueba también en el
+     * modelo para no mezclar datos de otro negocio.
      */
-    suspend fun obtenerServicioActivo(idServicio: Int): Servicio? {
+    suspend fun obtenerServicioActivo(idServicio: Int, negocioId: String): Servicio? {
         return try {
             val documento = db.collection(COLECCION_SERVICIOS)
                 .document(idServicio.toString())
@@ -48,13 +49,14 @@ class SesionRepository @Inject constructor(
                 .esperar()
             if (!documento.exists()) return null
             val datos = documento.data ?: return null
-            Servicio(
+            val servicio = Servicio(
                 idServicio = (datos["idServicio"] as? Number)?.toInt() ?: idServicio,
                 negocioId = datos["negocioId"] as? String ?: "",
                 nombre = datos["nombre"] as? String ?: "",
                 descripcion = datos["descripcion"] as? String ?: "",
                 activo = datos["activo"] as? Boolean ?: false
             )
+            servicio.takeIf { it.negocioId == negocioId && it.activo }
         } catch (e: Exception) {
             if (e.message?.contains("permission", ignoreCase = true) == true) null else throw e
         }
@@ -63,16 +65,17 @@ class SesionRepository @Inject constructor(
     /**
      * obtenerSesionesPorServicio
      * --------------------------
-     * Consulta las sesiones de un servicio con un único filtro de igualdad
-     * (sin índices compuestos) y las devuelve sin ordenar; el filtro del día
-     * actual y el orden por hora los aplica el ViewModel en memoria.
+     * Consulta las sesiones de un servicio y negocio con filtros de igualdad
+     * y las devuelve sin ordenar; el filtro del día actual y el orden por hora
+     * los aplica el ViewModel en memoria.
      * Si la consulta se deniega (servicio desactivado entre comprobaciones)
      * se devuelve una lista vacía para omitir ese servicio.
      */
-    suspend fun obtenerSesionesPorServicio(idServicio: Int): List<Sesion> {
+    suspend fun obtenerSesionesPorServicio(idServicio: Int, negocioId: String): List<Sesion> {
         return try {
             db.collection(COLECCION_SESIONES)
                 .whereEqualTo("idServicio", idServicio)
+                .whereEqualTo("negocioId", negocioId)
                 .get()
                 .esperar()
                 .documents.mapNotNull { documento ->

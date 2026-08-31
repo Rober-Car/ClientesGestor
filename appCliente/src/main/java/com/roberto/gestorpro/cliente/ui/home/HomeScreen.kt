@@ -24,8 +24,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Event
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Icon
@@ -132,16 +134,31 @@ fun HomeScreen(
                         containerColor = MaterialTheme.colorScheme.errorContainer
                     )
                 ) {
-                    Text(
-                        text = "No estás vinculado con tu gimnasio.\n" +
-                            "Debes vincularte para ver las clases.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        textAlign = TextAlign.Center,
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp)
-                    )
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "No estás vinculado con tu gimnasio",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Vincula tu cuenta para acceder a las funciones de tu gimnasio.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(onClick = { navController.navigate(Routes.INICIO) }) {
+                            Text("Vincular gimnasio")
+                        }
+                    }
                 }
             }
 
@@ -183,6 +200,15 @@ fun HomeScreen(
                         icono = Icons.Default.FitnessCenter,
                         color = Color(0xFFFB8C00),
                         onClick = { navController.navigate(Routes.CLASES) }
+                    )
+                }
+                item {
+                    HomeClientMenuCard(
+                        titulo = "Mis reservas",
+                        descripcion = "Gestiona tus reservas",
+                        icono = Icons.Default.Event,
+                        color = Color(0xFF00897B),
+                        onClick = { navController.navigate(Routes.MIS_RESERVAS) }
                     )
                 }
                 item {

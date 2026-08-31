@@ -266,8 +266,20 @@ class MainViewModel @Inject constructor(
         if (!perfil.dni.matches(Regex("\\d{8}[A-Za-z]"))) {
             return "El DNI debe tener 8 dígitos y una letra"
         }
-        if (perfil.telefono.isNotBlank() && !perfil.telefono.matches(Regex("[6789]\\d{8}"))) {
+        if (perfil.telefono.isBlank()) {
+            return "Completa el teléfono"
+        }
+        if (!perfil.telefono.matches(Regex("[6789]\\d{8}"))) {
             return "El teléfono debe tener 9 dígitos empezando por 6, 7, 8 o 9"
+        }
+        if (perfil.fechaNacimiento <= 0L) {
+            return "Selecciona la fecha de nacimiento"
+        }
+        if (perfil.fechaNacimiento > System.currentTimeMillis()) {
+            return "La fecha de nacimiento no puede ser futura"
+        }
+        if (perfil.foto.isBlank()) {
+            return "Añade una foto del rostro"
         }
 
         _operandoRemoto.value = true
@@ -459,6 +471,15 @@ class MainViewModel @Inject constructor(
         val id = preferencesRepository.idCliente.first() ?: return "Sin ficha vinculada"
         if (nombre.isBlank() || apellidos.isBlank()) {
             return "Completa nombre y apellidos"
+        }
+        if (telefono.isBlank()) {
+            return "Completa el teléfono"
+        }
+        if (!telefono.matches(Regex("[6789]\\d{8}"))) {
+            return "El teléfono debe tener 9 dígitos empezando por 6, 7, 8 o 9"
+        }
+        if (fechaNacimiento > System.currentTimeMillis()) {
+            return "La fecha de nacimiento no puede ser futura"
         }
 
         _operandoRemoto.value = true

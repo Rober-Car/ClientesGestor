@@ -3,8 +3,10 @@ package com.roberto.gestorpro.cliente.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.roberto.gestorpro.cliente.data.firebase.ClienteRepository
+import com.roberto.gestorpro.cliente.data.firebase.ReservaRepository
 import com.roberto.gestorpro.cliente.data.firebase.SesionRepository
 import com.roberto.gestorpro.cliente.data.repository.PreferencesRepository
+import com.roberto.gestorpro.cliente.model.EstadoReserva
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import java.time.ZoneId
@@ -25,15 +27,17 @@ import kotlinx.coroutines.launch
  *   2. ficha clientes/{idCliente} (fuente de verdad de serviciosContratados);
  *   3. por cada servicio contratado: getDoc servicios/{id} para confirmar que
  *      está ACTIVO (si no, se omite);
- *   4. sesiones del servicio con where("idServicio","==",id);
- *   5. filtrar en memoria sesión.fecha == inicio del día actual;
- *   6. ordenar por hora ascendente.
+     *   4. reservas propias con una única query;
+     *   5. sesiones del servicio con filtros de servicio y negocio;
+     *   6. filtrar en memoria sesión.fecha == inicio del día actual;
+     *   7. ordenar por hora ascendente y cruzar reservadaPorMi.
  */
 @HiltViewModel
 class SesionesClienteViewModel @Inject constructor(
     private val preferencesRepository: PreferencesRepository,
     private val clienteRepository: ClienteRepository,
-    private val sesionRepository: SesionRepository
+    private val sesionRepository: SesionRepository,
+    private val reservaRepository: ReservaRepository
 ) : ViewModel() {
 
     private val _cargando = MutableStateFlow(true)
@@ -87,12 +91,25 @@ class SesionesClienteViewModel @Inject constructor(
                     return@launch
                 }
 
+                val negocioId = preferencesRepository.negocioId.first()
+                    ?: ficha.negocioId.takeIf { it.isNotBlank() }
+                    ?: run {
+                        _error.value = "No se pudo identificar tu gimnasio"
+                        return@launch
+                    }
+                val sesionesReservadas = reservaRepository
+                    .obtenerReservasCliente(idCliente, negocioId)
+                    .map { it.sesionId }
+                    .toSet()
+
                 val inicioHoy = inicioDeHoy()
                 val visibles = mutableListOf<SesionVisible>()
                 for (idServicio in contratados) {
                     // Solo servicios ACTIVOS (un servicio inactivo/eliminado no es legible).
-                    val servicio = sesionRepository.obtenerServicioActivo(idServicio) ?: continue
-                    val delDia = sesionRepository.obtenerSesionesPorServicio(idServicio)
+                    val servicio = sesionRepository
+                        .obtenerServicioActivo(idServicio, negocioId) ?: continue
+                    val delDia = sesionRepository
+                        .obtenerSesionesPorServicio(idServicio, negocioId)
                         .filter { it.fecha == inicioHoy }
                         .sortedBy { it.hora }
                     delDia.forEach { sesion ->
@@ -104,7 +121,8 @@ class SesionesClienteViewModel @Inject constructor(
                                 hora = sesion.hora,
                                 duracionMinutos = sesion.duracionMinutos,
                                 capacidad = sesion.capacidad,
-                                plazasDisponibles = sesion.plazasDisponibles
+                                plazasDisponibles = sesion.plazasDisponibles,
+                                reservadaPorMi = sesion.idSesion in sesionesReservadas
                             )
                         )
                     }
@@ -152,7 +170,7 @@ class SesionesClienteViewModel @Inject constructor(
  * SesionVisible
  * -------------
  * Sesión del día actual lista para mostrarse en la pantalla del CLIENTE.
- * reservadaPorMi queda preparado para la futura fase de reservas (sin uso aún).
+ * reservadaPorMi se obtiene cruzando las reservas propias con las sesiones.
  */
 data class SesionVisible(
     val idSesion: Int,
@@ -163,4 +181,7 @@ data class SesionVisible(
     val capacidad: Int,
     val plazasDisponibles: Int,
     val reservadaPorMi: Boolean = false
-)
+) {
+    val estadoReserva: EstadoReserva
+        get() = EstadoReserva.de(reservadaPorMi, plazasDisponibles)
+}

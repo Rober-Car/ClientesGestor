@@ -348,6 +348,7 @@ fun PerfilClienteScreen(
     }
 
     var servicioMovimiento by rememberSaveable { mutableStateOf("") }
+    var idServicioMovimiento by rememberSaveable { mutableStateOf<Int?>(null) }
     var precioMovimiento by rememberSaveable { mutableStateOf("") }
     var observacionesMovimiento by rememberSaveable { mutableStateOf("") }
     var fechaInicioMovimiento by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -1474,6 +1475,43 @@ fun PerfilClienteScreen(
                                     modifier = Modifier.fillMaxWidth()
                                 )
 
+                                if (serviciosActivos.isNotEmpty()) {
+                                    Text(
+                                        text = "O selecciona un servicio del catálogo:",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    serviciosActivos.forEach { servicio ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .clickable {
+                                                    servicioMovimiento = servicio.nombre
+                                                    idServicioMovimiento = servicio.idServicio
+                                                    errorServicioMovimiento = false
+                                                }
+                                                .padding(vertical = 6.dp, horizontal = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            RadioButton(
+                                                selected = idServicioMovimiento == servicio.idServicio,
+                                                onClick = {
+                                                    servicioMovimiento = servicio.nombre
+                                                    idServicioMovimiento = servicio.idServicio
+                                                    errorServicioMovimiento = false
+                                                }
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = servicio.nombre,
+                                                style = MaterialTheme.typography.bodyLarge
+                                            )
+                                        }
+                                    }
+                                }
+
                                 OutlinedTextField(
                                     value = precioMovimiento,
                                     onValueChange = {
@@ -1646,9 +1684,25 @@ fun PerfilClienteScreen(
 
                                             movimientoViewModel.insertarMovimiento(movimiento)
 
+                                            // Si el movimiento representa la contratación de un
+                                            // servicio del catálogo, se activa como contratado
+                                            // para que el CLIENTE pueda ver/reservar sus sesiones.
+                                            val idServicioNuevo = idServicioMovimiento
+                                            if (idServicioNuevo != null) {
+                                                val actuales = cliente?.serviciosContratados.orEmpty()
+                                                if (idServicioNuevo !in actuales) {
+                                                    viewModel.guardarServiciosContratados(
+                                                        idCliente,
+                                                        (actuales + idServicioNuevo).distinct()
+                                                    )
+                                                    viewModel.obtenerClientePorId(idCliente)
+                                                }
+                                            }
+
                                             mostrarFormularioMovimiento = false
 
                                             servicioMovimiento = ""
+                                            idServicioMovimiento = null
                                             precioMovimiento = ""
                                             fechaInicioMovimiento = null
                                             fechaFinMovimiento = null

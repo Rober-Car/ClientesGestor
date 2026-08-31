@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -164,6 +165,17 @@ fun HomeScreen(
                         iconContainerColor = Color(0xFF78909C),
                         iconTint = Color.White,
                         onClick = { navController.navigate(Routes.CONFIGURACION) }
+                    )
+                }
+                item {
+                    MenuCard(
+                        titulo = "Notificaciones",
+                        descripcion = "Consulta tus avisos",
+                        icono = Icons.Default.Notifications,
+                        containerColor = Color(0xFFE91E63).copy(alpha = 0.12f),
+                        iconContainerColor = Color(0xFFE91E63),
+                        iconTint = Color.White,
+                        onClick = {}
                     )
                 }
             }

@@ -24,25 +24,33 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.roberto.gestorpro.cliente.ui.viewmodel.SesionVisible
+import com.roberto.gestorpro.cliente.model.EstadoReserva
+import com.roberto.gestorpro.cliente.ui.viewmodel.ReservasClienteViewModel
 import com.roberto.gestorpro.cliente.ui.viewmodel.SesionesClienteViewModel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -53,13 +61,14 @@ import java.util.Locale
  * ------------
  * Pantalla "Clases de hoy" del CLIENTE.
  * Muestra exclusivamente las sesiones del DÍA ACTUAL de los servicios
- * contratados y activos del cliente, ordenadas por hora. No permite navegar
- * entre días ni reservar (la reserva es una fase posterior).
+ * contratados y activos del cliente, ordenadas por hora. Permite reservar y
+ * cancelar de forma atómica mediante el ViewModel de reservas.
  */
 @Composable
 fun ClasesScreen(
     navController: NavHostController,
-    viewModel: SesionesClienteViewModel = hiltViewModel()
+    viewModel: SesionesClienteViewModel = hiltViewModel(),
+    reservasViewModel: ReservasClienteViewModel = hiltViewModel()
 ) {
     val cargando by viewModel.cargando.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
@@ -67,18 +76,28 @@ fun ClasesScreen(
     val sinServicios by viewModel.sinServicios.collectAsStateWithLifecycle()
     val sinSesionesHoy by viewModel.sinSesionesHoy.collectAsStateWithLifecycle()
     val sesiones by viewModel.sesiones.collectAsStateWithLifecycle()
+    val reservasOperando by reservasViewModel.operando.collectAsStateWithLifecycle()
+    val reservasError by reservasViewModel.error.collectAsStateWithLifecycle()
+    val reservasNoVinculado by reservasViewModel.noVinculado.collectAsStateWithLifecycle()
+    val actualizacionReservas by reservasViewModel.actualizacion.collectAsStateWithLifecycle()
+    var sesionParaCancelar by remember { mutableStateOf<SesionVisible?>(null) }
 
-    LaunchedEffect(Unit) {
+    LifecycleResumeEffect(Unit) {
         viewModel.cargar()
+        onPauseOrDispose { }
+    }
+
+    LaunchedEffect(actualizacionReservas) {
+        if (actualizacionReservas > 0) viewModel.cargar()
     }
 
     val formateadorFecha = remember {
-        DateTimeFormatter.ofPattern("EEEE dd/MM/yyyy", Locale("es", "ES"))
+        DateTimeFormatter.ofPattern("EEEE dd/MM/yyyy", Locale.forLanguageTag("es-ES"))
     }
     val fechaHoy = remember {
         LocalDate.now()
             .format(formateadorFecha)
-            .replaceFirstChar { it.titlecase() }
+            .replaceFirstChar { it.titlecase(Locale.forLanguageTag("es-ES")) }
     }
 
     Scaffold(
@@ -124,6 +143,15 @@ fun ClasesScreen(
                 }
             }
 
+            if (reservasError != null) {
+                Text(
+                    text = reservasError ?: "",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            }
+
             when {
                 cargando -> CargandoClases(
                     modifier = Modifier.fillMaxWidth().weight(1f)
@@ -155,12 +183,42 @@ fun ClasesScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(sesiones, key = { it.idSesion }) { sesion ->
-                            TarjetaSesion(sesion)
+                            TarjetaSesion(
+                                sesion = sesion,
+                                operando = reservasOperando,
+                                noVinculado = reservasNoVinculado,
+                                onReservar = { reservasViewModel.reservar(sesion.idSesion) },
+                                onCancelar = { sesionParaCancelar = sesion }
+                            )
                         }
                     }
                 }
             }
         }
+    }
+
+    sesionParaCancelar?.let { sesion ->
+        AlertDialog(
+            onDismissRequest = { sesionParaCancelar = null },
+            title = { Text("Cancelar reserva") },
+            text = { Text("¿Quieres cancelar esta reserva?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        reservasViewModel.cancelar(sesion.idSesion)
+                        sesionParaCancelar = null
+                    },
+                    enabled = !reservasOperando
+                ) {
+                    Text("Cancelar reserva")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { sesionParaCancelar = null }) {
+                    Text("Volver")
+                }
+            }
+        )
     }
 }
 
@@ -168,11 +226,18 @@ fun ClasesScreen(
  * TarjetaSesion
  * -------------
  * Tarjeta de una sesión de hoy: nombre del servicio, hora y duración, y estado
- * de plazas ("Completa" si no quedan). No incluye reserva todavía.
+ * de plazas y la acción de reserva.
  */
 @Composable
-private fun TarjetaSesion(sesion: SesionVisible) {
-    val completa = sesion.plazasDisponibles <= 0
+private fun TarjetaSesion(
+    sesion: SesionVisible,
+    operando: Boolean,
+    noVinculado: Boolean,
+    onReservar: () -> Unit,
+    onCancelar: () -> Unit
+) {
+    val estado = sesion.estadoReserva
+    val plazas = maxOf(0, sesion.plazasDisponibles)
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -199,7 +264,7 @@ private fun TarjetaSesion(sesion: SesionVisible) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            if (completa) {
+            if (estado == EstadoReserva.COMPLETA) {
                 Text(
                     text = "Completa",
                     style = MaterialTheme.typography.bodyMedium,
@@ -208,10 +273,58 @@ private fun TarjetaSesion(sesion: SesionVisible) {
                 )
             } else {
                 Text(
-                    text = "${sesion.plazasDisponibles} plazas disponibles",
+                    text = if (plazas == 1) {
+                        "1 plaza disponible"
+                    } else {
+                        "$plazas plazas disponibles"
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+
+            when (estado) {
+                EstadoReserva.RESERVAR -> {
+                    Button(
+                        onClick = onReservar,
+                        enabled = !operando && !noVinculado,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (operando) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("Reservar")
+                        }
+                    }
+                }
+
+                EstadoReserva.RESERVADA -> {
+                    Text(
+                        text = "Reservada",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    OutlinedButton(
+                        onClick = onCancelar,
+                        enabled = !operando,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (operando) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("Cancelar reserva")
+                        }
+                    }
+                }
+
+                EstadoReserva.COMPLETA -> Unit
             }
         }
     }

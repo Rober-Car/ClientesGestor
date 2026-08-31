@@ -1,9 +1,11 @@
 package com.roberto.gestorpro.ui.configuracion
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,27 +14,33 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AccountBox
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.roberto.gestorpro.navigation.Routes
-import com.roberto.gestorpro.ui.components.MenuCard
 
 @Composable
 fun ConfiguracionScreen(
@@ -43,6 +51,7 @@ fun ConfiguracionScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
         ) {
             Row(
                 modifier = Modifier
@@ -62,63 +71,187 @@ fun ConfiguracionScreen(
                 Text(
                     text = "Ajustes",
                     style = MaterialTheme.typography.titleLarge,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
 
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.fillMaxSize()
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "NEGOCIO",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+            )
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
-                item {
-                    MenuCard(
-                        titulo = "Mi negocio",
-                        descripcion = "Nombre y logo de tu negocio",
-                        icono = Icons.Default.AccountBox,
-                        containerColor = Color(0xFF1E88E5).copy(alpha = 0.12f),
-                        iconContainerColor = Color(0xFF1E88E5),
-                        iconTint = Color.White,
-                        onClick = { navController.navigate(Routes.MINEGOCIO) }
-                    )
-                }
-                item {
-                    MenuCard(
-                        titulo = "Preferencias",
-                        descripcion = "Ajustes de la aplicación",
-                        icono = Icons.Default.Settings,
-                        containerColor = Color(0xFF42A5F5).copy(alpha = 0.12f),
-                        iconContainerColor = Color(0xFF42A5F5),
-                        iconTint = Color.White,
-                        onClick = { navController.navigate(Routes.PREFERENCIAS) }
-                    )
-                }
-                item {
-                    MenuCard(
-                        titulo = "Datos",
-                        descripcion = "Gestión de los datos",
-                        icono = Icons.Default.Info,
-                        containerColor = Color(0xFF607D8B).copy(alpha = 0.12f),
-                        iconContainerColor = Color(0xFF607D8B),
-                        iconTint = Color.White,
-                        onClick = { navController.navigate(Routes.DATOS) }
-                    )
-                }
-                item {
-                    MenuCard(
-                        titulo = "Cuenta",
-                        descripcion = "Seguridad y sesión",
-                        icono = Icons.Default.Lock,
-                        containerColor = Color(0xFF90A4AE).copy(alpha = 0.12f),
-                        iconContainerColor = Color(0xFF90A4AE),
-                        iconTint = Color.White,
-                        onClick = { navController.navigate(Routes.CUENTA) }
-                    )
-                }
+                AjusteAdminItem(
+                    titulo = "Mi negocio",
+                    descripcion = "Datos e identidad del gimnasio",
+                    icono = Icons.Default.AccountBox,
+                    colorAcento = Color(0xFF1E88E5),
+                    onClick = { navController.navigate(Routes.MINEGOCIO) }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                text = "APLICACIÓN",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+            )
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                AjusteAdminItem(
+                    titulo = "Preferencias",
+                    descripcion = "Apariencia de la aplicación",
+                    icono = Icons.Default.Settings,
+                    colorAcento = Color(0xFF5C6BC0),
+                    onClick = { navController.navigate(Routes.PREFERENCIAS) }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                text = "DATOS",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+            )
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                AjusteAdminItem(
+                    titulo = "Copias y datos",
+                    descripcion = "Importa, exporta y restaura tus datos",
+                    icono = Icons.Default.Storage,
+                    colorAcento = Color(0xFF00897B),
+                    onClick = { navController.navigate(Routes.DATOS) }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                text = "CUENTA Y SEGURIDAD",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+            )
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                AjusteAdminItem(
+                    titulo = "Cuenta",
+                    descripcion = "Contraseña y sesión",
+                    icono = Icons.Default.Lock,
+                    colorAcento = Color(0xFF546E7A),
+                    onClick = { navController.navigate(Routes.CUENTA) }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+private fun AjusteAdminItem(
+    titulo: String,
+    descripcion: String,
+    icono: ImageVector,
+    colorAcento: Color,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = colorAcento.copy(alpha = 0.12f),
+            modifier = Modifier.size(44.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = icono,
+                    contentDescription = null,
+                    tint = colorAcento,
+                    modifier = Modifier.size(24.dp)
+                )
             }
         }
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = titulo,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = descripcion,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(22.dp)
+        )
     }
 }
