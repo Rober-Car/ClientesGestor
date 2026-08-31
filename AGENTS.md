@@ -353,6 +353,7 @@ node firestore-tests/auditoria_backfill_indices.cjs
 
 - **Rules de Firestore + Storage:** `npm --prefix firestore-tests test` (**92 pruebas** en los emuladores `--only firestore,storage`, incluidas PRUEBA 6B y 6C para Vía A, 9B, 33A–33H y 77–81). Deben pasar **antes** de desplegar las Rules.
 - **Test unitario appCliente:** `:appCliente:testDebugUnitTest` cubre el rechazo de Vía A cuando no existe el índice `negocioId_DNI`.
+- **Test de aislamiento del alta (temporal, Sesión XVIII):** `firestore-tests/diagnostico_alta_cliente.test.cjs` (7/7) reproduce el payload real de `crearClienteRemoto()` contra las Rules locales para aislar el PERMISSION_DENIED del alta. Ejecutar con: `cd firestore-tests; Copy-Item ..\firestore.rules firestore.rules.generated -Force; .\node_modules\.bin\firebase.cmd emulators:exec --project gestorpro-rules-test --only firestore "node --test diagnostico_alta_cliente.test.cjs"`. No forma parte del suite oficial.
 - Los tests de Android se mantienen para la fase final del proyecto salvo que el desarrollador los solicite expresamente antes. No crear archivos de test automáticamente durante una funcionalidad normal.
 
 ## Convenciones específicas de Firebase y navegación
@@ -363,9 +364,11 @@ node firestore-tests/auditoria_backfill_indices.cjs
 - **Vinculación del CLIENTE:** el flujo de código maestro + DNI vive en `appCliente` (repositorio `VinculacionRepository`, pantalla de vinculación accesible desde el Home). Las operaciones críticas (VÍA 1 y VÍA 2) deben ejecutarse en Transaction. Nunca reintroducir Vía B/deep links.
 - **Logo del negocio:** la subida vive en `NegocioRepository.guardarLogoRemoto()` (`:app`): `putFile` a `negocios/{uid}/logo.jpg` → `downloadUrl` → WriteBatch con `logo` en `negocios` + `negocios_publicos`. El Cliente lee `negocios_publicos/{id}.logo` y lo muestra con Coil. Requiere el bucket habilitado en Firebase Console.
 
-## Estado actual y pendientes (2026-08-30)
+## Estado actual y pendientes (2026-08-31)
 
-> ACTUALIZACIÓN: lo implementado el 28-30/08 está en el working tree **sin commit**. Tests de Rules en **92/92** y las Rules desplegadas en `gestorpro-50e83` siguen siendo **byte-idénticas** al local `firestore.rules` (42.687 bytes, con `cascadaEliminaSesion` y `match /servicios/{servicioId}`). Detalle en `CONVERSACION_EXPORTADA.md` (Sesiones XII–XVII).
+> ACTUALIZACIÓN 2026-08-31 (FASE 3 + 3.1): todo el working tree sigue **sin commit**. Tests de Rules **92/92** y el ruleset desplegado en `gestorpro-50e83` es **idéntico** al `firestore.rules` local (verificado por el desarrollador en Firebase Console). Detalle en `CONVERSACION_EXPORTADA.md` (Sesiones XII–XVIII).
+>
+> Diagnóstico en curso del **PERMISSION_DENIED en el alta Admin** (Sesión XVIII): el payload y la lógica de `crearClienteRemoto()` son correctos contra las Rules locales (test de aislamiento `firestore-tests/diagnostico_alta_cliente.test.cjs` = 7/7). La causa más probable es que **uno de los 3 documentos del batch ya existe** en Firestore (índice/ficha/privado de un intento anterior), lo que convierte `batch.set()` en `update` y las Rules lo deniegan. Hay logging temporal `[DIAG alta]` en `ClienteRemotoRepository.crearClienteRemoto()` (incluye `existencia previa`) para confirmarlo; retirarlo al cerrar la causa.
 
 Implementado y compilado (`:app` y `:appCliente` BUILD SUCCESSFUL; `:app:compileDebugKotlin` EXITCODE 0; Rules **92/92 OK**):
 
@@ -387,10 +390,11 @@ Implementado y compilado (`:app` y `:appCliente` BUILD SUCCESSFUL; `:app:compile
 
 Pendiente para continuar:
 
+0. **PERMISSION_DENIED en alta Admin — EN DIAGNÓSTICO (Sesión XVIII):** el payload de `crearClienteRemoto()` pasa las Rules locales (test `diagnostico_alta_cliente.test.cjs` 7/7). La hipótesis principal es que uno de los 3 documentos del batch (`clientes/{id}`, `indices_clientes/{negocioId}_{dni}`, `clientes_privados/{id}`) **ya existe** en Firestore de un intento anterior, convirtiendo el `batch.set()` en `update` que las Rules deniegan. Siguiente paso: reproducir el alta con el logging temporal `[DIAG alta]` (incluye `existencia previa -> ...=true`) para confirmar cuál documento existe; después limpiar el documento huérfano (con aprobación) o ajustar la réplica, y retirar el logging temporal.
 1. **Diagnóstico PERMISSION_DENIED en baja/eliminación de servicios — RESUELTO a nivel de Rules (Sesión XIII):** la causa era que las queries administrativas de cascada (`reservas` por `sesionId`, `sesiones` por `idServicio`) no incluían `negocioId`, así las reglas `sesiones/list` y `reservas/list` las negaban (rules-are-not-filters). Se corrigió en `ReservaRemotoRepository`/`SesionRemotoRepository` (filtro `negocioId` + fail-closed si la sesión no existe pero tiene reservas) y se añadieron 8 pruebas de regresión (PRUEBA 33A–33H). Tests **90/90**, `:app:assembleDebug` BUILD SUCCESSFUL. **Riesgo abierto:** el crash de la app en alta/reactivación no se aisló (no se aportó stacktrace/logcat); conviene validar en dispositivo con el build corregido y, si persiste, capturar el logcat.
 2. **Reservar/ver/cancelar reservas del CLIENTE:** reusar la Transaction `reservas/{clienteId}_{sesionId}`; añadir `Reserva` model/`ReservaRepository`/`ReservasClienteViewModel`/`MisReservasScreen` e integrar reservar/cancelar en `ClasesScreen`. `SesionRepository` debe mantener el filtro `negocioId`. El parseo `Timestamp`/`Number`, el estado real del Home y el card de período ya están implementados y validados; no modificarlos como parte de esta tarea.
 3. **Habilitar el bucket de Storage** y desplegar `storage.rules` (hasta entonces el logo falla).
-4. **Backfill de `indices_clientes`** (DRY-RUN: 2 índices). NO ejecutar sin aprobación.
+4. **Backfill de `indices_clientes`** (DRY-RUN: 2 índices). NO ejecutar sin aprobación. Relacionado con el pendiente 0: un índice huérfano podría ser el que provoca el PERMISSION_DENIED del alta.
 5. **Limpieza definitiva de `Clase`/`SesionClase`** y de `ServicioItem` (sin uso).
 6. **Commits pendientes** (todo el working tree: dos apps, Rules, tests, docs) y limpieza de basura versionada (`build_*.txt`, `firestore-tests/firestore-debug.log`).
 7. Pendientes heredados: crear negocio con `PERMISSION_DENIED` (hipótesis token) y validar `rol == "ADMIN"` en el login de Admin (hoy solo exige doc existente + activo).

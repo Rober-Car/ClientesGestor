@@ -1620,3 +1620,105 @@ A pesar del redeploy y de confirmarse que `negocioId` de servicios == UID real d
 - VÃ­a B/deep link sigue descartada y no debe reintroducirse.
 - Siguiente funcionalidad pendiente: reservas del CLIENTE (ver, reservar y cancelar) sobre `reservas/{clienteId}_{sesionId}`.
 - Pendientes operativos: habilitar bucket de Storage, backfill de `indices_clientes` solo con aprobaciÃ³n, limpieza de basura versionada y commits agrupados.
+
+## SESION XVIII - FASE 3: Diagnostico y recuperacion de regresiones
+
+Fecha: 2026-08-31. Trabajo sobre el working tree SIN commit (heredado de las Sesiones XII-XVII).
+
+### Objetivo de la fase
+Estabilizar tres regresiones antes de continuar con reservas del CLIENTE:
+1. Alta Admin no se sincroniza a Firestore (PERMISSION_DENIED en clientes/22).
+2. Movimiento no activa el servicio contratado.
+3. DatePicker de CompletarPerfil (appCliente) no abre el calendario.
+
+Reglas vigentes de la fase: NO modificar firestore.rules, NO deploy, NO commit, NO reintroducir Via B/deep link, NO modificar sesiones/reservas del Admin salvo necesidad.
+
+### PROBLEMA 1 - Alta Admin PERMISSION_DENIED (DIAGNOSTICADO, NO CORREGIDO)
+- Sintoma real (logcat): `Write failed at clientes/22: PERMISSION_DENIED` y en
+  `ClienteRemotoRepository`: `Error en alta de cliente: idCliente=22 codigo=PERMISSION_DENIED`.
+- Evidencia comprobada en produccion por el desarrollador: `usuarios/{UID_ADMIN}` con
+  rol=ADMIN, activo=true, clienteId=null, negocioId correcto; `negocios/{negocioId}` y
+  `negocios_publicos/{negocioId}` existen y estan asociados. El ruleset DESPLEGADO en
+  Firebase Console es IDENTICO al `firestore.rules` local (quedo descartada la hipotesis
+  de rules desplegadas antiguas).
+- Auditoria de codigo: `crearClienteRemoto()` construye un WriteBatch atomico de 3 escrituras:
+  1. `clientes/{idCliente}` con `mapaDeAlta()` (18 claves, coincide con el hasOnly de clientes/create).
+  2. `indices_clientes/{negocioId}_{dni}` con `{negocioId, dni, clienteId}` (indiceBienFormado).
+  3. `clientes_privados/{idCliente}` con `{negocioId, observaciones}` (hasOnly de privados).
+- El flujo de replica Admin es estable en el historial (identico entre b74f9d7, b194991, a02d11f);
+  el commit b194991 (30/08) cambio ClienteViewModel para que onExito solo se llame si replicar()
+  termina bien (antes onExito se llamaba siempre, ocultando fallos de replica).
+- PRUEBA 9 de las Rules locales ya cubre el alta exacta y pasa (92/92).
+
+### Test de aislamiento creado (firestore-tests/diagnostico_alta_cliente.test.cjs)
+- 7 tests sobre las Rules LOCALES que reproducen el payload REAL de mapaDeAlta (con Timestamps,
+  email/foto reales, serviciosContratados=[]).
+- Resultado: **7/7 OK, 0 fail**.
+  - Solo clientes/22 -> DENEGADO (esperado).
+  - Solo indices_clientes -> DENEGADO (esperado).
+  - Solo clientes_privados/22 -> PERMITIDO.
+  - Batch completo 1+2+3 limpio -> PERMITIDO.  <- el alta real pasa contra Rules locales
+  - Batch con INDICE YA EXISTENTE -> DENEGADO.
+  - Batch con CLIENTES/22 YA EXISTENTE -> DENEGADO.
+  - Batch con PRIVADOS/22 YA EXISTENTE -> DENEGADO.
+- CONCLUSION DIAGNOSTICA: el payload y la logica son correctos contra las Rules locales.
+  El PERMISSION_DENIED en produccion se explica porque al menos UNO de los 3 documentos
+  objetivo ya existe en Firestore en el momento del alta: `batch.set()` sobre documento
+  existente se evalua como UPDATE, y las Rules prohíben update en indices_clientes
+  (`allow update: if false`), en clientes (hasOnly de edicion que no admite
+  firebaseUid/idCliente/negocioId/fechaRegistro) y en clientes_privados (update solo
+  admite ["observaciones"] pero el set completo reescribe negocioId).
+- Hipotesis mas probable: existe un indice `{negocioId}_{dni}` (o ficha/privado) de un intento
+  anterior (encaja con el backfill pendiente de indices_clientes, DRY-RUN: 2 indices).
+  El mensaje `Write failed at clientes/22` es enganoso: Firestore reporta el primer documento
+  del batch, no necesariamente el que falla.
+
+### Logging temporal de diagnostico ANADIDO en ClienteRemotoRepository.crearClienteRemoto()
+- Registra (solo lectura, no cambia el batch): uid, negocioId (+tipo), idCliente (+tipo),
+  documentIds de las 3 escrituras, dni, clienteId del indice, negocioId del indice,
+  serviciosContratados (+tipo y tamano), claves del payload de clientes, tipos de campos
+  relevantes, existencia previa de los 3 documentos (clientes/indices/privados) y el
+  mensaje completo del error en los catch (codigo + mensaje original).
+- Etiqueta de log: `[DIAG alta]`.
+- Debe RETIRARSE cuando se confirme la causa. NO registrar datos sensibles.
+
+### PROBLEMA 2 - Movimiento activa servicio contratado (CORREGIDO)
+- Estado anterior: el formulario "Nuevo movimiento" usaba texto libre sin vinculo al catalogo.
+- Correcion en `PerfilClienteAdministradorScreen.kt`: se anade selector de SERVICIOS ACTIVOS
+  (RadioButton) bajo el campo Servicio; al guardar, si se eligio un servicio y el cliente no
+  lo tenia, se llama a `viewModel.guardarServiciosContratados(idCliente, ...)` que escribe
+  Room + Firestore (write-through via actualizarServiciosContratadosRemoto).
+- No cambia `cliente.estado`; no relaja Rules. Regla para appCliente intacta: solo ve/reserva
+  servicios contratados.
+
+### PROBLEMA 3 - DatePicker de CompletarPerfil no abre (CORREGIDO)
+- Causa exacta: el OutlinedTextField de fecha usaba `readOnly = true` PERO sin
+  `enabled = false`. Un TextField Material3 en estado readOnly-habilitado consume el gesto
+  de toque (posiciona cursor), por lo que `.clickable { mostrarSelectorFecha = true }`
+  nunca se disparaba.
+- Correcion en `CompletarPerfilScreen.kt`: anadir `enabled = false` + colores `disabled*`
+  (mismo patron que ya funciona en AñadirClienteScreen del Admin). Se mantiene el
+  DatePickerDialog, el formato dd/MM/yyyy, fecha obligatoria y sin fechas futuras.
+
+### Validacion de la fase
+- `npm --prefix firestore-tests test` -> 92/92 OK (firestore.rules intacto).
+- `:app:assembleDebug` -> BUILD SUCCESSFUL. `:appCliente:assembleDebug` -> BUILD SUCCESSFUL.
+- `:appCliente:testDebugUnitTest` -> BUILD SUCCESSFUL.
+- `git diff --check` -> sin errores.
+- Sin deploy, sin commit.
+
+### Pendiente INMEDIATO (FASE 3.1)
+1. Reproducir el alta desde el dispositivo con el build que incluye el logging `[DIAG alta]`
+   y leer en logcat la linea `existencia previa -> clientes/22=?, indices_clientes/...=?,
+   clientes_privados/22=?`. El `true` confirma cual documento ya existe y provoca el DENY.
+2. Si existe un indice huerfano (hipotesis principal): decidir entre limpiar el documento
+   remoto (con aprobacion) o ajustar crearClienteRemoto para que use update de solo
+   serviciosContratados tras un alta local repetida. NO inventar reglas.
+3. Retirar el logging temporal `[DIAG alta]` cuando se cierre la causa.
+
+### Archivos tocados en esta fase (working tree, sin commit)
+- `app/.../data/firebase/ClienteRemotoRepository.kt` (+logging temporal [DIAG alta]).
+- `app/.../ui/clientes/PerfilClienteAdministradorScreen.kt` (selector servicio + activar contratado).
+- `appCliente/.../ui/auth/CompletarPerfilScreen.kt` (enabled=false + colores disabled en fecha).
+- `firestore-tests/diagnostico_alta_cliente.test.cjs` (nuevo, test de aislamiento 7/7).
+- NO modificados: firestore.rules, storage.rules, vinculacion, reservas, sesiones, auth, Storage.
