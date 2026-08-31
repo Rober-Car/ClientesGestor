@@ -43,7 +43,7 @@ import com.roberto.gestorpro.data.entity.SolicitudEntity
         ServicioEntity::class,
         SesionEntity::class
     ],
-    version = 11
+    version = 12
 )
 @TypeConverters(
     EstadoClienteConverter::class,

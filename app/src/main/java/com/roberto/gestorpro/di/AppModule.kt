@@ -3,6 +3,7 @@ package com.roberto.gestorpro.di
 import android.content.Context
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.roberto.gestorpro.data.dao.ClaseDao
 import com.roberto.gestorpro.data.dao.ClienteDao
@@ -74,6 +75,18 @@ import java.util.concurrent.TimeUnit
 object AppModule {
 
     /**
+     * MIGRACION_11_12
+     * ---------------
+     * Añade la columna nullable horaDesdeReserva a la tabla "sesion".
+     * No toca el resto de tablas ni destruye datos locales.
+     */
+    private val MIGRACION_11_12 = object : Migration(11, 12) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE sesion ADD COLUMN horaDesdeReserva TEXT")
+        }
+    }
+
+    /**
      * provideFirebaseAuth
      * -------------------
      * ✔ TIPO: método (fun) de Hilt con anotación @Provides y @Singleton → FirebaseAuth
@@ -133,6 +146,7 @@ object AppModule {
         )
 
         databaseBuilder = databaseBuilder
+            .addMigrations(MIGRACION_11_12)
             .fallbackToDestructiveMigration()
             .addCallback(object : RoomDatabase.Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {

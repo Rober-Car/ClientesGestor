@@ -118,10 +118,12 @@ class SesionesClienteViewModel @Inject constructor(
                                 idSesion = sesion.idSesion,
                                 idServicio = sesion.idServicio,
                                 nombreServicio = servicio.nombre,
+                                fecha = sesion.fecha,
                                 hora = sesion.hora,
                                 duracionMinutos = sesion.duracionMinutos,
                                 capacidad = sesion.capacidad,
                                 plazasDisponibles = sesion.plazasDisponibles,
+                                horaDesdeReserva = sesion.horaDesdeReserva,
                                 reservadaPorMi = sesion.idSesion in sesionesReservadas
                             )
                         )
@@ -171,17 +173,45 @@ class SesionesClienteViewModel @Inject constructor(
  * -------------
  * Sesión del día actual lista para mostrarse en la pantalla del CLIENTE.
  * reservadaPorMi se obtiene cruzando las reservas propias con las sesiones.
+ * reservable indica si la hora de apertura (horaDesdeReserva) ya ha llegado:
+ *   - horaDesdeReserva == null -> reservable desde el inicio del día;
+ *   - con hora "HH:mm" -> solo cuando la hora actual local >= apertura.
  */
 data class SesionVisible(
     val idSesion: Int,
     val idServicio: Int,
     val nombreServicio: String,
+    val fecha: Long,
     val hora: String,
     val duracionMinutos: Int,
     val capacidad: Int,
     val plazasDisponibles: Int,
+    val horaDesdeReserva: String? = null,
     val reservadaPorMi: Boolean = false
 ) {
     val estadoReserva: EstadoReserva
         get() = EstadoReserva.de(reservadaPorMi, plazasDisponibles)
+
+    val reservable: Boolean
+        get() = SesionVisible.aperturaAlcanzada(fecha, horaDesdeReserva)
+
+    companion object {
+        /**
+         * aperturaAlcanzada
+         * -----------------
+         * Indica si la hora de apertura de reservas ya ha llegado. Se compara en
+         * instante absoluto: fecha (epoch millis de la medianoche local del día)
+         * + offset de horaDesdeReserva frente al instante actual. Si
+         * horaDesdeReserva es null, la apertura es el inicio del día.
+         */
+        fun aperturaAlcanzada(fecha: Long, horaDesdeReserva: String?): Boolean {
+            val apertura = horaDesdeReserva?.let { hora ->
+                val partes = hora.split(":")
+                val h = partes.getOrNull(0)?.toIntOrNull() ?: return true
+                val m = partes.getOrNull(1)?.toIntOrNull() ?: return true
+                fecha + (h * 3_600_000L + m * 60_000L)
+            } ?: return true
+            return System.currentTimeMillis() >= apertura
+        }
+    }
 }

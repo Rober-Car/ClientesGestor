@@ -30,6 +30,26 @@ class ReservaRepository @Inject constructor(
         /** Identificador remoto determinista de cliente + sesión. */
         fun reservaId(clienteId: Int, sesionId: Int): String =
             "${clienteId}_${sesionId}"
+
+        /**
+         * aperturaAlcanzada
+         * -----------------
+         * Indica si la hora de apertura de reservas ya ha llegado. Comparación
+         * en instante absoluto: fecha (epoch millis de la medianoche local del
+         * día de la sesión) + offset de horaDesdeReserva frente al instante
+         * actual. Si horaDesdeReserva es null, la apertura es el inicio del día.
+         * Mismo criterio que el resto del proyecto (ZoneId.systemDefault ya
+         * quedó aplicado en el valor de `fecha` generado por el Admin).
+         */
+        fun aperturaAlcanzada(fecha: Long, horaDesdeReserva: String?): Boolean {
+            val apertura = horaDesdeReserva?.let { hora ->
+                val partes = hora.split(":")
+                val h = partes.getOrNull(0)?.toIntOrNull() ?: return true
+                val m = partes.getOrNull(1)?.toIntOrNull() ?: return true
+                fecha + (h * 3_600_000L + m * 60_000L)
+            } ?: return true
+            return System.currentTimeMillis() >= apertura
+        }
     }
 
     /**
@@ -99,6 +119,15 @@ class ReservaRepository @Inject constructor(
                 val plazas = sesion.getLong("plazasDisponibles")?.toInt()
                     ?: throw ReservaException("La sesión no tiene plazas disponibles")
                 if (plazas <= 0) throw ReservaException("No hay plazas disponibles")
+
+                // La apertura de reservas: antes de horaDesdeReserva no se puede
+                // reservar (null = abierta desde el inicio del día).
+                val fechaSesion = sesion.getLong("fecha")
+                    ?: throw ReservaException("La sesión no tiene fecha")
+                val horaDesdeReserva = sesion.getString("horaDesdeReserva")
+                if (!aperturaAlcanzada(fechaSesion, horaDesdeReserva)) {
+                    throw ReservaException("Las reservas abren a las $horaDesdeReserva")
+                }
 
                 transaction.set(
                     reservaRef,

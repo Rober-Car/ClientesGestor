@@ -156,6 +156,8 @@ class SesionViewModel @Inject constructor(
      * futuras (y sus reservas en Room) y después genera las nuevas sesiones
      * dentro del intervalo [desde, hasta]. Cada día seleccionado usa su propia
      * hora. plazasDisponibles = capacidad. Las sesiones pasadas se conservan.
+     * aperturasPorDia define, por día, la hora desde la que se permite reservar
+     * (horaDesdeReserva); null = abierta desde el inicio del día.
      * La programación resultante se sincroniza con Firestore.
      */
     fun generarSesiones(
@@ -163,6 +165,7 @@ class SesionViewModel @Inject constructor(
         desde: Long,
         hasta: Long,
         horariosPorDia: Map<DayOfWeek, String>,
+        aperturasPorDia: Map<DayOfWeek, String?>,
         duracionMinutos: Int,
         capacidad: Int
     ) {
@@ -176,6 +179,7 @@ class SesionViewModel @Inject constructor(
                     desde = desde,
                     hasta = hasta,
                     horariosPorDia = horariosPorDia,
+                    aperturasPorDia = aperturasPorDia,
                     duracionMinutos = duracionMinutos,
                     capacidad = capacidad
                 )
@@ -247,12 +251,15 @@ class SesionViewModel @Inject constructor(
      * generar
      * -------
      * Construye la lista de SesionEntity para el intervalo y días indicados.
+     * aperturasPorDia aporta, por día, el valor de horaDesdeReserva (null = abierta
+     * desde el inicio del día).
      */
     private fun generar(
         servicio: ServicioEntity,
         desde: Long,
         hasta: Long,
         horariosPorDia: Map<DayOfWeek, String>,
+        aperturasPorDia: Map<DayOfWeek, String?>,
         duracionMinutos: Int,
         capacidad: Int
     ): List<SesionEntity> {
@@ -276,7 +283,8 @@ class SesionViewModel @Inject constructor(
                         hora = hora,
                         duracionMinutos = duracionMinutos,
                         capacidad = capacidad,
-                        plazasDisponibles = capacidad
+                        plazasDisponibles = capacidad,
+                        horaDesdeReserva = aperturasPorDia[fecha.dayOfWeek]
                     )
                 )
             }

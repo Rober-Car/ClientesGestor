@@ -163,8 +163,26 @@ service cloud.firestore {
         && sesion.idServicio in cliente.serviciosContratados
         && cliente.negocioId == negocioId
         && cliente.firebaseUid == request.auth.uid
+        && reservaAbierta(sesion)
         && getAfter(sesionRef).data.plazasDisponibles == sesion.plazasDisponibles - 1
         && getAfter(sesionRef).data.plazasDisponibles >= 0;
+    }
+
+    // Una sesión sin horaDesdeReserva (o null) permite reservar desde el inicio
+    // del día. Si tiene hora "HH:mm", la reserva solo se permite cuando
+    // request.time >= instante de apertura (sesion.fecha + horaDesdeReserva).
+    // fecha es epoch millis de la medianoche local del día de la sesión, por lo
+    // que la suma con el offset de la hora produce el instante absoluto correcto.
+    function reservaAbierta(sesion) {
+      return !("horaDesdeReserva" in sesion)
+        || !(sesion.horaDesdeReserva is string)
+        || request.time.toMillis()
+           >= sesion.fecha + minutosReserva(sesion.horaDesdeReserva) * 60000;
+    }
+
+    // Convierte "HH:mm" en minutos desde medianoche.
+    function minutosReserva(hhmm) {
+      return int(hhmm.split(":")[0]) * 60 + int(hhmm.split(":")[1]);
     }
 
     // CANCELAR RESERVA: la eliminación de la reserva debe ir acompañada del
@@ -834,7 +852,8 @@ service cloud.firestore {
              "hora",
              "duracionMinutos",
              "capacidad",
-             "plazasDisponibles"
+             "plazasDisponibles",
+             "horaDesdeReserva"
            ])
         && request.resource.data.idSesion is int
         && string(request.resource.data.idSesion) == sesionId
@@ -846,6 +865,9 @@ service cloud.firestore {
         && request.resource.data.duracionMinutos is int
         && request.resource.data.capacidad is int
         && request.resource.data.plazasDisponibles is int
+        && (!("horaDesdeReserva" in request.resource.data.keys())
+            || request.resource.data.horaDesdeReserva is string
+            || request.resource.data.horaDesdeReserva == null)
         && servicioValidoParaSesion(
              request.resource.data.idServicio,
              request.resource.data.negocioId
@@ -864,13 +886,16 @@ service cloud.firestore {
         && request.resource.data.duracionMinutos is int
         && request.resource.data.capacidad is int
         && request.resource.data.plazasDisponibles is int
+        && (!("horaDesdeReserva" in request.resource.data.keys())
+            || request.resource.data.horaDesdeReserva is string
+            || request.resource.data.horaDesdeReserva == null)
         && servicioValidoParaSesion(
              request.resource.data.idServicio,
              request.resource.data.negocioId
            )
         && request.resource.data.diff(resource.data)
             .affectedKeys()
-            .hasOnly(["fecha", "hora", "duracionMinutos", "capacidad", "plazasDisponibles"]);
+            .hasOnly(["fecha", "hora", "duracionMinutos", "capacidad", "plazasDisponibles", "horaDesdeReserva"]);
 
       // CLIENTE: decrementa plazasDisponibles SOLO dentro de la Transaction que
       // crea su reserva. No puede alterar el resto de la sesión.

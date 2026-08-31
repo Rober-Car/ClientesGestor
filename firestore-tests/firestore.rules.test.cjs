@@ -2625,3 +2625,143 @@ test("PRUEBA 81: la cancelacion normal del ADMIN (reserva + plazas+1, sin elimin
         })
     );
 });
+
+// =========================================================
+// HORA DE APERTURA DE RESERVAS (horaDesdeReserva)
+// =========================================================
+// Sesiones con horaDesdeReserva = "HH:mm": el CLIENTE solo puede reservar a
+// partir de ese instante (request.time >= sesion.fecha + horaDesdeReserva).
+// null / ausente = reservas abiertas desde el inicio del día.
+
+test("PRUEBA 82: sesion create con horaDesdeReserva string -> ALLOW", async () => {
+    const adminUid = "admin-apertura";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), "usuarios", adminUid), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(context.firestore(), "servicios", "1100"), servicioDoc(1100, NEGOCIO_A));
+    });
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertSucceeds(
+        setDoc(
+            doc(database, "sesiones", "9100"),
+            sesionDoc(9100, NEGOCIO_A, 1100, { horaDesdeReserva: "18:00" })
+        )
+    );
+});
+
+test("PRUEBA 83: sesion create sin horaDesdeReserva -> ALLOW", async () => {
+    const adminUid = "admin-apertura";
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertSucceeds(
+        setDoc(
+            doc(database, "sesiones", "9101"),
+            sesionDoc(9101, NEGOCIO_A, 1100)
+        )
+    );
+});
+
+test("PRUEBA 84: sesion create con horaDesdeReserva de tipo incorrecto -> DENY", async () => {
+    const adminUid = "admin-apertura";
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertFails(
+        setDoc(
+            doc(database, "sesiones", "9102"),
+            sesionDoc(9102, NEGOCIO_A, 1100, { horaDesdeReserva: 18 })
+        )
+    );
+});
+
+test("PRUEBA 85: sesion update modificando horaDesdeReserva -> ALLOW", async () => {
+    const adminUid = "admin-apertura";
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertSucceeds(
+        updateDoc(doc(database, "sesiones", "9101"), { horaDesdeReserva: "19:30" })
+    );
+});
+
+test("PRUEBA 86: reserva con horaDesdeReserva null (ausente) -> ALLOW", async () => {
+    const clienteUid = "cliente-apertura";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE", activo: true, clienteId: 910, negocioId: NEGOCIO_A
+        });
+        await setDoc(
+            doc(database, "clientes", "910"),
+            fichaCliente(910, NEGOCIO_A, clienteUid, "88888910X", { serviciosContratados: [1100] })
+        );
+        // Sesión de hoy SIN horaDesdeReserva -> abierta desde el inicio del día.
+        await setDoc(
+            doc(database, "sesiones", "9103"),
+            sesionDoc(9103, NEGOCIO_A, 1100, {
+                fecha: Date.now(),
+                plazasDisponibles: 5,
+                capacidad: 5
+            })
+        );
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertSucceeds(
+        runTransaction(database, async (tx) => {
+            await tx.get(doc(database, "clientes", "910"));
+            await tx.get(doc(database, "sesiones", "9103"));
+            await tx.get(doc(database, "servicios", "1100"));
+            await tx.get(doc(database, "reservas", "910_9103"));
+            await tx.set(doc(database, "reservas", "910_9103"), reservaDoc(910, 9103, NEGOCIO_A));
+            await tx.update(doc(database, "sesiones", "9103"), { plazasDisponibles: 4 });
+        })
+    );
+});
+
+test("PRUEBA 87: reserva con apertura ya pasada -> ALLOW", async () => {
+    const clienteUid = "cliente-apertura";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        await setDoc(
+            doc(context.firestore(), "sesiones", "9104"),
+            sesionDoc(9104, NEGOCIO_A, 1100, {
+                fecha: Date.now() - 86400000,
+                horaDesdeReserva: "00:00",
+                plazasDisponibles: 5,
+                capacidad: 5
+            })
+        );
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertSucceeds(
+        runTransaction(database, async (tx) => {
+            await tx.get(doc(database, "clientes", "910"));
+            await tx.get(doc(database, "sesiones", "9104"));
+            await tx.get(doc(database, "servicios", "1100"));
+            await tx.get(doc(database, "reservas", "910_9104"));
+            await tx.set(doc(database, "reservas", "910_9104"), reservaDoc(910, 9104, NEGOCIO_A));
+            await tx.update(doc(database, "sesiones", "9104"), { plazasDisponibles: 4 });
+        })
+    );
+});
+
+test("PRUEBA 88: reserva con apertura futura -> DENY", async () => {
+    const clienteUid = "cliente-apertura";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        await setDoc(
+            doc(context.firestore(), "sesiones", "9105"),
+            sesionDoc(9105, NEGOCIO_A, 1100, {
+                fecha: Date.now() + 86400000,
+                horaDesdeReserva: "00:00",
+                plazasDisponibles: 5,
+                capacidad: 5
+            })
+        );
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertFails(
+        runTransaction(database, async (tx) => {
+            await tx.get(doc(database, "clientes", "910"));
+            await tx.get(doc(database, "sesiones", "9105"));
+            await tx.get(doc(database, "servicios", "1100"));
+            await tx.get(doc(database, "reservas", "910_9105"));
+            await tx.set(doc(database, "reservas", "910_9105"), reservaDoc(910, 9105, NEGOCIO_A));
+            await tx.update(doc(database, "sesiones", "9105"), { plazasDisponibles: 4 });
+        })
+    );
+});

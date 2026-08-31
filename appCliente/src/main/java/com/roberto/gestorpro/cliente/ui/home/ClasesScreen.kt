@@ -285,17 +285,33 @@ private fun TarjetaSesion(
 
             when (estado) {
                 EstadoReserva.RESERVAR -> {
-                    Button(
-                        onClick = onReservar,
-                        enabled = !operando && !noVinculado,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        if (operando) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
+                    if (sesion.reservable) {
+                        Button(
+                            onClick = onReservar,
+                            enabled = !operando && !noVinculado,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (operando) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text("Reservar")
+                            }
+                        }
+                    } else {
+                        Text(
+                            text = "Reservas abren a las ${sesion.horaDesdeReserva}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Button(
+                            onClick = onReservar,
+                            enabled = false,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
                             Text("Reservar")
                         }
                     }

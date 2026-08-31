@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -86,12 +87,14 @@ fun ProgramarSesionesScreen(
     var hasta by remember { mutableStateOf<Long?>(null) }
     var diasSeleccionados by remember { mutableStateOf(setOf<DayOfWeek>()) }
     var horasPorDia by remember { mutableStateOf(mapOf<DayOfWeek, String>()) }
+    var aperturasPorDia by remember { mutableStateOf(mapOf<DayOfWeek, String?>()) }
     var duracion by remember { mutableStateOf("60") }
     var capacidad by remember { mutableStateOf("20") }
 
     var mostrarDatePickerInicio by remember { mutableStateOf(false) }
     var mostrarDatePickerFin by remember { mutableStateOf(false) }
     var diaConTimePicker by remember { mutableStateOf<DayOfWeek?>(null) }
+    var diaConAperturaTimePicker by remember { mutableStateOf<DayOfWeek?>(null) }
 
     var errorDesde by remember { mutableStateOf(false) }
     var errorHasta by remember { mutableStateOf(false) }
@@ -252,6 +255,7 @@ fun ProgramarSesionesScreen(
             diasSemana.forEachIndexed { index, (dia, letra) ->
                 val seleccionado = diasSeleccionados.contains(dia)
                 val hora = horasPorDia[dia]
+                val apertura = aperturasPorDia[dia]
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -270,6 +274,10 @@ fun ProgramarSesionesScreen(
                                 }
                                 if (!seleccionado && hora == null) {
                                     horasPorDia = horasPorDia + (dia to "18:00")
+                                }
+                                if (!seleccionado) {
+                                    // Por defecto, apertura = inicio del día (null).
+                                    aperturasPorDia = aperturasPorDia + (dia to null)
                                 }
                                 errorDias = false
                             },
@@ -299,6 +307,11 @@ fun ProgramarSesionesScreen(
                             Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(hora ?: "18:00")
+                        }
+                        TextButton(onClick = { diaConAperturaTimePicker = dia }) {
+                            Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(apertura?.let { "Apertura $it" } ?: "Inicio")
                         }
                     }
                 }
@@ -358,6 +371,7 @@ fun ProgramarSesionesScreen(
                             desde = desde!!,
                             hasta = hasta!!,
                             horariosPorDia = horasPorDia.filterKeys { it in diasSeleccionados },
+                            aperturasPorDia = aperturasPorDia.filterKeys { it in diasSeleccionados },
                             duracionMinutos = duracion.toInt(),
                             capacidad = capacidad.toInt()
                         )
@@ -476,6 +490,64 @@ fun ProgramarSesionesScreen(
                         textAlign = TextAlign.Center
                     )
                     TimePicker(state = timePickerState)
+                }
+            }
+        )
+    }
+
+    val diaApertura = diaConAperturaTimePicker
+    if (diaApertura != null) {
+        val aperturaActual = aperturasPorDia[diaApertura] ?: "00:00"
+        val partes = aperturaActual.split(":")
+        val initialHour = partes.getOrNull(0)?.toIntOrNull() ?: 0
+        val initialMinute = partes.getOrNull(1)?.toIntOrNull() ?: 0
+        val timePickerState = TimePickerState(
+            initialHour = initialHour,
+            initialMinute = initialMinute,
+            is24Hour = true
+        )
+
+        AlertDialog(
+            onDismissRequest = { diaConAperturaTimePicker = null },
+            confirmButton = {
+                TextButton(onClick = {
+                    val h = timePickerState.hour.toString().padStart(2, '0')
+                    val m = timePickerState.minute.toString().padStart(2, '0')
+                    aperturasPorDia = aperturasPorDia + (diaApertura to "$h:$m")
+                    diaConAperturaTimePicker = null
+                }) {
+                    Text("Aceptar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { diaConAperturaTimePicker = null }) { Text("Cancelar") }
+            },
+            title = {
+                Text(
+                    text = "Apertura de reservas para ${diasNombres.first { it.first == diaApertura }.second}",
+                    style = MaterialTheme.typography.titleMedium
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Hora desde la que los clientes pueden reservar.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 16.dp),
+                        textAlign = TextAlign.Center
+                    )
+                    TimePicker(state = timePickerState)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextButton(onClick = {
+                        // Abrir desde el inicio del día (null).
+                        aperturasPorDia = aperturasPorDia + (diaApertura to null)
+                        diaConAperturaTimePicker = null
+                    }) {
+                        Text("Abrir desde el inicio")
+                    }
                 }
             }
         )

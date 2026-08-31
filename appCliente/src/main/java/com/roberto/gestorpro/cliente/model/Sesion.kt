@@ -9,6 +9,10 @@ package com.roberto.gestorpro.cliente.model
  *   - hora  = "HH:mm" (formato 24h).
  * Una sesión pertenece directamente a un servicio (idServicio), sin entidad
  * Clase intermedia.
+ *
+ * horaDesdeReserva (opcional): hora local del día de la sesión (formato
+ * "HH:mm") a partir de la cual el CLIENTE puede reservar. null = reservas
+ * abiertas desde el inicio del día.
  */
 data class Sesion(
     val idSesion: Int,
@@ -18,5 +22,6 @@ data class Sesion(
     val hora: String,
     val duracionMinutos: Int,
     val capacidad: Int,
-    val plazasDisponibles: Int
+    val plazasDisponibles: Int,
+    val horaDesdeReserva: String? = null
 )

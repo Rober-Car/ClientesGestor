@@ -98,8 +98,8 @@ class SesionRemotoRepository @Inject constructor(
      * actualizarSesionRemoto
      * ----------------------
      * Actualiza en Firestore solo los campos editables de la sesión
-     * (fecha, hora, duracionMinutos, capacidad, plazasDisponibles).
-     * idSesion, negocioId e idServicio no cambian.
+     * (fecha, hora, duracionMinutos, capacidad, plazasDisponibles,
+     * horaDesdeReserva). idSesion, negocioId e idServicio no cambian.
      */
     suspend fun actualizarSesionRemoto(sesion: SesionEntity): ResultadoAutenticacion {
         val uid = auth.currentUser?.uid
@@ -113,7 +113,8 @@ class SesionRemotoRepository @Inject constructor(
                         "hora" to sesion.hora,
                         "duracionMinutos" to sesion.duracionMinutos,
                         "capacidad" to sesion.capacidad,
-                        "plazasDisponibles" to sesion.plazasDisponibles
+                        "plazasDisponibles" to sesion.plazasDisponibles,
+                        "horaDesdeReserva" to sesion.horaDesdeReserva
                     )
                 )
                 .esperar()
@@ -277,7 +278,8 @@ class SesionRemotoRepository @Inject constructor(
             "hora" to sesion.hora,
             "duracionMinutos" to sesion.duracionMinutos,
             "capacidad" to sesion.capacidad,
-            "plazasDisponibles" to sesion.plazasDisponibles
+            "plazasDisponibles" to sesion.plazasDisponibles,
+            "horaDesdeReserva" to sesion.horaDesdeReserva
         )
     }
 

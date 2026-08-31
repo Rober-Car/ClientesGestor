@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -75,12 +76,14 @@ fun EditarSesionScreen(
 
     var fecha by remember { mutableStateOf<Long?>(null) }
     var hora by remember { mutableStateOf("") }
+    var aperturaReserva by remember { mutableStateOf<String?>(null) }
     var duracion by remember { mutableStateOf("") }
     var capacidad by remember { mutableStateOf("") }
     var cargado by remember { mutableStateOf(false) }
 
     var mostrarDatePicker by remember { mutableStateOf(false) }
     var mostrarTimePicker by remember { mutableStateOf(false) }
+    var mostrarTimePickerApertura by remember { mutableStateOf(false) }
 
     var errorFecha by remember { mutableStateOf(false) }
     var errorHora by remember { mutableStateOf(false) }
@@ -96,6 +99,7 @@ fun EditarSesionScreen(
             val s = sesion!!
             fecha = s.fecha
             hora = s.hora
+            aperturaReserva = s.horaDesdeReserva
             duracion = s.duracionMinutos.toString()
             capacidad = s.capacidad.toString()
             cargado = true
@@ -215,6 +219,38 @@ fun EditarSesionScreen(
                         }
                 )
 
+                OutlinedTextField(
+                    value = aperturaReserva ?: "Desde el inicio",
+                    onValueChange = { },
+                    readOnly = true,
+                    enabled = false,
+                    label = { Text("Apertura de reservas") },
+                    supportingText = {
+                        Text(
+                            text = if (aperturaReserva == null) {
+                                "Los clientes pueden reservar desde el inicio del día"
+                            } else {
+                                "Los clientes pueden reservar a partir de esta hora"
+                            }
+                        )
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                        disabledContainerColor = Color.Transparent,
+                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    trailingIcon = {
+                        Icon(Icons.Default.Schedule, contentDescription = null)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            mostrarTimePickerApertura = true
+                        }
+                )
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -287,7 +323,8 @@ fun EditarSesionScreen(
                                     hora = hora,
                                     duracionMinutos = duracion.toInt(),
                                     capacidad = nuevaCapacidad,
-                                    plazasDisponibles = nuevasPlazas
+                                    plazasDisponibles = nuevasPlazas,
+                                    horaDesdeReserva = aperturaReserva
                                 )
                             )
                             navController.popBackStack()
@@ -369,6 +406,62 @@ fun EditarSesionScreen(
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
                     TimePicker(state = timePickerState)
+                }
+            }
+        )
+    }
+
+    if (mostrarTimePickerApertura) {
+        val aperturaActual = aperturaReserva ?: "18:00"
+        val partes = aperturaActual.split(":")
+        val initialHour = partes.getOrNull(0)?.toIntOrNull() ?: 18
+        val initialMinute = partes.getOrNull(1)?.toIntOrNull() ?: 0
+        val timePickerState = TimePickerState(
+            initialHour = initialHour,
+            initialMinute = initialMinute,
+            is24Hour = true
+        )
+
+        AlertDialog(
+            onDismissRequest = { mostrarTimePickerApertura = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    val h = timePickerState.hour.toString().padStart(2, '0')
+                    val m = timePickerState.minute.toString().padStart(2, '0')
+                    aperturaReserva = "$h:$m"
+                    mostrarTimePickerApertura = false
+                }) {
+                    Text("Aceptar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarTimePickerApertura = false }) { Text("Cancelar") }
+            },
+            title = {
+                Text(
+                    text = "Apertura de reservas",
+                    style = MaterialTheme.typography.titleMedium
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Hora desde la que los clientes pueden reservar esta sesión.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    TimePicker(state = timePickerState)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextButton(onClick = {
+                        // Abrir desde el inicio del día (null).
+                        aperturaReserva = null
+                        mostrarTimePickerApertura = false
+                    }) {
+                        Text("Abrir desde el inicio")
+                    }
                 }
             }
         )

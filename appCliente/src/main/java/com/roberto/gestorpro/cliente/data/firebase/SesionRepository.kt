@@ -89,7 +89,8 @@ class SesionRepository @Inject constructor(
                         hora = datos["hora"] as? String ?: "",
                         duracionMinutos = (datos["duracionMinutos"] as? Number)?.toInt() ?: 0,
                         capacidad = (datos["capacidad"] as? Number)?.toInt() ?: 0,
-                        plazasDisponibles = (datos["plazasDisponibles"] as? Number)?.toInt() ?: 0
+                        plazasDisponibles = (datos["plazasDisponibles"] as? Number)?.toInt() ?: 0,
+                        horaDesdeReserva = datos["horaDesdeReserva"] as? String
                     )
                 }
         } catch (e: Exception) {
