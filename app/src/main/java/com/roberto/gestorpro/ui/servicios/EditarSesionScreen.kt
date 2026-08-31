@@ -55,6 +55,7 @@ import com.roberto.gestorpro.navigation.Routes
 import com.roberto.gestorpro.ui.viewmodel.SesionViewModel
 import java.time.Instant
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 /**
@@ -343,8 +344,12 @@ fun EditarSesionScreen(
     }
 
     if (mostrarDatePicker) {
+        val fechaUtcParaPicker = fecha?.let {
+            Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
+                .atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        }
         val state = rememberDatePickerState(
-            initialSelectedDateMillis = fecha,
+            initialSelectedDateMillis = fechaUtcParaPicker,
             selectableDates = object : androidx.compose.material3.SelectableDates {
                 override fun isSelectableDate(utcTimeMillis: Long): Boolean = true
                 override fun isSelectableYear(year: Int): Boolean = true
@@ -356,7 +361,11 @@ fun EditarSesionScreen(
                 TextButton(
                     enabled = state.selectedDateMillis != null,
                     onClick = {
-                        fecha = state.selectedDateMillis
+                        val utc = state.selectedDateMillis
+                        fecha = utc?.let {
+                            Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate()
+                                .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        }
                         mostrarDatePicker = false
                     }
                 ) { Text("Aceptar") }

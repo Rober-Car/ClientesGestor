@@ -1,5 +1,6 @@
 package com.roberto.gestorpro.cliente.ui.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.roberto.gestorpro.cliente.data.firebase.ClienteRepository
@@ -8,6 +9,7 @@ import com.roberto.gestorpro.cliente.data.firebase.SesionRepository
 import com.roberto.gestorpro.cliente.data.repository.PreferencesRepository
 import com.roberto.gestorpro.cliente.model.EstadoReserva
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import javax.inject.Inject
@@ -103,15 +105,25 @@ class SesionesClienteViewModel @Inject constructor(
                     .toSet()
 
                 val inicioHoy = inicioDeHoy()
+                val hoyLocal = Instant.ofEpochMilli(inicioHoy)
+                    .atZone(ZoneId.systemDefault()).toLocalDate()
+                Log.d("ClasesDiagnostico", "cargar idCliente=$idCliente contratados=$contratados negocioId=$negocioId inicioHoy=$inicioHoy hoyLocal=$hoyLocal reservas=${sesionesReservadas.size}")
                 val visibles = mutableListOf<SesionVisible>()
                 for (idServicio in contratados) {
                     // Solo servicios ACTIVOS (un servicio inactivo/eliminado no es legible).
                     val servicio = sesionRepository
-                        .obtenerServicioActivo(idServicio, negocioId) ?: continue
-                    val delDia = sesionRepository
+                        .obtenerServicioActivo(idServicio, negocioId)
+                    if (servicio == null) {
+                        Log.d("ClasesDiagnostico", "servicio $idServicio no activo o sin permiso (negocioId=$negocioId)")
+                        continue
+                    }
+                    val sesionesBrutas = sesionRepository
                         .obtenerSesionesPorServicio(idServicio, negocioId)
-                        .filter { it.fecha == inicioHoy }
+                    Log.d("ClasesDiagnostico", "servicio $idServicio sesionesBrutas=${sesionesBrutas.size} fechasBrutas=${sesionesBrutas.map { it.fecha }} negocioId=$negocioId")
+                    val delDia = sesionesBrutas
+                        .filter { esDeHoy(it.fecha) }
                         .sortedBy { it.hora }
+                    Log.d("ClasesDiagnostico", "servicio $idServicio delDia=${delDia.size} (filtrado por hoyLocal=$hoyLocal inicioHoy=$inicioHoy)")
                     delDia.forEach { sesion ->
                         visibles.add(
                             SesionVisible(
@@ -131,6 +143,7 @@ class SesionesClienteViewModel @Inject constructor(
                 }
 
                 visibles.sortBy { it.hora }
+                Log.d("ClasesDiagnostico", "visiblesFinal=${visibles.size} sinSesionesHoy=${visibles.isEmpty()}")
                 if (visibles.isEmpty()) {
                     _sinSesionesHoy.value = true
                 } else {
@@ -139,6 +152,7 @@ class SesionesClienteViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                Log.e("ClasesDiagnostico", "cargar fallo: ${e.message}", e)
                 _error.value = "No se pudieron cargar tus clases de hoy"
             } finally {
                 _cargando.value = false
@@ -165,6 +179,21 @@ class SesionesClienteViewModel @Inject constructor(
          */
         fun inicioDeHoy(): Long =
             LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        /**
+         * esDeHoy
+         * -------
+         * Comprobación robusta de si una fecha (epoch millis) corresponde al día
+         * actual en la zona local. Tolera tanto fechas almacenadas como medianoche
+         * local (contrato oficial) como posibles desfases de UTC vs local (p. ej.
+         * sesión editada con DatePicker que guardó UTC). Compara por LocalDate en
+         * lugar de igualdad estricta de millis.
+         */
+        fun esDeHoy(fecha: Long): Boolean {
+            val fechaLocal = Instant.ofEpochMilli(fecha)
+                .atZone(ZoneId.systemDefault()).toLocalDate()
+            return fechaLocal == LocalDate.now()
+        }
     }
 }
 

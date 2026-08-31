@@ -1445,7 +1445,9 @@ fun PerfilClienteScreen(
                         ) {
 
                             Column(
-                                modifier = Modifier.padding(20.dp),
+                                modifier = Modifier
+                                    .padding(20.dp)
+                                    .verticalScroll(rememberScrollState()),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
 
@@ -1477,7 +1479,7 @@ fun PerfilClienteScreen(
 
                                 if (serviciosActivos.isNotEmpty()) {
                                     Text(
-                                        text = "O selecciona un servicio del catálogo:",
+                                        text = "Servicios",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.fillMaxWidth()
@@ -1865,6 +1867,20 @@ fun PerfilClienteScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     textAlign = TextAlign.Center
                                 )
+
+                                Column(
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = "Servicio",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = movimientoSeleccionado?.servicio?.takeIf { it.isNotBlank() } ?: "Sin servicio",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                }
 
                                 OutlinedTextField(
                                     value = servicioEditado,

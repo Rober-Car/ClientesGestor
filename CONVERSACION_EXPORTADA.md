@@ -1664,7 +1664,7 @@ Reglas vigentes de la fase: NO modificar firestore.rules, NO deploy, NO commit, 
 - CONCLUSION DIAGNOSTICA: el payload y la logica son correctos contra las Rules locales.
   El PERMISSION_DENIED en produccion se explica porque al menos UNO de los 3 documentos
   objetivo ya existe en Firestore en el momento del alta: `batch.set()` sobre documento
-  existente se evalua como UPDATE, y las Rules proh�ben update en indices_clientes
+  existente se evalua como UPDATE, y las Rules proh�ben update en indices_clientes
   (`allow update: if false`), en clientes (hasOnly de edicion que no admite
   firebaseUid/idCliente/negocioId/fechaRegistro) y en clientes_privados (update solo
   admite ["observaciones"] pero el set completo reescribe negocioId).
@@ -1697,7 +1697,7 @@ Reglas vigentes de la fase: NO modificar firestore.rules, NO deploy, NO commit, 
   de toque (posiciona cursor), por lo que `.clickable { mostrarSelectorFecha = true }`
   nunca se disparaba.
 - Correcion en `CompletarPerfilScreen.kt`: anadir `enabled = false` + colores `disabled*`
-  (mismo patron que ya funciona en A�adirClienteScreen del Admin). Se mantiene el
+  (mismo patron que ya funciona en A�adirClienteScreen del Admin). Se mantiene el
   DatePickerDialog, el formato dd/MM/yyyy, fecha obligatoria y sin fechas futuras.
 
 ### Validacion de la fase
@@ -1722,3 +1722,100 @@ Reglas vigentes de la fase: NO modificar firestore.rules, NO deploy, NO commit, 
 - `appCliente/.../ui/auth/CompletarPerfilScreen.kt` (enabled=false + colores disabled en fecha).
 - `firestore-tests/diagnostico_alta_cliente.test.cjs` (nuevo, test de aislamiento 7/7).
 - NO modificados: firestore.rules, storage.rules, vinculacion, reservas, sesiones, auth, Storage.
+
+---
+
+---
+
+# ACTUALIZACIÓN 2026-08-31 (SESIÓN XIX) — horaDesdeReserva (Fase 3/3.1) + DIAGNÓSTICO REAL DE PRODUCCIÓN DE 3 PROBLEMAS
+
+> Bloque vigente. Sesiones anteriores quedan como histórico. En esta sesión se implementó
+> `horaDesdeReserva`, se diagnosticaron con datos REALES de producción los 3 problemas que el
+> desarrollador reportó (servicio en detalle de movimiento, navegación a edición de sesión,
+> clases del CLIENTE sin aparecer) y se crearon los índices compuestos que faltaban en Firestore.
+> El trabajo previo de `horaDesdeReserva` fue commiteado por el desarrollador como `244db1e
+> "Conectando las sesiones"` (antes `4bfb370 "Error de conexion admind cleinte corregido..."`).
+
+## FASE horaDesdeReserva (implementada, validada y COMMITEADA por el desarrollador)
+
+- Room: `SesionEntity.horaDesdeReserva: String? = null`, `ClientesDatabase` v11→**v12**,
+  `MIGRACION_11_12` en `AppModule` (`ALTER TABLE sesion ADD COLUMN horaDesdeReserva TEXT`;
+  import correcto `androidx.room.migration.Migration` en Room 2.8.4).
+- Admin: `ProgramarSesionesScreen` (selector "Apertura de reservas" por día + "Abrir desde el
+  inicio"), `EditarSesionScreen` (campo editable con TimePicker), `SesionViewModel.generarSesiones`
+  (mapa `aperturasPorDia`), `SesionRemotoRepository.mapaDeSesion`/`actualizarSesionRemoto`.
+- appCliente: `Sesion.kt`/`SesionRepository` leen el campo; `SesionesClienteViewModel` expone
+  `reservable`/`aperturaAlcanzada`; `ClasesScreen` deshabilita "Reservar" + "Reservas abren a
+  las HH:mm" antes de la apertura; `ReservaRepository.crearReserva` (capa B) rechaza con
+  "Las reservas abren a las HH:mm".
+- Rules: `sesiones/create` hasOnly + `sesiones/update` affectedKeys añaden `horaDesdeReserva`;
+  capa C en `reservaCreaValida` con `reservaAbierta()`/`minutosReserva()` (usa `split(":")` +
+  `int(...)`, NO `substring`/`.toInt()` que no existen en Rules). `null` = abierta.
+- Tests Rules: **99/99** (92 + PRUEBA 82-88). `:app:assembleDebug`, `:appCliente:assembleDebug`,
+  `:appCliente:testDebugUnitTest` BUILD SUCCESSFUL.
+
+## DIAGNÓSTICO REAL DE PRODUCCIÓN (proyecto gestorpro-50e83, solo lectura vía REST con sesión CLI)
+
+Se consultaron los datos reales (script temporal) para los 3 problemas que el desarrollador
+reportó como "NO solucionados" pese a que el código compilaba:
+
+### PROBLEMA 1 — "Servicio" no aparece en el detalle del movimiento
+- **Causa:** no había bug en el código. El working tree (de otra sesión) ya contenía el campo
+  "Servicio" en el diálogo del perfil (`PerfilClienteAdministradorScreen.kt` L1868-1883:
+  `Text("Servicio")` + `movimientoSeleccionado?.servicio ?: "Sin servicio"`) y en Economía
+  (`DialogDetalleMovimiento` L1091). El usuario lo probó con un build/APK anterior.
+- **Resultado:** sin cambios. El campo está visible en los dos diálogos reales.
+
+### PROBLEMA 2 — "Gestionar sesiones" no permite modificar la apertura
+- **Causa (bug real de navegación):** `ProgramarSesionesScreen` (destino de "Gestionar sesiones")
+  era solo un formulario de GENERACIÓN: no listaba sesiones existentes ni navegaba a
+  `EditarSesionScreen`. La única ruta a edición era la sesión de HOY desde `DetalleServicioScreen`.
+- **Corrección:** en `ProgramarSesionesScreen.kt` se añadió `sesionViewModel.cargarSesionesPorServicio`
+  al entrar, la observación de `sesiones`, y la lista de sesiones ordenadas por fecha+hora con
+  botón **"Ver / editar"** → `Routes.editarSesion(idSesion)` → `EditarSesionScreen` (que ya tenía
+  el campo "Apertura de reservas"). Flujo real: Servicio → Gestionar sesiones → lista → Ver/editar.
+- `:app:assembleDebug` BUILD SUCCESSFUL.
+
+### PROBLEMA 3 — appCliente no muestra las clases de CrossFit (el más grave)
+- **Causa raíz CONFIRMADA con datos de producción:** la colección `sesiones` en Firestore estaba
+  **VACÍA (0 documentos)**. `clientes/21` (`serviciosContratados:[1]`, negocio `g84fPIy...`) y
+  `servicios/1` (CrossFit activo, mismo negocio) eran correctos, pero NO había sesiones remotas.
+  El ADMIN ve la sesión en Room local, pero la réplica a Firestore fallaba: usa la query
+  `whereEqualTo("idServicio", id) + whereEqualTo("negocioId", id)`, que en producción exige un
+  **ÍNDICE COMPUESTO que no existía** (el emulador no lo exige → por eso los tests 99/99 pasaban).
+  Sin índice, `SesionRemotoRepository.obtenerIdsSesionesDelServicio`/`ReservaRemotoRepository`
+  lanzaban error → en `SesionViewModel.generarSesiones` la `cascada.exito == false` → **nunca se
+  replicaba** → appCliente → "No hay clases programadas para hoy". NO era fecha/negocio/contratados.
+- **Corrección (infraestructura):** se crearon 3 índices compuestos vía API REST en `gestorpro-50e83`:
+  - `sesiones(idServicio ASC, negocioId ASC)` — réplica Admin + lista del CLIENTE.
+  - `reservas(clienteId ASC, negocioId ASC)` — "Mis reservas" del CLIENTE.
+  - `reservas(sesionId ASC, negocioId ASC)` — cascadas ADMIN.
+  Estado inicial `CREATING` (asíncrono); la query compuesta ya respondía **status 200 sin error de
+  índice** poco después de la creación.
+- **Acción pendiente del desarrollador:** cuando los índices pasen a `READY`, el ADMIN debe volver a
+  "Gestionar sesiones" y pulsar "Generar sesiones" para que las sesiones se repliquen a Firestore.
+  En appCliente quedaron logs temporales `ClasesDiagnostico` (otra sesión) en
+  `SesionesClienteViewModel` para confirmar `sesionesBrutas>0` en logcat.
+
+## Estado del working tree al cierre de la sesión
+
+- HEAD = `244db1e` (commit del desarrollador "Conectando las sesiones").
+- 5 archivos modificados sin commitear (NO revertir):
+  - `PerfilClienteAdministradorScreen.kt` (campo "Servicio" en detalle del movimiento + scroll).
+  - `DetalleServicioScreen.kt` (fix comparación fecha de "sesión de hoy" por LocalDate + muestra apertura).
+  - `EditarSesionScreen.kt` (fix DatePicker UTC↔local).
+  - `ProgramarSesionesScreen.kt` (lista de sesiones + navegación a edición) — cambio de esta sesión.
+  - `SesionesClienteViewModel.kt` (logs `ClasesDiagnostico` + `esDeHoy()` robusto).
+- Validación: `npm --prefix firestore-tests test` 99/99; `:app`/`:appCliente` BUILD SUCCESSFUL;
+  tests unitarios BUILD SUCCESSFUL; `git diff --check` OK. Sin deploy, sin commit.
+
+## Para REANUDAR
+
+1. Confirmar que los índices de `sesiones`/`reservas` están `READY` en la consola.
+2. Regenerar las sesiones desde el Admin (Gestionar sesiones → Generar sesiones) y verificar en
+   Firestore que `sesiones` ya tiene documentos.
+3. Comprobar en appCliente (logcat `ClasesDiagnostico`) que `sesionesBrutas>0` y que aparece
+   CrossFit; luego retirar los logs temporales.
+4. Pendientes heredados (sin resolver): PERMISSION_DENIED en alta Admin (`[DIAG alta]`, Sesión XVIII),
+   bucket de Storage, backfill de `indices_clientes`, limpieza de `Clase`/`SesionClase`,
+   crear negocio con PERMISSION_DENIED (hipótesis token), validar `rol == "ADMIN"` en login Admin.

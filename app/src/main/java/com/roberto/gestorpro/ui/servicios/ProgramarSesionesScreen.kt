@@ -23,6 +23,8 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -57,8 +59,10 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import com.roberto.gestorpro.navigation.Routes
 import com.roberto.gestorpro.ui.viewmodel.ServicioViewModel
 import com.roberto.gestorpro.ui.viewmodel.SesionViewModel
+import com.roberto.gestorpro.data.entity.SesionEntity
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -82,6 +86,7 @@ fun ProgramarSesionesScreen(
     sesionViewModel: SesionViewModel = hiltViewModel()
 ) {
     val servicio by servicioViewModel.servicioSeleccionado.collectAsStateWithLifecycle()
+    val sesiones by sesionViewModel.sesiones.collectAsStateWithLifecycle()
 
     var desde by remember { mutableStateOf<Long?>(null) }
     var hasta by remember { mutableStateOf<Long?>(null) }
@@ -104,6 +109,7 @@ fun ProgramarSesionesScreen(
 
     LaunchedEffect(idServicio) {
         servicioViewModel.cargarServicio(idServicio)
+        sesionViewModel.cargarSesionesPorServicio(idServicio)
     }
 
     val formatter = remember { DateTimeFormatter.ofPattern("dd/MM/yyyy") }
@@ -387,6 +393,67 @@ fun ProgramarSesionesScreen(
                 )
             ) {
                 Text("Generar sesiones")
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "Sesiones del servicio",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            if (sesiones.isEmpty()) {
+                Text(
+                    text = "No hay sesiones programadas para este servicio.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            } else {
+                sesiones.sortedWith(
+                    compareBy<SesionEntity> { it.fecha }.thenBy { it.hora }
+                ).forEach { sesion ->
+                    val fechaTexto = Instant.ofEpochMilli(sesion.fecha)
+                        .atZone(ZoneId.systemDefault())
+                        .toLocalDate()
+                        .format(formatter)
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF1E88E5).copy(alpha = 0.06f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "$fechaTexto · ${sesion.hora}",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                                Text(
+                                    text = "Plazas: ${sesion.plazasDisponibles}/${sesion.capacidad}" +
+                                        (sesion.horaDesdeReserva?.let { " · Apertura $it" } ?: ""),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.Gray
+                                )
+                            }
+                            TextButton(
+                                onClick = {
+                                    navController.navigate(Routes.editarSesion(sesion.idSesion))
+                                }
+                            ) {
+                                Text("Ver / editar")
+                            }
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))

@@ -71,8 +71,12 @@ fun DetalleServicioScreen(
     }
 
     val formatter = remember { DateTimeFormatter.ofPattern("dd/MM/yyyy") }
-    val inicioHoy = ServicioViewModel.inicioDeHoy()
-    val sesionHoy = sesiones.firstOrNull { it.fecha == inicioHoy }
+    val hoyLocal = remember {
+        java.time.LocalDate.now()
+    }
+    val sesionHoy = sesiones.firstOrNull {
+        Instant.ofEpochMilli(it.fecha).atZone(ZoneId.systemDefault()).toLocalDate() == hoyLocal
+    }
 
     Scaffold { innerPadding ->
         Column(
@@ -296,6 +300,10 @@ private fun CardSesionHoy(
             FilaDatoDetalle("Hora", sesion.hora)
             FilaDatoDetalle("Duración", "${sesion.duracionMinutos} minutos")
             FilaDatoDetalle("Capacidad", "${sesion.capacidad} plazas")
+            FilaDatoDetalle(
+                "Apertura de reservas",
+                sesion.horaDesdeReserva?.let { "Desde las $it" } ?: "Desde el inicio del día"
+            )
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
