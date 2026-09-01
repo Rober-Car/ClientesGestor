@@ -23,6 +23,9 @@ interface ReservaDao {
     @Query("SELECT * FROM reserva WHERE idCliente = :idCliente ORDER BY fechaReserva DESC")
     fun obtenerReservasPorCliente(idCliente: Int): Flow<List<ReservaEntity>>
 
+    @Query("SELECT * FROM reserva WHERE idCliente = :idCliente")
+    suspend fun obtenerReservasPorClienteSync(idCliente: Int): List<ReservaEntity>
+
     @Query("SELECT * FROM reserva WHERE idSesion = :idSesion AND idCliente = :idCliente")
     suspend fun obtenerReserva(idSesion: Int, idCliente: Int): ReservaEntity?
 

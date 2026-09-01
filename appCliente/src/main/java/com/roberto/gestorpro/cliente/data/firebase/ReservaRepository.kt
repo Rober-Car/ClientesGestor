@@ -91,6 +91,9 @@ class ReservaRepository @Inject constructor(
                 if (cliente.getString("firebaseUid") != uid) {
                     throw ReservaException("El cliente no corresponde a esta cuenta")
                 }
+                if (cliente.getString("estado") == "BAJA") {
+                    throw ReservaException("Estás dado de baja y no puedes reservar")
+                }
                 if (!sesion.exists()) throw ReservaException("La sesión no existe")
                 if (sesion.getString("negocioId") != negocioId) {
                     throw ReservaException("La sesión no pertenece a tu negocio")

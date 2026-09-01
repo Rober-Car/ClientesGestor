@@ -39,6 +39,15 @@ service cloud.firestore {
         && get(p).data.estado != "ARCHIVADO";
     }
 
+    // Un CLIENTE en BAJA no puede acceder a sesiones ni crear reservas: el
+    // estado BAJA es la puerta de acceso operativo y debe rechazarse en Rules.
+    function clientePuedeAcceder(clienteId) {
+      let c = get(
+        /databases/$(database)/documents/clientes/$(clienteId)
+      ).data;
+      return c != null && c.estado != "BAJA";
+    }
+
     // Una sola lectura de la ficha del cliente del usuario autenticado.
     // El servicio se identifica por su id (int), igual que en
     // clientes/{idCliente}.serviciosContratados.
@@ -145,7 +154,7 @@ service cloud.firestore {
     }
 
     // Una sola lectura de la sesion: negocio propio, servicio contratado por el
-    // cliente autenticado y servicio activo.
+    // cliente autenticado, servicio activo y cliente no dado de baja.
     function sesionAccesiblePorCliente(sesionId) {
       let sesion = get(
         /databases/$(database)/documents/sesiones/$(sesionId)
@@ -154,11 +163,13 @@ service cloud.firestore {
         && servicioContratadoPorCliente(sesion.idServicio)
         && get(
              /databases/$(database)/documents/servicios/$(sesion.idServicio)
-           ).data.activo == true;
+           ).data.activo == true
+        && clientePuedeAcceder(usuarioActual().clienteId);
     }
 
     // CREAR RESERVA (Transaction CLIENTE): la reserva debe nacer en la misma
-    // operación que decrementa plazasDisponibles de la sesión.
+    // operación que decrementa plazasDisponibles de la sesión. El cliente no
+    // puede reservar si está dado de baja (estado BAJA).
     function reservaCreaValida(sesionId, clienteId, negocioId) {
       let sesionRef = /databases/$(database)/documents/sesiones/$(sesionId);
       let clienteRef = /databases/$(database)/documents/clientes/$(clienteId);
@@ -173,6 +184,7 @@ service cloud.firestore {
         && sesion.idServicio in cliente.serviciosContratados
         && cliente.negocioId == negocioId
         && cliente.firebaseUid == request.auth.uid
+        && cliente.estado != "BAJA"
         && reservaAbierta(sesion)
         && getAfter(sesionRef).data.plazasDisponibles == sesion.plazasDisponibles - 1
         && getAfter(sesionRef).data.plazasDisponibles >= 0;
@@ -836,14 +848,16 @@ service cloud.firestore {
         && resource.data.negocioId == usuarioActual().negocioId;
 
       // CLIENTE vinculado: solo sesiones cuyo servicio esté contratado Y activo
-      // y cuyo negocio sea el suyo. No puede crear/modificar/eliminar.
+      // y cuyo negocio sea el suyo. No puede crear/modificar/eliminar. Un
+      // cliente en BAJA no puede acceder a sesiones.
       allow get: if esCliente()
         && usuarioActual().clienteId is int
         && resource.data.negocioId == usuarioActual().negocioId
         && servicioContratadoPorCliente(resource.data.idServicio)
         && get(
              /databases/$(database)/documents/servicios/$(resource.data.idServicio)
-           ).data.activo == true;
+           ).data.activo == true
+        && clientePuedeAcceder(usuarioActual().clienteId);
 
       allow list: if esCliente()
         && usuarioActual().clienteId is int
@@ -851,7 +865,8 @@ service cloud.firestore {
         && servicioContratadoPorCliente(resource.data.idServicio)
         && get(
              /databases/$(database)/documents/servicios/$(resource.data.idServicio)
-           ).data.activo == true;
+           ).data.activo == true
+        && clientePuedeAcceder(usuarioActual().clienteId);
 
       allow create: if esAdmin()
         && request.resource.data.keys().hasOnly([

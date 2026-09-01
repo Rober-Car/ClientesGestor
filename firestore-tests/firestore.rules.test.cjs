@@ -3293,3 +3293,115 @@ test("PRUEBA 108: solicitudes con datos inválidos o cliente no apto -> DENY", a
         setDoc(doc(database, "solicitudes", "bad-108-5"), solicitudDoc("bad-108-5", NEGOCIO_A, 1081, "otro-uid-108"))
     );
 });
+
+// =========================================================
+// BAJA: BLOQUEO DE ACCESO A SESIONES Y RESERVAS (PRUEBA 109-112)
+// =========================================================
+
+test("PRUEBA 109: un CLIENTE en BAJA no puede leer sesiones -> DENY", async () => {
+    const clienteUid = "cliente-baja-sesiones-109";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE", activo: true, clienteId: 5000, negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "servicios", "5001"), servicioDoc(5001, NEGOCIO_A));
+        await setDoc(
+            doc(database, "clientes", "5000"),
+            fichaCliente(5000, NEGOCIO_A, clienteUid, "50000000X", {
+                estado: "BAJA",
+                serviciosContratados: [5001]
+            })
+        );
+        await setDoc(doc(database, "sesiones", "5002"), sesionDoc(5002, NEGOCIO_A, 5001, { plazasDisponibles: 5, capacidad: 5 }));
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertFails(
+        getDoc(doc(database, "sesiones", "5002"))
+    );
+});
+
+test("PRUEBA 110: un CLIENTE en BAJA no puede listar sesiones -> DENY", async () => {
+    const clienteUid = "cliente-baja-list-110";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE", activo: true, clienteId: 5010, negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "servicios", "5011"), servicioDoc(5011, NEGOCIO_A));
+        await setDoc(
+            doc(database, "clientes", "5010"),
+            fichaCliente(5010, NEGOCIO_A, clienteUid, "50100000X", {
+                estado: "BAJA",
+                serviciosContratados: [5011]
+            })
+        );
+        await setDoc(doc(database, "sesiones", "5012"), sesionDoc(5012, NEGOCIO_A, 5011, { plazasDisponibles: 5, capacidad: 5 }));
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertFails(
+        getDocs(query(collection(database, "sesiones"), where("negocioId", "==", NEGOCIO_A)))
+    );
+});
+
+test("PRUEBA 111: un CLIENTE en BAJA no puede crear una reserva -> DENY", async () => {
+    const clienteUid = "cliente-baja-reserva-111";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE", activo: true, clienteId: 5020, negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "servicios", "5021"), servicioDoc(5021, NEGOCIO_A));
+        await setDoc(
+            doc(database, "clientes", "5020"),
+            fichaCliente(5020, NEGOCIO_A, clienteUid, "50200000X", {
+                estado: "BAJA",
+                serviciosContratados: [5021]
+            })
+        );
+        await setDoc(doc(database, "sesiones", "5022"), sesionDoc(5022, NEGOCIO_A, 5021, { plazasDisponibles: 5, capacidad: 5 }));
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertFails(
+        runTransaction(database, async (tx) => {
+            await tx.get(doc(database, "clientes", "5020"));
+            await tx.get(doc(database, "sesiones", "5022"));
+            await tx.get(doc(database, "servicios", "5021"));
+            await tx.get(doc(database, "reservas", "5020_5022"));
+            await tx.set(doc(database, "reservas", "5020_5022"), reservaDoc(5020, 5022, NEGOCIO_A));
+            await tx.update(doc(database, "sesiones", "5022"), { plazasDisponibles: 4 });
+        })
+    );
+});
+
+test("PRUEBA 112: un CLIENTE ACTIVO sigue pudiendo leer sesiones y reservar -> ALLOW", async () => {
+    const clienteUid = "cliente-activo-regresion-112";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE", activo: true, clienteId: 5030, negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "servicios", "5031"), servicioDoc(5031, NEGOCIO_A));
+        await setDoc(
+            doc(database, "clientes", "5030"),
+            fichaCliente(5030, NEGOCIO_A, clienteUid, "50300000X", {
+                serviciosContratados: [5031]
+            })
+        );
+        await setDoc(doc(database, "sesiones", "5032"), sesionDoc(5032, NEGOCIO_A, 5031, { plazasDisponibles: 5, capacidad: 5 }));
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertSucceeds(
+        getDoc(doc(database, "sesiones", "5032"))
+    );
+    await assertSucceeds(
+        runTransaction(database, async (tx) => {
+            await tx.get(doc(database, "clientes", "5030"));
+            await tx.get(doc(database, "sesiones", "5032"));
+            await tx.get(doc(database, "servicios", "5031"));
+            await tx.get(doc(database, "reservas", "5030_5032"));
+            await tx.set(doc(database, "reservas", "5030_5032"), reservaDoc(5030, 5032, NEGOCIO_A));
+            await tx.update(doc(database, "sesiones", "5032"), { plazasDisponibles: 4 });
+        })
+    );
+});

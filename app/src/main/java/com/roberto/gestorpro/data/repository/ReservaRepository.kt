@@ -193,4 +193,41 @@ class ReservaRepository @Inject constructor(
             sesionDao.eliminarSesion(idSesion)
         }
     }
+
+    /**
+     * cancelarReservasFuturasDeCliente
+     * --------------------------------
+     * Al dar de baja a un cliente, cancela de forma atómica sus reservas en
+     * sesiones que todavía no han terminado (libera la plaza) en Room. Las
+     * reservas de sesiones ya pasadas se conservan como histórico.
+     */
+    suspend fun cancelarReservasFuturasDeCliente(idCliente: Int, ahora: Long): Int {
+        var canceladas = 0
+        database.withTransaction {
+            val reservas = reservaDao.obtenerReservasPorClienteSync(idCliente)
+            for (reserva in reservas) {
+                val sesion = sesionDao.obtenerSesionPorId(reserva.idSesion) ?: continue
+                if (esSesionFutura(sesion, ahora)) {
+                    reservaDao.cancelarReserva(reserva.idSesion, idCliente)
+                    sesionDao.liberarPlaza(reserva.idSesion)
+                    canceladas++
+                }
+            }
+        }
+        return canceladas
+    }
+
+    /**
+     * esSesionFutura
+     * --------------
+     * Una sesión es futura si su fin (fecha + hora + duración) es posterior al
+     * instante indicado.
+     */
+    private fun esSesionFutura(sesion: SesionEntity, ahora: Long): Boolean {
+        val partes = sesion.hora.split(":")
+        val h = partes.getOrNull(0)?.toIntOrNull() ?: 0
+        val m = partes.getOrNull(1)?.toIntOrNull() ?: 0
+        val fin = sesion.fecha + (h * 3_600_000L + m * 60_000L) + sesion.duracionMinutos * 60_000L
+        return fin > ahora
+    }
 }

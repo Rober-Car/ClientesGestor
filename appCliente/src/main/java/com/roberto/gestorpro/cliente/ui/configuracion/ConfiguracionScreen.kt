@@ -18,6 +18,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.LightMode
@@ -136,6 +137,14 @@ fun ConfiguracionScreen(
                     description = "Mis datos personales",
                     tint = Color(0xFF2196F3),
                     onClick = { navController.navigate(Routes.MI_PERFIL) }
+                )
+                HorizontalDivider()
+                AjusteNavigationOption(
+                    icon = Icons.Filled.AccountCircle,
+                    label = "Mi cuenta",
+                    description = "Cuenta, solicitud de baja y sesión",
+                    tint = Color(0xFF1E88E5),
+                    onClick = { navController.navigate(Routes.CUENTA) }
                 )
             }
 

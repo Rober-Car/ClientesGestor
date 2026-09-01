@@ -351,8 +351,9 @@ node firestore-tests/auditoria_backfill_indices.cjs
 
 ## Tests
 
-- **Rules de Firestore + Storage:** `npm --prefix firestore-tests test` (**99 pruebas** en los emuladores `--only firestore,storage`, incluidas PRUEBA 6B y 6C para Vía A, 9B, 33A–33H, 77–81 y 82–88 de `horaDesdeReserva`). Deben pasar **antes** de desplegar las Rules.
+- **Rules de Firestore + Storage:** `npm --prefix firestore-tests test` (**123 pruebas** en los emuladores `--only firestore,storage`, incluidas PRUEBA 6B/6C (Vía A), 9B, 33A–33H, 77–81, 82–88 (`horaDesdeReserva`), **99–108 (solicitudes de baja)** y **109–112 (bloqueo de BAJA en sesiones/reservas)**). Deben pasar **antes** de desplegar las Rules.
 - **Test unitario appCliente:** `:appCliente:testDebugUnitTest` cubre el rechazo de Vía A cuando no existe el índice `negocioId_DNI`.
+- **Tests unitarios de helpers de Cloud Functions:** `node --test functions/test/ids.test.js functions/test/tokens.test.js` (**13/13**, sin necesidad de `npm install` en `functions/`; solo cubren los módulos puros `ids.js` y `tokens.js`).
 - **Test de aislamiento del alta (temporal, Sesión XVIII):** `firestore-tests/diagnostico_alta_cliente.test.cjs` (7/7) reproduce el payload real de `crearClienteRemoto()` contra las Rules locales para aislar el PERMISSION_DENIED del alta. Ejecutar con: `cd firestore-tests; Copy-Item ..\firestore.rules firestore.rules.generated -Force; .\node_modules\.bin\firebase.cmd emulators:exec --project gestorpro-rules-test --only firestore "node --test diagnostico_alta_cliente.test.cjs"`. No forma parte del suite oficial.
 - Los tests de Android se mantienen para la fase final del proyecto salvo que el desarrollador los solicite expresamente antes. No crear archivos de test automáticamente durante una funcionalidad normal.
 
@@ -364,7 +365,106 @@ node firestore-tests/auditoria_backfill_indices.cjs
 - **Vinculación del CLIENTE:** el flujo de código maestro + DNI vive en `appCliente` (repositorio `VinculacionRepository`, pantalla de vinculación accesible desde el Home). Las operaciones críticas (VÍA 1 y VÍA 2) deben ejecutarse en Transaction. Nunca reintroducir Vía B/deep links.
 - **Logo del negocio:** la subida vive en `NegocioRepository.guardarLogoRemoto()` (`:app`): `putFile` a `negocios/{uid}/logo.jpg` → `downloadUrl` → WriteBatch con `logo` en `negocios` + `negocios_publicos`. El Cliente lee `negocios_publicos/{id}.logo` y lo muestra con Coil. Requiere el bucket habilitado en Firebase Console.
 
-## Estado actual y pendientes (2026-08-31)
+## Estado actual y pendientes (2026-09-01)
+
+> ACTUALIZACIÓN 2026-09-01 (FASES D + E LOCAL + SOLICITUDES DE BAJA + CORRECCIÓN BAJA): HEAD sin
+> cambios funcionales nuevos del desarrollador (todo el trabajo posterior a
+> `244db1e` está en el working tree, SIN commit). Rules **123/123** (119 + 4 de
+> bloqueo de BAJA). Detalle en `CONVERSACION_EXPORTADA.md` (Sesiones XII–XX) y en los
+> informes de Fase D/E/Solicitudes/BAJA.
+>
+> **CLOUD FUNCTIONS PREPARADAS EN LOCAL, SIN DESPLEGAR (proyecto en plan Spark):
+> `billingEnabled=false` comprobado por API (2026-09-01).** No activar Blaze sin
+> decisión explícita. Hasta entonces no se despliega nada (Functions, Storage,
+> FCM real).
+>
+> **Solicitud de baja del cliente (completada):** colección `solicitudes`
+> (reutilizada, NO `solicitudes_baja`) con `idSolicitud, negocioId, idCliente,
+> firebaseUid, fechaSolicitud, estado (PENDIENTE/ACEPTADA/RECHAZADA), tipo
+> (ALTA/BAJA), fechaResolucion, resueltaPor, motivo`. DocumentId determinista
+> `baja_{clienteId}_{fechaSolicitud}`. Rules reforzadas (create CLIENTE con
+> hasOnly + `esClientePuedeSolicitarBaja` (no BAJA/ARCHIVADO); update solo ADMIN
+> desde PENDIENTE y solo campos de resolución). Admin: `SolicitudesScreen` +
+> card Home + `SolicitudesViewModel` + `SolicitudRemotoRepository` (acepta con
+> Transaction: solicitud ACEPTADA + `clientes/{id}` BAJA + fechaBaja, y actualiza
+> Room). appCliente: `CuentaScreen` ("Solicitar baja" + estado) +
+> `SolicitudRepository` (sin duplicado PENDIENTE). Al aceptar, si
+> `configuracion_notificaciones/{negocioId}.bajaConfirmada.activa` está activa,
+> se crea la notificación **BAJA_CONFIRMADA** reutilizando
+> `NotificacionRemotoRepository` con ID determinista
+> `baja_confirmada_{clienteId}_{fechaBaja}` (el mismo que usará Cloud Functions).
+> El FCM real queda para Cloud Functions. PRUEBA 99–108.
+>
+> **Corrección del flujo de BAJA (completada, auditada):** la auditoría confirmó
+> que `CuentaScreen` era **inalcanzable** (nadie navegaba a `Routes.CUENTA`) y que
+> un cliente BAJA **podía** leer sesiones y reservar (app y Rules). Corregido:
+> (1) appCliente `ConfiguracionScreen` ahora enlaza a **"Mi cuenta"** →
+> `Routes.CUENTA`; (2) **Rules**: helper `clientePuedeAcceder` (estado != "BAJA")
+> en `sesiones get/list` CLIENTE y `reservaCreaValida` → PRUEBA 109–112, **123/123**;
+> (3) appCliente: `SesionesClienteViewModel` no carga sesiones si BAJA,
+> `ClasesScreen` muestra el aviso, `HomeScreen` oculta la card "Clases",
+> `ReservaRepository.crearReserva` rechaza BAJA; (4) **baja efectiva UNIFICADA**
+> en `BajaClienteRemotoRepository` (cancela reservas FUTURAS en Room y Firestore
+> liberando plazas, conserva las pasadas y los `serviciosContratados`, y genera
+> `BAJA_CONFIRMADA` con ID determinista): la **baja directa**
+> (`ClienteViewModel.darDeBaja` + confirmación en `AñadirClienteScreen`) y la
+> **aceptación de solicitud** (`SolicitudesViewModel`) convergen en la misma
+> lógica. `fechaBaja` coherente en Room/Firestore.
+>
+> **Fase D — Notificaciones ADMIN (completada):** `GestionNotificacionesScreen`
+> (lista `notificaciones/{id}`), `CrearNotificacionScreen` (individual/grupo/
+> todos + programadas), `SeleccionarClientesScreen` (selección grupal con filtros
+> reutilizando ClienteItem/FilterChipItem/FiltroClientes), `ConfigNotificaciones
+> Screen` (morosidad, recordatorio 24h = 0/24, baja confirmada), `DialogoSeleccion
+> arClientes` (individual). Modelo `NotificacionAdmin` + `ConfiguracionNotificaciones`
+> + `ModoDestino` + `DestinatarioResuelto`. La creación inmediata crea buzones y
+> deja `PENDIENTE`; el estado final (ENVIADA/ERROR) y el push los resuelve Cloud
+> Functions.
+>
+> **Fase E — preparación LOCAL (pendiente Blaze):** Cloud Functions 2ª gen en
+> `functions/` (`index.js` + `lib/{ids,tokens,firestore,destinatarios,envio,
+> procesadores}.js` + `test/`): triggers de notificación inmediata, programadas
+> (onSchedule 2 min, índice `notificaciones(estado, fechaProgramada)` pendiente),
+> recordatorio de morosidad (onSchedule 1 h, campo `ultimoRecordatorioMorosidad`),
+> morosidad (onUpdate clientes con `fechaFinActual`), baja confirmada. Claims
+> atómicos PENDIENTE→ENVIADA / PROGRAMADA→ENVIADA, IDs deterministas, lotes de
+> ≤500 tokens (`sendEachForMulticast`), tokens inválidos eliminados, respeto de
+> `notificacionesActivadas` por dispositivo (appCliente: `DispositivoRepository`
+> guarda el campo + `actualizarNotificacionesActivadas`). `storage.rules` local
+> ampliada para fotos (`clientes/{clienteId}/foto.jpg`, image/* ≤5MB, ADMIN del
+> negocio escribe, CLIENTE solo su propia foto); helper `rutaFotoClienteEnStorage`.
+> **Sin deploy. Sin Blaze.**
+>
+> **Persistencia/Sincronización:** fuente de verdad = Room en Admin (Firestore =
+> espejo write-through para clientes/servicios/sesiones/reservas/notificaciones/
+> solicitudes). El CLIENTE usa Firestore directo (sin Room). Los MOVIMIENTOS solo
+> se replican parcialmente (período `fechaInicioActual`/`fechaFinActual`): **la
+> auditoría de economía es el siguiente bloque pendiente** (ver abajo).
+>
+> **Pendiente actual (2026-09-01):**
+> 1. **AUDITORÍA DE ECONOMÍA (siguiente bloque):** verificar el circuito completo
+>    cuota→movimiento→pago→morosidad→baja. Preguntas clave: ¿cuál es la fuente de
+>    verdad del movimiento (Room/Firestore/ambas)? ¿Se replica lo suficiente para
+>    que Cloud Functions calcule la morosidad desde Firestore? ¿Regla real de
+>    entrada/salida de MOROSO ("cuarto día hábil")? ¿Qué ocurre con BAJA + deuda
+>    pendiente y si hace falta `MOROSO_BAJA`? NO tocar código hasta decidirlo.
+> 2. **Reservas del CLIENTE:** verificar que la cancelación está conectada a la UI
+>    de appCliente (repositorio existe) y la consistencia atómica reserva+plazas.
+> 3. **Blaze (cuando se decida):** activar facturación → crear índice
+>    `notificaciones(estado, fechaProgramada)` → `npm install` en `functions/` →
+>    desplegar Functions y `storage.rules` → probar FCM real.
+> 4. **Habilitar bucket de Storage** (logo y futuras fotos) y probar `storage.rules`.
+> 5. **Auditorías finales:** Admin (clientes/servicios/sesiones/reservas/
+>    solicitudes/notificaciones), seguridad (aislamiento negocio/cliente),
+>    persistencia/sincronización entidad por entidad.
+> 6. **Pendientes heredados:** backfill de `indices_clientes` (solo con
+>    aprobación), limpieza definitiva de `Clase`/`SesionClase`/`ServicioItem`,
+>    retirar logging temporal `[DIAG alta]`/`ClasesDiagnostico`, commits agrupados
+>    y limpieza de basura versionada (`build_*.txt`, `firestore-debug.log`).
+>
+> Histórico (2026-08-31, Sesión XIX) a continuación — se conserva como referencia.
+>
+> ---
 
 > ACTUALIZACIÓN 2026-08-31 (SESIÓN XIX): HEAD = `244db1e "Conectando las sesiones"` (commit del
 > desarrollador; incluye la fase `horaDesdeReserva` completa). Tests de Rules **99/99**. Detalle en
@@ -413,3 +513,131 @@ Pendiente para continuar:
 6. **Limpieza definitiva de `Clase`/`SesionClase`** y de `ServicioItem` (sin uso).
 7. **Commits pendientes** (5 archivos del working tree de la Sesión XIX: PerfilClienteAdministradorScreen, DetalleServicioScreen, EditarSesionScreen, ProgramarSesionesScreen, SesionesClienteViewModel) y limpieza de basura versionada (`build_*.txt`, `firestore-tests/firestore-debug.log`).
 8. Pendientes heredados: crear negocio con `PERMISSION_DENIED` (hipótesis token) y validar `rol == "ADMIN"` en el login de Admin (hoy solo exige doc existente + activo).
+
+---
+
+# HOJA DE RUTA DEL PROYECTO (2026-09-01)
+
+> Documento vivo. Reconstrucción del estado funcional REAL a partir de arquitectura,
+> entidades, DAOs, repositorios, ViewModels, pantallas, Rules, Functions locales y
+> tests (no es una búsqueda de TODO/FIXME). Úsalo para tachar funcionalidad por
+> funcionalidad sin reinventar ni tocar lo ya terminado. Actualizar al cerrar cada
+> bloque.
+
+## 1. Ya implementado y verificado (funciona y compila)
+
+- Dos aplicaciones independientes (`:app` Admin, `:appCliente` Cliente) sobre el mismo Firebase (`gestorpro-50e83`).
+- Autenticación real (Firebase Auth) en ambas; roles remotos `ADMIN`/`CLIENTE`.
+- Vinculación CLIENTE por **código maestro + DNI** (VÍA 1 y VÍA 2) con `indices_clientes`, `perfiles_pendientes`, `clientes_privados`; sin Vía B/deep links.
+- Negocio: crear/editar nombre y código maestro; logo (pendiente bucket).
+- **Clientes Admin:** alta, edición, búsqueda, filtros (Todos/Activos/Bajas/Morosos/Archivados), archivar/restaurar, servicios contratados (Room + Firestore write-through), foto local, banners de sincronización con reintento.
+- **Servicios/Sesiones/Reservas:** modelo `Cliente → Servicio → Sesión → Reserva`; Room atómico (`withTransaction`, plazas±1, cascadas) + réplica Firestore write-through; generación de sesiones con apertura global y edición individual; índices compuestos creados en producción.
+- **Economía base:** movimientos y gastos en Room; `fechaInicioActual`/`fechaFinActual` replicados a `clientes/{id}`; morosidad derivada (Room); `EconomiaScreen` (resumen + CRUD de gastos + lectura de movimientos); movimientos por cliente (crear/editar/eliminar/renovar).
+- **Notificaciones (Fases B/C/D):** Admin (lista, crear individual/grupo/todos/programadas, configuración de preconfiguradas, selección grupal), bandeja del cliente, leído/no leído, toggle por dispositivo, buzón `notificaciones_por_destinatario`.
+- **Solicitudes de baja:** flujo completo Cliente → PENDIENTE → Admin (Aceptar=BAJA / Rechazar) + notificación `BAJA_CONFIRMADA` (si config activa).
+- **Baja de cliente (corregida):** navegación a `CuentaScreen` ("Mi cuenta" desde Configuración); bloqueo de BAJA en app (SesionesCliente/ReservaRepository/Home) y en Rules (`clientePuedeAcceder` en sesiones get/list y `reservaCreaValida`); baja directa y aceptación de solicitud convergen en `BajaClienteRemotoRepository` (cancelación de reservas futuras Room+Firestore liberando plazas, conservación de pasadas y `serviciosContratados`, BAJA_CONFIRMADA con ID determinista).
+- **Rules Firestore+Storage:** **123/123** (`npm --prefix firestore-tests test`).
+- Tests helpers de Functions: `node --test functions/test/ids.test.js functions/test/tokens.test.js` → **13/13**.
+
+## 2. Implementado pero pendiente de pruebas reales (dispositivo / producción)
+
+- **Reservas del CLIENTE:** `ReservaRepository` (Transactions atómicas) y `ReservasClienteViewModel` cableados en `ClasesScreen` (reservar/cancelar con confirmación). Requieren índices `READY` y sesiones replicadas. **No hay pantalla "Mis reservas"** (`reservasVisibles`/`esProxima()` sin consumidor).
+- **Réplica Room→Firestore de sesiones:** conectada (`sincronizarSesionesGeneradas`), pero hubo fallo silencioso por `idSesion=0` (fix local en working tree); validar regenerando sesiones y confirmando documentos en Firestore.
+- **Alta Admin con `[DIAG alta]`:** pendiente de confirmar la causa (hipótesis: documento huérfano ya existente en el batch); retirar logging al cerrar.
+- **Logo Storage:** implementado (`NegocioRepository.guardarLogoRemoto`), bloqueado por bucket (ver §5).
+
+## 3. Implementado parcialmente
+
+- **ECONOMÍA (bloque crítico pendiente de decidir/cerrar):**
+  - No existe entidad Pago/Cuota: el "pago" es `Movimiento.estado` (PENDIENTE/PAGADO) + `fechaPago`.
+  - **Bug conocido:** al editar un movimiento desde el perfil, `fechaPago` se resetea a `null` (se reconstruye el objeto sin ese campo).
+  - `fechaPago` solo se rellena en "Renovar". No hay métodos de pago (efectivo/Bizum/transferencia) ni validación de pago.
+  - No existen reglas de negocio económicas: descuentos, tramos, tarifas (estudiante/familia/jubilado/llave como tarifa), cargo de alta, prorrateo a mitad de mes, "cuarto día hábil".
+  - Morosidad 100% derivada (Room): ACTIVO con `fechaFin < ahora`, o BAJA con movimiento PENDIENTE. `EstadoCliente.MOROSO` nunca se persiste; sin fecha de entrada en moroso.
+  - Replicación a Firestore SOLO de `fechaInicioActual`/`fechaFinActual`; **no existe** colección remota `movimientos`/`gastos`. Insuficiente para que Cloud Functions calcule morosidad/precio con precisión.
+  - `EconomiaScreen` es solo lectura para movimientos (gestión en el perfil del cliente).
+- **Reservas ADMIN:** `SesionReservasScreen` es solo lectura; el ADMIN no puede cancelar la reserva de un cliente (solo cascadas de servicios/sesiones).
+- **Sesiones:** `eliminarSesion` (ViewModel + remoto) existe pero **sin botón en la UI** (`EditarSesionScreen` solo guarda cambios).
+- **Clientes:** `eliminarCliente` (Room) sin botón en UI (baja lógica por diseño). "Dar de baja" directo solo vía switch de edición o aceptar solicitud. Reactivación `BAJA→ACTIVO` solo vía switch (no hay método dedicado).
+- **Cuenta Admin:** el diálogo "Cambiar contraseña" es un **placeholder** (no llama a `FirebaseAuth.updatePassword`).
+- **appCliente economía:** solo indicador de estado en Home (`PAGO_VENCIDO` derivado de `fechaFinActual`); **sin** módulo de cuotas/movimientos/pagos (¿deseado? decisión de producto).
+- **Persistencia/sincronización:** entidad por entidad hay diferencias (ver §10): cliente/servicio/sesión/reserva write-through; movimiento parcial; gasto solo Room; solicitud antigua Room inerte + nueva Firestore; notificación/dispositivo Firestore.
+
+## 4. Pendiente de implementar (funcional)
+
+- Decidir y cerrar el **circuito económico completo** (cuota → movimiento → pago → morosidad → baja) y su replicación para Functions.
+- Pantalla **"Mis reservas"** del CLIENTE (si se aprueba).
+- **Cancelar reserva desde ADMIN** (`SesionReservasScreen`).
+- Botón **eliminar sesión** en `EditarSesionScreen`.
+- **Cambiar contraseña real** en Cuenta Admin.
+- (Si se aprueba) módulo económico del CLIENTE (deuda/cuotas/historial).
+- Auditorías finales: seguridad (aislamiento negocio/cliente) y persistencia/sincronización entidad por entidad.
+
+## 5. Bloqueado por Blaze/Firebase (infraestructura real)
+
+- **Cloud Functions 2ª gen** (código local listo en `functions/`): inmediatas, programadas (onSchedule 2 min), recordatorio morosidad (1 h), morosidad, baja confirmada. Requiere: Blaze → índice `notificaciones(estado ASC, fechaProgramada ASC)` → `npm install` en `functions/` → `firebase deploy --only functions`.
+- **FCM real** (push a dispositivo).
+- **Firebase Storage:** bucket + `storage.rules` (logo; fotos de clientes preparadas en rules locales, sin desplegar).
+- **Backfill de `indices_clientes`** (solo con aprobación; DRY-RUN: 2 índices).
+- (Opcional) migración de fotos locales → Storage (`rutaFotoClienteEnStorage`).
+
+## 6. Decisiones pendientes (el desarrollador debe decidir ANTES de programar)
+
+1. **Economía (prioritario):** ¿cuál es la fuente de verdad del movimiento (Room, Firestore o ambas)? ¿Replicar más datos económicos a Firestore (colección `movimientos` o flag `moroso` + `fechaEntradaMoroso`) para que Functions calcule morosidad? ¿Regla real de entrada/salida de MOROSO (se acordó "cuarto día hábil")? ¿Pago como entidad propia con método de pago, o mantener estado+fechaPago?
+2. **BAJA + deuda:** ¿basta `BAJA` + deuda pendiente (movimiento PENDIENTE) o se necesita estado `MOROSO_BAJA`? ¿Cómo afecta a notificaciones? (hoy la morosidad BAJA+PENDIENTE no es replicable desde Firestore).
+3. **appCliente economía:** ¿debe tener cuotas/movimientos/pagos o solo el estado/deuda derivado?
+4. **Reservas:** ¿pantalla "Mis reservas"? ¿el ADMIN puede cancelar reservas desde `SesionReservasScreen`?
+5. **Sesiones:** ¿botón eliminar sesión en la UI?
+6. **Fotos:** ¿migrar a Storage cuando haya bucket?
+7. **Backfill de índices** (aprobación explícita).
+
+## 7. Orden recomendado de implementación
+
+1. **ECONOMÍA:** auditoría + decisiones (§6.1/6.2) → cerrar circuito (pagos, reglas, morosidad real) → replicación a Firestore para Functions.
+2. **Reservas del CLIENTE:** validar índices/sesiones, pantalla "Mis reservas" (si aprobada), retirar logs `ClasesDiagnostico`.
+3. **Cierres menores Admin:** eliminar sesión, cancelar reserva admin, cambiar contraseña, reactivar desde BAJA.
+4. **Auditorías:** seguridad + persistencia/sincronización entidad por entidad + completitud funcional Admin.
+5. **Blaze:** activar facturación → índice programadas → `npm install` → deploy Functions + `storage.rules` → FCM real → Storage (logo/fotos).
+6. **Pruebas finales integradas** (admin+cliente+varios dispositivos, estados, morosidad, baja, reservas, notificaciones).
+
+## 8. Dependencias entre funcionalidades
+
+- Morosidad/recordatorio (Functions) dependen de datos en Firestore: hoy solo `fechaFinActual`; si se exige la regla acordada, hay que replicar más o persistir `moroso`.
+- `BAJA_CONFIRMADA` depende de: config `bajaConfirmada.activa` + `clientes/{id}.estado == "BAJA"` (ya conectado por solicitud y preparado en Functions).
+- Notificaciones programadas dependen del índice `notificaciones(estado, fechaProgramada)` + Blaze.
+- Reservas del CLIENTE dependen de índices `sesiones`/`reservas` READY + sesiones replicadas.
+- Solicitud de baja → BAJA → BAJA_CONFIRMADA ya conectado (ID determinista compartido con Functions).
+- Fotos en Storage dependen del bucket; la app sigue funcionando con fotos locales hasta entonces.
+
+## 9. Tests existentes y qué cubren
+
+- **Rules Firestore+Storage — 123/123** (`npm --prefix firestore-tests test`):
+  - PRUEBA 1–18: clientes, permisos, VÍA 1/VÍA 2, índices, `perfiles_pendientes`, `clientes_privados`, `negocios_publicos`, cambio de DNI.
+  - PRUEBA 19–20: Storage logo + `negocios_publicos` logo.
+  - PRUEBA 21–33: servicios (CRUD + aislamiento negocio).
+  - PRUEBA 33A–33H: queries admin con `negocioId` (sesiones/reservas) + cascadas.
+  - PRUEBA 34–53: sesiones (CRUD, servicio activo/contratado, apertura).
+  - PRUEBA 54–76: reservas (crear/cancelar, plazas±1, transacciones atómicas, duplicado, sesión llena).
+  - PRUEBA 77–81: cascadas administrativas de reservas/sesiones.
+  - PRUEBA 82–88: `horaDesdeReserva`.
+  - PRUEBA 89–98: notificaciones, `configuracion_notificaciones`, buzón, token FCM por dispositivo.
+  - PRUEBA 99–108: solicitudes de baja (create/get/list/aceptar/rechazar, aislamiento, datos inválidos).
+  - PRUEBA 109–112: bloqueo de BAJA (no lee/no lista sesiones, no crea reserva; ACTIVO sigue permitido).
+- **Functions helpers:** `functions/test/ids.test.js` + `tokens.test.js` (13/13) — IDs deterministas y clasificación de tokens/lotes.
+- **Unit appCliente:** rechazo de VÍA A cuando no existe el índice `negocioId_DNI`.
+- **Diagnóstico (temporal):** `firestore-tests/diagnostico_alta_cliente.test.cjs` (7/7).
+- Los tests de Android funcionales se reservan para la fase final (decisión del proyecto).
+
+## 10. Problemas técnicos conocidos
+
+- Editar un movimiento resetea `fechaPago` a `null`.
+- Rules no pueden hacer cross-document query → el duplicado de solicitud PENDIENTE se controla en el repositorio (capa de negocio), no solo en la UI.
+- Réplica de sesiones Room→Firestore estuvo rota por `idSesion=0` (fix en working tree; validar).
+- Alta Admin `PERMISSION_DENIED` en diagnóstico (posible documento huérfano en el batch; logging `[DIAG alta]`).
+- Crear negocio con `PERMISSION_DENIED` (hipótesis token) — histórico sin resolver.
+- Login Admin no valida `rol == "ADMIN"` (solo exige doc existente + activo).
+- `EstadoCliente.MOROSO` nunca se persiste; appCliente lo rechaza si llegara remoto.
+- `Clase`/`SesionClase`/`ServicioItem` y las rutas legadas `ui/clases` siguen TRANSITORIOS (no eliminar sin tarea específica).
+- `TipoSolicitud` (Room) sigue con `CLASE`/`BAJA` (deuda: adaptar a `ALTA`/`BAJA` cuando se decida sobre la tabla `solicitud` antigua, inerte).
+- Fotos locales (`filesDir/fotos`) hasta decidir migración a Storage.
+- Basura versionada: `firestore-tests/firestore-debug.log` (emulador) y posibles `build_*.txt`.

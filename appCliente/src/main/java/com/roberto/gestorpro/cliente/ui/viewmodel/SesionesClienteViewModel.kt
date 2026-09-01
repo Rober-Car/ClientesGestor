@@ -7,6 +7,7 @@ import com.roberto.gestorpro.cliente.data.firebase.ClienteRepository
 import com.roberto.gestorpro.cliente.data.firebase.ReservaRepository
 import com.roberto.gestorpro.cliente.data.firebase.SesionRepository
 import com.roberto.gestorpro.cliente.data.repository.PreferencesRepository
+import com.roberto.gestorpro.cliente.model.EstadoCliente
 import com.roberto.gestorpro.cliente.model.EstadoReserva
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Instant
@@ -57,6 +58,9 @@ class SesionesClienteViewModel @Inject constructor(
     private val _sinSesionesHoy = MutableStateFlow(false)
     val sinSesionesHoy = _sinSesionesHoy.asStateFlow()
 
+    private val _dadoDeBaja = MutableStateFlow(false)
+    val dadoDeBaja = _dadoDeBaja.asStateFlow()
+
     private val _sesiones = MutableStateFlow<List<SesionVisible>>(emptyList())
     val sesiones = _sesiones.asStateFlow()
 
@@ -72,6 +76,7 @@ class SesionesClienteViewModel @Inject constructor(
             _noVinculado.value = false
             _sinServicios.value = false
             _sinSesionesHoy.value = false
+            _dadoDeBaja.value = false
             _sesiones.value = emptyList()
             try {
                 val idCliente = preferencesRepository.idCliente.first()
@@ -84,6 +89,12 @@ class SesionesClienteViewModel @Inject constructor(
                 val ficha = clienteRepository.leerFicha(idCliente)
                 if (ficha == null) {
                     _error.value = "No se pudieron cargar tus clases de hoy"
+                    return@launch
+                }
+
+                // Un cliente en BAJA no accede a sesiones/clases (ni reservas).
+                if (ficha.estado == EstadoCliente.BAJA) {
+                    _dadoDeBaja.value = true
                     return@launch
                 }
 

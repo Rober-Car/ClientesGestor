@@ -1971,3 +1971,54 @@ generar() → lista con idSesion=0
 2. **Aprobar el fix del bug `idSesion=0`** (SesionViewModel: releer de Room tras regenerarProgramacion) + apertura global única + visibilidad del error en ProgramarSesionesScreen.
 3. Confirmar `READY` de índices y regenerar sesiones; retirar logs `ClasesDiagnostico` de appCliente cuando se confirmen.
 4. Pendientes heredados: bucket de Storage, backfill de `indices_clientes` (solo con aprobación), limpieza de `Clase`/`SesionClase`, crear negocio con PERMISSION_DENIED (hipótesis token), validar `rol == "ADMIN"` en login Admin, commits agrupados y limpieza de basura versionada (`build_*.txt`, `firestore-debug.log`).
+
+---
+
+# ACTUALIZACIÓN 2026-09-01 (SESIONES XXI–XXIV) — FASE D, FASE E LOCAL, SOLICITUDES DE BAJA, AUDITORÍAS Y CORRECCIÓN DEL FLUJO DE BAJA
+
+> Bloque vigente. Todo el trabajo posterior a `244db1e` sigue en el working tree SIN commit.
+> Rules **123/123** (119 + PRUEBA 109–112). Detalle en `AGENTS.md` (hoja de ruta viva) y en los
+> informes de cada fase. Sin Blaze, sin deploy, sin commit.
+
+## SESIÓN XXI — FASE D: NOTIFICACIONES ADMIN (completada, sin desplegar)
+
+- `GestionNotificacionesScreen` (lista de `notificaciones/{id}` del negocio, FAB "Nueva", icono ajustes, cancelar programadas).
+- `CrearNotificacionScreen` (destino Individual/Grupo/Todos + contenido + programación opcional + resumen "Se enviará a X de Y clientes vinculados").
+- `SeleccionarClientesScreen` (selección grupal reutilizando `ClienteItem`/`FilterChipItem`/`FiltroClientes`; la selección se conserva al cambiar filtros) y `DialogoSeleccionarClientes` (individual).
+- `ConfigNotificacionesScreen` (morosidad, recordatorio 24h = 0/24, baja confirmada → `configuracion_notificaciones/{negocioId}`).
+- Modelo `NotificacionAdmin` + `ConfiguracionNotificaciones` + `ModoDestino` + `DestinatarioResuelto`; `NotificacionesViewModel` compartido a nivel de `AppNavigation`; `NotificacionRemotoRepository`.
+- **Cambio clave:** la creación inmediata crea `notificaciones/{id}` (PENDIENTE) + buzones y **deja PENDIENTE**; el estado final (ENVIADA/ERROR) y el push los resuelve Cloud Functions.
+
+## SESIÓN XXII — FASE E: PREPARACIÓN LOCAL (pendiente Blaze)
+
+- **Cloud Functions 2ª gen en `functions/`** (sin desplegar; proyecto en plan Spark, `billingEnabled=false` comprobado por API):
+  - `index.js` (5 triggers) + `lib/{ids,tokens,firestore,destinatarios,envio,procesadores}.js` + `test/{ids,tokens}.test.js` (**13/13**).
+  - Triggers: notificación inmediata (`onDocumentCreated` con CLAIM atómico PENDIENTE→ENVIADA), programadas (`onSchedule` 2 min, índice `notificaciones(estado, fechaProgramada)` pendiente), recordatorio morosidad (`onSchedule` 1 h, claim `ultimoRecordatorioMorosidad`), morosidad (`onUpdate clientes` con `fechaFinActual`), baja confirmada.
+  - FCM `sendEachForMulticast` (≤500 tokens/lote), tokens inválidos eliminados, respeto de `notificacionesActivadas` por dispositivo, IDs deterministas + `set()` idempotente.
+- appCliente: `DispositivoRepository` guarda `notificacionesActivadas` + `actualizarNotificacionesActivadas`; `NotificacionesClienteViewModel.setNotificacionesActivadas` la refleja.
+- `storage.rules` local ampliada para fotos de clientes (`clientes/{clienteId}/foto.jpg`, image/* ≤5MB, ADMIN del negocio escribe, CLIENTE solo su propia foto); helper `rutaFotoClienteEnStorage` en `FotoUtils`.
+- **Sin deploy, sin Blaze.** Bloqueo de economía intacto.
+
+## SESIÓN XXIII — SOLICITUD DE BAJA DEL CLIENTE (completada)
+
+- Reutilizada la colección Firestore **`solicitudes`** (NO `solicitudes_baja`) con `idSolicitud, negocioId, idCliente, firebaseUid, fechaSolicitud, estado (PENDIENTE/ACEPTADA/RECHAZADA), tipo (ALTA/BAJA), fechaResolucion, resueltaPor, motivo`. DocumentId determinista `baja_{clienteId}_{fechaSolicitud}`.
+- **Rules reforzadas:** create CLIENTE con hasOnly + `esClientePuedeSolicitarBaja` (no BAJA/ARCHIVADO); update solo ADMIN desde PENDIENTE y solo campos de resolución. PRUEBA 99–108 → 119/119.
+- Admin: `SolicitudesScreen` + card Home + `SolicitudesViewModel` + `SolicitudRemotoRepository` (acepta con Transaction: solicitud ACEPTADA + `clientes/{id}` BAJA + fechaBaja; rechaza dejando ACTIVO). appCliente: `CuentaScreen` "Solicitar baja" + `SolicitudRepository` (sin duplicado PENDIENTE).
+- `NotificacionRemotoRepository.crearNotificacion` ampliado con `tipo`/`origen`/`notificacionId` (para BAJA_CONFIRMADA con ID determinista compartido con Functions) + `existeNotificacionFinalizada`.
+- **Auditoría de economía** (solo lectura): no hay entidad Pago/Cuota (el pago es `Movimiento.estado`+`fechaPago`, y editar resetea `fechaPago`); sin reglas económicas (descuentos/tramos/estudiante/familia/jubilado/llave/"cuarto día hábil"); morosidad 100% derivada en Room (no replicable a Firestore); solo se replica `fechaInicioActual`/`fechaFinActual`. Bloque crítico pendiente (no tocado).
+
+## SESIÓN XXIV — AUDITORÍA Y CORRECCIÓN DEL FLUJO DE BAJA (completada)
+
+- **Diagnóstico:** `CuentaScreen` era **inalcanzable** (ninguna ruta navegaba a `Routes.CUENTA`); un cliente BAJA **podía** leer sesiones y reservar (ni app ni Rules lo bloqueaban); la baja directa (switch) y la aceptación de solicitud NO convergían; las reservas futuras no se cancelaban al dar de baja.
+- **Corrección:**
+  1. appCliente `ConfiguracionScreen` → **"Mi cuenta" → `Routes.CUENTA`** (hace accesible "Solicitar baja").
+  2. **Rules:** helper `clientePuedeAcceder` (estado != "BAJA") en `sesiones get/list` CLIENTE y `reservaCreaValida`. **PRUEBA 109–112 → 123/123.**
+  3. appCliente: `SesionesClienteViewModel.dadoDeBaja` (no carga sesiones si BAJA), `ClasesScreen` muestra el aviso, `HomeScreen` oculta la card "Clases", `ReservaRepository.crearReserva` rechaza BAJA.
+  4. **Baja efectiva UNIFICADA en `BajaClienteRemotoRepository`:** cancela reservas FUTURAS en Room (`ReservaRepository.cancelarReservasFuturasDeCliente`, conTransaction liberando plazas) y en Firestore (reutiliza `cancelarReservaRemota`), conserva las pasadas y los `serviciosContratados`, y genera `BAJA_CONFIRMADA` (config + ID determinista). La **baja directa** (`ClienteViewModel.darDeBaja` + confirmación en `AñadirClienteScreen`) y la **aceptación de solicitud** (`SolicitudesViewModel`) convergen en esa lógica. `fechaBaja` coherente en Room/Firestore.
+- **AGENTS.md** actualizado con hoja de ruta viva (ya implementado / pendiente de pruebas / parcial / pendiente / bloqueado por Blaze / decisiones / orden / dependencias / tests / problemas) y el estado a 2026-09-01.
+
+## ESTADO ACTUAL (cierre 2026-09-01)
+
+- Rules **123/123**; helpers de Functions **13/13**; builds `:app` y `:appCliente` BUILD SUCCESSFUL; `git diff --check` limpio.
+- Sin Blaze, sin deploy de Functions/Storage, sin commit. Cloud Functions preparadas en local, listas para el día que se active la facturación.
+- Pendiente principal: **auditoría y cierre del circuito de ECONOMÍA** (fuente de verdad del movimiento, morosidad real/"cuarto día hábil", pagos, BAJA+deuda, replicación a Firestore para Functions). Luego Blaze → índice `notificaciones(estado, fechaProgramada)` → `npm install` en `functions/` → deploy Functions + `storage.rules` → FCM real → Storage → pruebas finales integradas.

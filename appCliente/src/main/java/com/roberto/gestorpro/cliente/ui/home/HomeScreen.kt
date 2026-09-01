@@ -192,14 +192,16 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                item {
-                    HomeClientMenuCard(
-                        titulo = "Clases",
-                        descripcion = "Consulta y reserva",
-                        icono = Icons.Default.FitnessCenter,
-                        color = Color(0xFFFB8C00),
-                        onClick = { navController.navigate(Routes.CLASES) }
-                    )
+                if (estadoHome.estado != EstadoIndicadorCliente.BAJA) {
+                    item {
+                        HomeClientMenuCard(
+                            titulo = "Clases",
+                            descripcion = "Consulta y reserva",
+                            icono = Icons.Default.FitnessCenter,
+                            color = Color(0xFFFB8C00),
+                            onClick = { navController.navigate(Routes.CLASES) }
+                        )
+                    }
                 }
                 item {
                     HomeClientMenuCard(

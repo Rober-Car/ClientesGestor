@@ -32,6 +32,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.CircularProgressIndicator
@@ -222,6 +223,13 @@ fun AñadirClienteScreen(
      * Usa rememberSaveable para sobrevivir a la rotación de pantalla.
      */
     var mostrarDatePicker by rememberSaveable { mutableStateOf(false) }
+
+    /**
+     * mostrarConfirmarBaja
+     * --------------------
+     * Controla el diálogo de confirmación al pasar un cliente ACTIVO a BAJA.
+     */
+    var mostrarConfirmarBaja by rememberSaveable { mutableStateOf(false) }
 
     /**
      * fechaNacimientoFormateada
@@ -1033,9 +1041,17 @@ fun AñadirClienteScreen(
                     Text(if (esActivo) "Activo" else "Baja")
                     Switch(
                         checked = esActivo,
-                        onCheckedChange = {
-                            esActivo = it
-                            viewModel.limpiarError()
+                        onCheckedChange = { nuevoActivo ->
+                            // Si se intenta pasar un cliente EXISTENTE y activo a
+                            // BAJA, se pide confirmación antes de aplicarlo.
+                            if (!nuevoActivo && idCliente != null &&
+                                clienteEditando?.estado != EstadoCliente.BAJA
+                            ) {
+                                mostrarConfirmarBaja = true
+                            } else {
+                                esActivo = nuevoActivo
+                                viewModel.limpiarError()
+                            }
                         }
                     )
                 }
@@ -1135,15 +1151,21 @@ fun AñadirClienteScreen(
                                 firebaseUid = original.firebaseUid
                             )
 
-                            viewModel.actualizarCliente(cliente) {
-                                // Si se cambió la foto en edición, se borra el archivo de la foto
-                                // antigua para no dejar archivos huérfanos en el almacenamiento;
-                                // se elimina solo al guardar con éxito para no romper la imagen
-                                // en caso de que la actualización falle.
+                            // Acción común al guardar con éxito: limpiar la foto
+                            // antigua si cambió y volver a la lista.
+                            val alGuardar: () -> Unit = {
                                 if (foto.isNotBlank() && original.foto.isNotBlank() && foto != original.foto) {
                                     File(original.foto).delete()
                                 }
                                 navController.popBackStack()
+                            }
+
+                            if (cliente.estado == EstadoCliente.BAJA && original.estado != EstadoCliente.BAJA) {
+                                // Transición a BAJA: baja efectiva (mismas consecuencias que
+                                // aceptar una solicitud: cancela reservas futuras y notifica).
+                                viewModel.darDeBaja(cliente, onExito = alGuardar)
+                            } else {
+                                viewModel.actualizarCliente(cliente, onExito = alGuardar)
                             }
                         } else {
                             // MODO ALTA: el cliente nuevo empieza con el estado elegido
@@ -1311,6 +1333,37 @@ fun AñadirClienteScreen(
                 state = datePickerState
             )
         }
+    }
+
+    if (mostrarConfirmarBaja) {
+        AlertDialog(
+            onDismissRequest = { mostrarConfirmarBaja = false },
+            title = { Text("Confirmar baja") },
+            text = {
+                Text(
+                    "¿Confirmar la baja de este cliente? Se cancelarán sus " +
+                        "reservas futuras y se le notificará si está activada " +
+                        "la configuración de avisos. Los servicios contratados se conservan."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        esActivo = false
+                        viewModel.limpiarError()
+                        mostrarConfirmarBaja = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
+                ) {
+                    Text("Dar de baja", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarConfirmarBaja = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 }
 

@@ -3,10 +3,10 @@ package com.roberto.gestorpro.ui.viewmodel
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.roberto.gestorpro.data.firebase.NotificacionRemotoRepository
+import com.roberto.gestorpro.data.firebase.BajaClienteRemotoRepository
 import com.roberto.gestorpro.data.firebase.SolicitudRemotoRepository
 import com.roberto.gestorpro.data.repository.ClienteRepository
-import com.roberto.gestorpro.model.DestinatarioResuelto
+import com.roberto.gestorpro.data.repository.ReservaRepository
 import com.roberto.gestorpro.model.EstadoCliente
 import com.roberto.gestorpro.model.SolicitudBaja
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -23,16 +23,17 @@ import kotlinx.coroutines.launch
  *
  * Lista las solicitudes del negocio, acepta (solicitud -> ACEPTADA y cliente
  * -> BAJA de forma atómica en Firestore + actualización local en Room) y
- * rechaza (solicitud -> RECHAZADA, cliente intacto). Al aceptar, si la
- * configuración de notificaciones lo permite, genera la notificación
- * BAJA_CONFIRMADA con la infraestructura existente (Cloud Functions hará el
- * FCM real en el futuro).
+ * rechaza (solicitud -> RECHAZADA, cliente intacto). Al aceptar, la lógica
+ * compartida de BAJA EFECTIVA (BajaClienteRemotoRepository) cancela las
+ * reservas futuras del cliente y genera la notificación BAJA_CONFIRMADA si la
+ * configuración lo permite (mismas consecuencias que la baja directa).
  */
 @HiltViewModel
 class SolicitudesViewModel @Inject constructor(
     private val solicitudRemotoRepository: SolicitudRemotoRepository,
     private val clienteRepository: ClienteRepository,
-    private val notificacionRemotoRepository: NotificacionRemotoRepository
+    private val reservaRepository: ReservaRepository,
+    private val bajaClienteRemotoRepository: BajaClienteRemotoRepository
 ) : ViewModel() {
 
     private val _cargando = MutableStateFlow(false)
@@ -103,7 +104,10 @@ class SolicitudesViewModel @Inject constructor(
             val resultado = solicitudRemotoRepository.aceptarBaja(solicitud, fechaBaja)
             if (resultado.exito) {
                 actualizarFichaLocal(solicitud, fechaBaja)
-                dispararBajaConfirmada(solicitud, fechaBaja)
+                cancelarReservasFuturasLocales(solicitud.idCliente)
+                // Consecuencias compartidas con la baja directa: reservas futuras
+                // en Firestore + notificación BAJA_CONFIRMADA (si config).
+                bajaClienteRemotoRepository.bajaEfectiva(solicitud.idCliente, fechaBaja)
                 _mensajeExito.value = resultado.mensaje
                 cargarSolicitudes()
             } else {
@@ -180,40 +184,16 @@ class SolicitudesViewModel @Inject constructor(
     }
 
     /**
-     * dispararBajaConfirmada
-     * ----------------------
-     * Si configuracion_notificaciones/{negocioId}.bajaConfirmada.activa está
-     * activada, crea la notificación BAJA_CONFIRMADA con la infraestructura
-     * existente (reutiliza NotificacionRemotoRepository). Usa el ID determinista
-     * que Cloud Functions también usaría (baja_confirmada_{clienteId}_{fechaBaja})
-     * para que nunca haya una notificación duplicada. El FCM real lo hará Cloud
-     * Functions.
+     * cancelarReservasFuturasLocales
+     * -------------------------------
+     * Cancela en Room las reservas futuras del cliente al aceptar la baja,
+     * liberando las plazas. Las reservas de sesiones pasadas se conservan.
      */
-    private suspend fun dispararBajaConfirmada(solicitud: SolicitudBaja, fechaBaja: Long) {
+    private suspend fun cancelarReservasFuturasLocales(idCliente: Int) {
         try {
-            val config = notificacionRemotoRepository.obtenerConfiguracion(solicitud.negocioId)
-            val firebaseUid = solicitud.firebaseUid?.takeIf { it.isNotBlank() }
-            if (config?.bajaConfirmadaActiva != true || firebaseUid == null) return
-
-            val notificacionId = "baja_confirmada_${solicitud.idCliente}_$fechaBaja"
-            if (notificacionRemotoRepository.existeNotificacionFinalizada(notificacionId)) return
-
-            notificacionRemotoRepository.crearNotificacion(
-                negocioId = solicitud.negocioId,
-                titulo = "Baja confirmada",
-                mensaje = "Tu baja en el gimnasio ha sido confirmada.",
-                modoDestino = "INDIVIDUAL",
-                clienteId = solicitud.idCliente,
-                destinatarios = listOf(DestinatarioResuelto(solicitud.idCliente, firebaseUid)),
-                idsObjetivo = listOf(solicitud.idCliente),
-                programada = false,
-                fechaProgramada = null,
-                tipo = "BAJA_CONFIRMADA",
-                origen = "PRECONFIGURADA",
-                notificacionId = notificacionId
-            )
+            reservaRepository.cancelarReservasFuturasDeCliente(idCliente, System.currentTimeMillis())
         } catch (e: Exception) {
-            Log.e(TAG, "No se pudo crear la notificación de baja confirmada", e)
+            Log.e(TAG, "No se pudieron cancelar las reservas futuras del cliente $idCliente", e)
         }
     }
 }

@@ -4,13 +4,16 @@
 package com.roberto.gestorpro.ui.viewmodel
 
 import android.database.sqlite.SQLiteConstraintException
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.roberto.gestorpro.data.entity.ClienteEntity
 import com.roberto.gestorpro.data.entity.ServicioEntity
 import com.roberto.gestorpro.data.entity.toCliente
+import com.roberto.gestorpro.data.firebase.BajaClienteRemotoRepository
 import com.roberto.gestorpro.data.firebase.ClienteRemotoRepository
 import com.roberto.gestorpro.data.repository.ClienteRepository
+import com.roberto.gestorpro.data.repository.ReservaRepository
 import com.roberto.gestorpro.data.repository.ServicioRepository
 import com.roberto.gestorpro.model.Cliente
 import com.roberto.gestorpro.model.EstadoCliente
@@ -57,8 +60,14 @@ import kotlinx.coroutines.launch
 class ClienteViewModel @Inject constructor(
     private val clienteRepository: ClienteRepository,
     private val clienteRemotoRepository: ClienteRemotoRepository,
-    private val servicioRepository: ServicioRepository
+    private val servicioRepository: ServicioRepository,
+    private val reservaRepository: ReservaRepository,
+    private val bajaClienteRemotoRepository: BajaClienteRemotoRepository
 ) : ViewModel() {
+
+    companion object {
+        private const val TAG = "ClienteViewModel"
+    }
 
     /* ============================================================
      * ============ BLOQUE 4: ESTADO DEL VIEWMODEL ================
@@ -478,6 +487,48 @@ class ClienteViewModel @Inject constructor(
             )
             clienteRepository.actualizarClienteRepo(actualizado)
             replicar(actualizado, esAlta = false)
+        }
+    }
+
+    /**
+     * darDeBaja
+     * ---------
+     * BAJA DIRECTA de un cliente (sin solicitud previa). Produce las MISMAS
+     * consecuencias de negocio que aceptar una solicitud de baja:
+     *   1. Room: cliente -> BAJA + fechaBaja;
+     *   2. Room: cancela las reservas futuras del cliente (libera plazas);
+     *   3. Firestore: replica el cliente en BAJA;
+     *   4. Firestore: cancela reservas futuras y genera BAJA_CONFIRMADA si la
+     *      configuración lo permite (BajaClienteRemotoRepository).
+     * Los servicios contratados se conservan.
+     */
+    fun darDeBaja(cliente: ClienteEntity, onExito: () -> Unit = {}) {
+        viewModelScope.launch {
+            _error.value = null
+            val fechaBaja = cliente.fechaBaja ?: System.currentTimeMillis()
+            val entidad = cliente.copy(estado = EstadoCliente.BAJA, fechaBaja = fechaBaja)
+
+            try {
+                clienteRepository.actualizarClienteRepo(entidad)
+            } catch (e: Exception) {
+                _error.value = "No se pudo guardar el cliente"
+                return@launch
+            }
+
+            try {
+                reservaRepository.cancelarReservasFuturasDeCliente(
+                    entidad.idCliente,
+                    System.currentTimeMillis()
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "No se pudieron cancelar las reservas futuras en Room", e)
+            }
+
+            val dniAnterior = clienteRepository.obtenerClientePorIdRepo(entidad.idCliente)?.dni
+            if (replicar(entidad, esAlta = false, dniAnterior = dniAnterior)) {
+                bajaClienteRemotoRepository.bajaEfectiva(entidad.idCliente, fechaBaja)
+                onExito()
+            }
         }
     }
 

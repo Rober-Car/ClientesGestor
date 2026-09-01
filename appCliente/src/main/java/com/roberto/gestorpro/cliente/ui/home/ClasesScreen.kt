@@ -75,6 +75,7 @@ fun ClasesScreen(
     val noVinculado by viewModel.noVinculado.collectAsStateWithLifecycle()
     val sinServicios by viewModel.sinServicios.collectAsStateWithLifecycle()
     val sinSesionesHoy by viewModel.sinSesionesHoy.collectAsStateWithLifecycle()
+    val dadoDeBaja by viewModel.dadoDeBaja.collectAsStateWithLifecycle()
     val sesiones by viewModel.sesiones.collectAsStateWithLifecycle()
     val reservasOperando by reservasViewModel.operando.collectAsStateWithLifecycle()
     val reservasError by reservasViewModel.error.collectAsStateWithLifecycle()
@@ -165,6 +166,11 @@ fun ClasesScreen(
                     modifier = Modifier.fillMaxWidth().weight(1f),
                     mensaje = error ?: "",
                     onReintentar = { viewModel.reintentar() }
+                )
+                dadoDeBaja -> MensajeClases(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    texto = "Has sido dado de baja del gimnasio.\n" +
+                        "Ya no puedes reservar clases."
                 )
                 sinServicios -> MensajeClases(
                     modifier = Modifier.fillMaxWidth().weight(1f),
