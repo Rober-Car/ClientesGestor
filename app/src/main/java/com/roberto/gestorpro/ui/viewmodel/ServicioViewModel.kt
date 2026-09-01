@@ -1,5 +1,6 @@
 package com.roberto.gestorpro.ui.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.roberto.gestorpro.data.entity.ServicioEntity
@@ -154,6 +155,7 @@ class ServicioViewModel @Inject constructor(
     fun darDeBaja(servicio: ServicioEntity) {
         viewModelScope.launch {
             _operando.value = true
+            _error.value = null
             try {
                 val desde = inicioDeHoy()
                 reservaRepository.eliminarReservasYSesionesFuturasDelServicio(
@@ -162,6 +164,10 @@ class ServicioViewModel @Inject constructor(
                 )
                 servicioRepository.actualizarServicio(servicio.copy(activo = false))
                 replicar(servicio.copy(activo = false), OperacionServicio.DESACTIVAR)
+            } catch (e: Exception) {
+                Log.e(TAG, "darDeBaja: error al dar de baja el servicio ${servicio.idServicio}", e)
+                _error.value =
+                    "No se pudo dar de baja el servicio: ${e.message ?: "error inesperado"}"
             } finally {
                 _operando.value = false
             }
@@ -177,9 +183,14 @@ class ServicioViewModel @Inject constructor(
     fun reactivar(servicio: ServicioEntity) {
         viewModelScope.launch {
             _operando.value = true
+            _error.value = null
             try {
                 servicioRepository.actualizarServicio(servicio.copy(activo = true))
                 replicar(servicio.copy(activo = true), OperacionServicio.REACTIVAR)
+            } catch (e: Exception) {
+                Log.e(TAG, "reactivar: error al reactivar el servicio ${servicio.idServicio}", e)
+                _error.value =
+                    "No se pudo reactivar el servicio: ${e.message ?: "error inesperado"}"
             } finally {
                 _operando.value = false
             }
@@ -195,10 +206,15 @@ class ServicioViewModel @Inject constructor(
     fun eliminar(servicio: ServicioEntity) {
         viewModelScope.launch {
             _operando.value = true
+            _error.value = null
             try {
                 reservaRepository.eliminarReservasYSesionesDelServicio(servicio.idServicio)
                 servicioRepository.eliminarServicio(servicio)
                 replicar(servicio, OperacionServicio.ELIMINAR)
+            } catch (e: Exception) {
+                Log.e(TAG, "eliminar: error al eliminar el servicio ${servicio.idServicio}", e)
+                _error.value =
+                    "No se pudo eliminar el servicio: ${e.message ?: "error inesperado"}"
             } finally {
                 _operando.value = false
             }
@@ -275,6 +291,8 @@ class ServicioViewModel @Inject constructor(
     }
 
     companion object {
+        private const val TAG = "ServicioViewModel"
+
         /**
          * NEGOCIO_ID_PENDIENTE
          * --------------------

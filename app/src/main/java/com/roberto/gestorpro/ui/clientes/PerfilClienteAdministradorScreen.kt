@@ -1898,6 +1898,56 @@ fun PerfilClienteScreen(
                                     modifier = Modifier.fillMaxWidth()
                                 )
 
+                                // Selector de servicios ACTIVOS del negocio (mismo patrón
+                                // que el formulario de nuevo movimiento). Al pulsar uno se
+                                // rellena el campo de texto. Si el servicio actual del
+                                // movimiento coincide con un servicio activo, queda
+                                // preseleccionado; si no, no se fuerza selección y el texto
+                                // se conserva (servicios ya no activos). El campo de texto
+                                // sigue siendo editable como respaldo.
+                                val idServicioSeleccionadoEditado = remember(
+                                    servicioEditado,
+                                    serviciosActivos
+                                ) {
+                                    serviciosActivos
+                                        .firstOrNull { it.nombre == servicioEditado }
+                                        ?.idServicio
+                                }
+                                if (serviciosActivos.isNotEmpty()) {
+                                    Text(
+                                        text = "Servicios",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    serviciosActivos.forEach { servicio ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .clickable {
+                                                    servicioEditado = servicio.nombre
+                                                    errorServicioEditado = false
+                                                }
+                                                .padding(vertical = 6.dp, horizontal = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            RadioButton(
+                                                selected = idServicioSeleccionadoEditado == servicio.idServicio,
+                                                onClick = {
+                                                    servicioEditado = servicio.nombre
+                                                    errorServicioEditado = false
+                                                }
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = servicio.nombre,
+                                                style = MaterialTheme.typography.bodyLarge
+                                            )
+                                        }
+                                    }
+                                }
+
                                 OutlinedTextField(
                                     value = precioEditado,
                                     onValueChange = {
