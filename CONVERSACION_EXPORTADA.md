@@ -1819,3 +1819,59 @@ reportó como "NO solucionados" pese a que el código compilaba:
 4. Pendientes heredados (sin resolver): PERMISSION_DENIED en alta Admin (`[DIAG alta]`, Sesión XVIII),
    bucket de Storage, backfill de `indices_clientes`, limpieza de `Clase`/`SesionClase`,
    crear negocio con PERMISSION_DENIED (hipótesis token), validar `rol == "ADMIN"` en login Admin.
+
+---
+
+---
+
+# ACTUALIZACIÓN 2026-09-01 (SESIÓN XX) — ELIMINACIÓN DEL SEED ROOM + DIAGNÓSTICO DE RÉPLICA DE SESIONES
+
+> Bloque vigente. En esta sesión se (1) confirmó y eliminó la causa del fallo de
+> sincronización de CLIENTES en un PC nuevo (seed automático de Room que ocupaba los
+> ids 1-20), y (2) se diagnosticó por qué `sesiones` no llega a Firestore (bug `idSesion=0`
+> en el código commiteado + error de réplica invisible). NO se hizo commit ni deploy.
+> Sesiones anteriores quedan como histórico.
+
+## PARTE 1 — CAUSA CONFIRMADA de la regresión de CLIENTES (PC nuevo)
+
+- **Síntoma:** "Guardado en el dispositivo, pero no sincronizado" al crear un cliente desde el ADMIN; el cliente NO aparece en Firestore. Los SERVICIOS sí se sincronizan.
+- **Evidencia por Git:** el commit funcional `4bfb370` no cambió código (solo `shelved.patch` + un XML de IDE). Entre `4bfb370` y HEAD (`4e29d8c`) hay SOLO 2 commits (`244db1e`, `4e29d8c`) que tocan exclusivamente sesiones/`horaDesdeReserva` + docs + `PerfilClienteAdministradorScreen` (UI). **Ningún archivo del flujo de clientes cambió**: `ClienteRemotoRepository`, `ClienteViewModel`, `ClienteRepository`, `ClienteDao`, `ClienteEntity`, `AutenticacionRepository` son byte-idénticos. `libs.versions.toml`/`build.gradle.kts` byte-idénticos. `google-services.json` NO está versionado (`.gitignore`), pero en este PC apunta a `gestorpro-50e83` y la réplica de servicios lo confirma.
+- **Causa raíz:** seed automático de Room. `AppModule.insertarDatosPrueba()` (ejecutado desde `RoomDatabase.Callback.onCreate()`) insertaba **20 clientes ficticios** (ids autoincrement 1-20), 18 movimientos y 4 gastos solo al crear la BD. En un PC nuevo (BD vacía) el primer cliente real recibe `idCliente=21/22` → colisión con `clientes/21`/`clientes/22` (y/o con `indices_clientes/{negocioId}_12345678P/S`) ya existentes en Firestore → `batch.set` evaluado como UPDATE → Rules deniegan (`indices_clientes update:false`; `clientes/update` ADMIN con hasOnly de edición; `clientes_privados/update` solo `observaciones`) → PERMISSION_DENIED → "Guardado en el dispositivo, pero no sincronizado". Confirmado por Logcat (`[DIAG alta] existencia previa -> ...=true`) y por el test de aislamiento `firestore-tests/diagnostico_alta_cliente.test.cjs` (7/7): batch limpio ALLOW; con cualquiera de los 3 documentos preexistente → DENY.
+- **Por qué el servicio sí se sincroniza:** `crearServicioRemoto` hace GET previo y devuelve "Servicio ya sincronizado" (éxito aparente) si el doc existe con el mismo `negocioId`, o crea si el id es nuevo. El flujo de clientes no tiene ese atajo → el batch falla entero.
+- **Producción actual:** `clientes/21` (dni `12345678P`, "Prueba Colisión") y `clientes/22` (dni `12345678S`, "Cliente1 Prueba"), índices de ambos DNIs, `clientes_privados/21` y `/22`, `usuarios` = admin `g84fPIy...` + 2 clientes vinculados. `servicios/3` "CrossFit 3" existe (activo, del negocio). `sesiones` = 0 documentos.
+
+## PARTE 2 — CAMBIO APLICADO: eliminación del seed
+
+- **Archivo modificado (único):** `app/src/main/java/com/roberto/gestorpro/di/AppModule.kt` (**-102 líneas, 0 añadidas**).
+  1. Eliminada la llamada `.addCallback(object : RoomDatabase.Callback() { onCreate -> insertarDatosPrueba(db) })` de `provideDatabase()`.
+  2. Eliminada la función `insertarDatosPrueba()` completa (20 clientes, 18 movimientos, 4 gastos) + su comentario `TODO(PRODUCCION)`.
+  3. Eliminados los imports sin uso: `androidx.room.RoomDatabase` y `java.util.concurrent.TimeUnit`. Se conserva `androidx.sqlite.db.SupportSQLiteDatabase` (lo usa `MIGRACION_11_12`).
+- **NO se tocó:** migraciones Room, `fallbackToDestructiveMigration()`, DAOs, repositorios, ViewModels, entidades, servicios, sesiones, Firebase, Firestore Rules, sincronización ni autenticación.
+- **Auditoría previa (sin referencias a conservar):** `insertarDatosPrueba` solo se usaba en `AppModule`; no hay tests que lo usen (solo `ExampleUnitTest.kt` stub). Otros inserts de clientes: `ClienteRepository` (flujo normal) y `ExportManager` (importación MANUAL del ADMIN) — se conservan. `allowBackup="false"` en el Manifest (dev) → desinstalar/borrar datos no restaura una BD vieja.
+- **Validación:** `:app:assembleDebug` BUILD SUCCESSFUL; `:app:testDebugUnitTest` BUILD SUCCESSFUL; `npm --prefix firestore-tests test` **99/99 OK**; `git diff --check` limpio para AppModule.kt (solo reporta `firestore-tests/firestore-debug.log`, basura conocida del emulador). Sin commit, sin deploy.
+- **Prueba pendiente (BD limpia):** desinstalar la app o `adb shell pm clear com.roberto.gestorpro`. Primer cliente real tras BD limpia debe recibir **`idCliente=1`** y replicarse sin colisión. El seed ya no se ejecuta en instalaciones nuevas; en BDs existentes los 20 clientes ficticios permanecen hasta borrarlos explícitamente.
+
+## PARTE 3 — DIAGNÓSTICO de réplica de SESIONES (solo análisis, sin cambios)
+
+- **Estado producción:** `servicios/3` "CrossFit 3" (activo, negocio `g84fPIy...`), `sesiones` = 0 docs, admin OK. Índices compuestos existentes (verificados con `firebase firestore:indexes`): `sesiones(idServicio, negocioId)`, `reservas(clienteId, negocioId)`, `reservas(sesionId, negocioId)`.
+- **Hallazgo 1 — los logs `[DIAG sesiones]` NO existen en el código commiteado.** Grep global de `DIAG`/`Log.*` en `:app`: solo existe `[DIAG alta]` (clientes). `SesionViewModel.kt` y `SesionRemotoRepository.kt` no tienen ningún `Log`; `ReservaRemotoRepository` solo `Log.e` con TAG `ReservaRemotoRepository` (en `resultadoDeError`). Los logs vistos antes pertenecían a un working tree SIN commitear del otro PC; el `Update Project` (git pull) los perdió → por eso Logcat no muestra nada (no hay tag ni condición que los oculte; no están en el binario).
+- **Hallazgo 2 — bug `idSesion=0` en el código actual (causa raíz de que no aparezcan las sesiones):** `SesionEntity.idSesion` es **`val`** (`SesionEntity.kt:19`), `SesionDao.insertarSesiones` devuelve **`Unit`** (`SesionDao.kt:26`), y `SesionViewModel.generarSesiones` pasa `sesionesNuevas = nuevas` (la lista pre-insert, con `idSesion=0`) a `replicar` → `SesionRemotoRepository.sincronizarSesionesGeneradas` → `batch.set` de TODAS las sesiones al documento **`sesiones/0`** (no `/40…/46`). El fix de releer ids desde Room (que existía en el working tree del otro PC) NO está commiteado. Consecuencia: el `batch.commit()` con escrituras duplicadas al mismo documento en un WriteBatch falla (→ no aparece nada) o escribe un único `sesiones/0`.
+- **Hallazgo 3 — error de réplica INVISIBLE:** `ProgramarSesionesScreen` hace `navController.popBackStack()` inmediatamente tras generar (`ProgramarSesionesScreen.kt:384`) y NO observa `sesionViewModel.errorSincronizacion` → el fallo de réplica no se muestra al usuario.
+- **Hallazgo 4 — apertura de reservas POR DÍA:** `ProgramarSesionesScreen` mantiene `aperturasPorDia: Map<DayOfWeek, String?>` con un TimePicker de apertura por cada día (L317-321 y L565-621); `SesionViewModel.generarSesiones` aplica `horaDesdeReserva = aperturasPorDia[fecha.dayOfWeek]` (L287). NO coincide con el comportamiento deseado (UNA sola apertura global para toda la generación). La edición individual posterior SÍ existe: ProgramarSesionesScreen → "Ver / editar" → `EditarSesionScreen` (campo "Apertura de reservas", L103/L328).
+- **Flujo real al pulsar "Generar sesiones":** `ProgramarSesionesScreen` L365-396 → `SesionViewModel.generarSesiones` (L163) → `generar()` construye `SesionEntity(idSesion=0)` → `regenerarProgramacion` inserta en Room (ids reales en la BD, no en los objetos) → cascada `eliminarSesionesFuturasConReservasRemoto` (query `sesiones` por `idServicio`+`negocioId`; índice existe) → `replicar` → `sincronizarSesionesGeneradas` (query + `batch.set` con idSesion=0) → `commit`.
+- **Causa más probable de "sesiones no aparece":** bug `idSesion=0` (todas las escrituras a `sesiones/0`; commit falla por escrituras duplicadas en el mismo batch o escribe doc inválido). El PERMISSION_DENIED por `servicios/3` inexistente **YA NO aplica** (el servicio existe, activo y del negocio). Si la query de la cascada fallara (índice no `READY`), el flujo no llegaría al batch — también silencioso.
+- **Pendiente de decisión (NO implementado):** (1) fix en `SesionViewModel.generarSesiones`: tras `regenerarProgramacion`, releer las sesiones nuevas desde Room y pasar esas (con ids reales) a `replicar`; (2) `ProgramarSesionesScreen`: apertura global única + no `popBackStack` automático y mostrar `errorSincronizacion` (hace visible el fallo); (3) opcional: re-añadir logs `[DIAG sesiones]`.
+
+## Working tree actual (sin commitear, NO revertir)
+
+- HEAD = `4e29d8c "Conectando las sesiones"`.
+- `app/.../di/AppModule.kt` (M, -102): eliminación del seed (esta sesión).
+- `appCliente`: `AppNavigation.kt`, `Routes.kt`, `HomeScreen.kt` (M) + `MisReservasScreen.kt` (D): eliminación de la pantalla "Mis reservas" (cambio de otra IA, previo a esta sesión).
+- `firestore-tests/firestore-debug.log` (M): basura del emulador regenerada por `npm test`.
+
+## Para REANUDAR
+
+1. **Prueba de BD limpia de clientes:** desinstalar la app o `adb shell pm clear com.roberto.gestorpro` → crear el primer cliente real → esperar `idCliente=1` y réplica OK (`[DIAG alta] existencia previa -> false,false,false`). Después retirar el logging temporal `[DIAG alta]` de `ClienteRemotoRepository.kt`.
+2. **Aprobar el fix del bug `idSesion=0`** (SesionViewModel: releer de Room tras regenerarProgramacion) + apertura global única + visibilidad del error en ProgramarSesionesScreen.
+3. Confirmar `READY` de índices y regenerar sesiones; retirar logs `ClasesDiagnostico` de appCliente cuando se confirmen.
+4. Pendientes heredados: bucket de Storage, backfill de `indices_clientes` (solo con aprobación), limpieza de `Clase`/`SesionClase`, crear negocio con PERMISSION_DENIED (hipótesis token), validar `rol == "ADMIN"` en login Admin, commits agrupados y limpieza de basura versionada (`build_*.txt`, `firestore-debug.log`).

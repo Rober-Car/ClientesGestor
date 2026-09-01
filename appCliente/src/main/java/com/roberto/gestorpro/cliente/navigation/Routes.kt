@@ -40,9 +40,6 @@ object Routes {
      */
     const val CLASES = "clases"
 
-    /** Pantalla de reservas futuras del cliente. */
-    const val MIS_RESERVAS = "mis_reservas"
-
     /**
      * MI_PERFIL
      * ---------

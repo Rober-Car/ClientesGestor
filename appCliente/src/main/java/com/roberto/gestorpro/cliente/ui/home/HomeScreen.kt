@@ -24,7 +24,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Event
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Button
@@ -200,15 +199,6 @@ fun HomeScreen(
                         icono = Icons.Default.FitnessCenter,
                         color = Color(0xFFFB8C00),
                         onClick = { navController.navigate(Routes.CLASES) }
-                    )
-                }
-                item {
-                    HomeClientMenuCard(
-                        titulo = "Mis reservas",
-                        descripcion = "Gestiona tus reservas",
-                        icono = Icons.Default.Event,
-                        color = Color(0xFF00897B),
-                        onClick = { navController.navigate(Routes.MIS_RESERVAS) }
                     )
                 }
                 item {
