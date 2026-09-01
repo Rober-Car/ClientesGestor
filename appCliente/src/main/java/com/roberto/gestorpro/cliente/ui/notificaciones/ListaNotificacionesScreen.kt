@@ -22,73 +22,58 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Event
-import androidx.compose.material.icons.filled.FitnessCenter
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
-
-private data class NotificacionVisual(
-    val titulo: String,
-    val mensaje: String,
-    val fecha: String,
-    val icono: androidx.compose.ui.graphics.vector.ImageVector,
-    val leida: Boolean
-)
-
-private val notificacionesDeEjemplo = listOf(
-    NotificacionVisual(
-        titulo = "Recordatorio de clase",
-        mensaje = "Tu clase de CrossFit comienza a las 18:00.",
-        fecha = "Hoy · 17:00",
-        icono = Icons.Default.Event,
-        leida = false
-    ),
-    NotificacionVisual(
-        titulo = "Nuevo aviso del gimnasio",
-        mensaje = "El horario de esta semana ha cambiado.",
-        fecha = "Ayer",
-        icono = Icons.Default.Notifications,
-        leida = true
-    ),
-    NotificacionVisual(
-        titulo = "Información",
-        mensaje = "Recuerda revisar tus próximas actividades.",
-        fecha = "28/08/2026",
-        icono = Icons.Default.Info,
-        leida = true
-    ),
-    NotificacionVisual(
-        titulo = "Aviso de entrenamiento",
-        mensaje = "Consulta las recomendaciones para tu próxima sesión.",
-        fecha = "27/08/2026",
-        icono = Icons.Default.FitnessCenter,
-        leida = true
-    )
-)
+import com.roberto.gestorpro.cliente.model.Notificacion
+import com.roberto.gestorpro.cliente.ui.viewmodel.NotificacionesClienteViewModel
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /**
- * Pantalla visual de la lista de notificaciones recibidas.
- * Los elementos son solo datos de ejemplo y no se guardan ni se leen de Firebase.
+ * ListaNotificacionesScreen
+ * -------------------------
+ * Buzón de notificaciones del CLIENTE con datos reales de Firestore
+ * (notificaciones_por_destinatario). Ordenadas de más reciente a más antigua.
+ * Al abrir una notificación queda marcada como leída (leida=true/fechaLeida).
  */
 @Composable
-fun ListaNotificacionesScreen(navController: NavHostController) {
+fun ListaNotificacionesScreen(
+    navController: NavHostController,
+    viewModel: NotificacionesClienteViewModel = hiltViewModel()
+) {
+    val cargando by viewModel.cargando.collectAsStateWithLifecycle()
+    val noVinculado by viewModel.noVinculado.collectAsStateWithLifecycle()
+    val error by viewModel.error.collectAsStateWithLifecycle()
+    val notificaciones by viewModel.notificaciones.collectAsStateWithLifecycle()
+
+    LaunchedEffect(Unit) {
+        viewModel.cargar()
+    }
+
     val morado = Color(0xFF7E57C2)
+    val formateador = remember { DateTimeFormatter.ofPattern("dd/MM/yyyy · HH:mm") }
 
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing
@@ -126,32 +111,54 @@ fun ListaNotificacionesScreen(navController: NavHostController) {
                 }
             }
 
-            if (notificacionesDeEjemplo.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(24.dp),
+            when {
+                cargando -> Box(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
-                    EstadoVacioNotificaciones()
+                    CircularProgressIndicator()
                 }
-            } else {
-                LazyColumn(
+
+                noVinculado -> MensajeNotificaciones(
+                    titulo = "No estás vinculado a un gimnasio",
+                    detalle = "Vincula tu cuenta para recibir avisos."
+                )
+
+                error != null -> Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = error ?: "",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(onClick = { viewModel.cargar() }) {
+                        Text("Reintentar")
+                    }
+                }
+
+                notificaciones.isEmpty() -> MensajeNotificaciones(
+                    titulo = "No tienes notificaciones",
+                    detalle = "Cuando recibas un aviso aparecerá aquí."
+                )
+
+                else -> LazyColumn(
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    item {
-                        Text(
-                            text = "Notificaciones",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(vertical = 8.dp)
+                    items(notificaciones, key = { it.id }) { notificacion ->
+                        NotificacionCard(
+                            notificacion = notificacion,
+                            morado = morado,
+                            formateador = formateador,
+                            onClick = { viewModel.marcarLeida(notificacion.id) }
                         )
-                    }
-                    items(notificacionesDeEjemplo) { notificacion ->
-                        NotificacionCard(notificacion, morado)
                     }
                 }
             }
@@ -159,22 +166,33 @@ fun ListaNotificacionesScreen(navController: NavHostController) {
     }
 }
 
+/**
+ * NotificacionCard
+ * ----------------
+ * Tarjeta de una notificación con diferenciación visual leída/no leída:
+ * punto morado e icono/título destacados para las no leídas, y tono más
+ * tenue para las ya leídas.
+ */
 @Composable
 private fun NotificacionCard(
-    notificacion: NotificacionVisual,
-    morado: Color
+    notificacion: Notificacion,
+    morado: Color,
+    formateador: DateTimeFormatter,
+    onClick: () -> Unit
 ) {
-    val colorIcono = if (notificacion.leida) {
+    val leida = notificacion.leida
+    val colorIcono = if (leida) {
         MaterialTheme.colorScheme.onSurfaceVariant
     } else {
         morado
     }
 
     Card(
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (notificacion.leida) {
+            containerColor = if (leida) {
                 MaterialTheme.colorScheme.surfaceContainerLow
             } else {
                 MaterialTheme.colorScheme.surface
@@ -194,13 +212,13 @@ private fun NotificacionCard(
                     .padding(top = 5.dp)
                     .size(8.dp)
                     .background(
-                        color = if (notificacion.leida) Color.Transparent else morado,
+                        color = if (leida) Color.Transparent else morado,
                         shape = CircleShape
                     )
             )
             Spacer(modifier = Modifier.width(12.dp))
             Icon(
-                imageVector = notificacion.icono,
+                imageVector = Icons.Default.Notifications,
                 contentDescription = null,
                 tint = colorIcono,
                 modifier = Modifier.size(24.dp)
@@ -210,7 +228,7 @@ private fun NotificacionCard(
                 Text(
                     text = notificacion.titulo,
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = if (notificacion.leida) FontWeight.SemiBold else FontWeight.Bold,
+                    fontWeight = if (leida) FontWeight.SemiBold else FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(4.dp))
@@ -221,7 +239,7 @@ private fun NotificacionCard(
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = notificacion.fecha,
+                    text = formatoFecha(notificacion.fechaEnvio, formateador),
                     style = MaterialTheme.typography.labelMedium,
                     color = colorIcono
                 )
@@ -231,8 +249,11 @@ private fun NotificacionCard(
 }
 
 @Composable
-private fun EstadoVacioNotificaciones() {
+private fun MensajeNotificaciones(titulo: String, detalle: String) {
     Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -243,14 +264,14 @@ private fun EstadoVacioNotificaciones() {
             modifier = Modifier.size(48.dp)
         )
         Text(
-            text = "No tienes notificaciones",
+            text = titulo,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center
         )
         Text(
-            text = "Cuando recibas un aviso aparecerá aquí.",
+            text = detalle,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
@@ -258,10 +279,7 @@ private fun EstadoVacioNotificaciones() {
     }
 }
 
-@Preview(showBackground = true)
-@Composable
-private fun EstadoVacioNotificacionesPreview() {
-    MaterialTheme {
-        EstadoVacioNotificaciones()
-    }
-}
+private fun formatoFecha(millis: Long, formateador: DateTimeFormatter): String =
+    Instant.ofEpochMilli(millis)
+        .atZone(ZoneId.systemDefault())
+        .format(formateador)

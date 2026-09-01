@@ -14,11 +14,13 @@ import com.google.firebase.messaging.RemoteMessage
 import com.roberto.gestorpro.cliente.MainActivity
 import com.roberto.gestorpro.cliente.R
 import com.roberto.gestorpro.cliente.data.firebase.DispositivoRepository
+import com.roberto.gestorpro.cliente.data.repository.PreferencesRepository
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -26,15 +28,17 @@ import kotlinx.coroutines.launch
  * ----------
  * Servicio de mensajería Firebase (FCM) de GestorPro Cliente.
  * - onNewToken: registra el token nuevo en Firestore si el cliente está vinculado.
- * - onMessageReceived: muestra una notificación local cuando la app está en
- *   primer plano (o el proceso activo); en segundo plano el sistema muestra la
- *   notificación de FCM. El buzón real se leerá de Firestore en la Fase C.
+ * - onMessageReceived: muestra una notificación local (si el CLIENTE tiene las
+ *   notificaciones activadas); en segundo plano el sistema muestra la de FCM.
  */
 @AndroidEntryPoint
 class FcmService : FirebaseMessagingService() {
 
     @Inject
     lateinit var dispositivoRepository: DispositivoRepository
+
+    @Inject
+    lateinit var preferencesRepository: PreferencesRepository
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
@@ -53,7 +57,16 @@ class FcmService : FirebaseMessagingService() {
         val data = message.data
         val titulo = data["titulo"] ?: message.notification?.title ?: "Notificación"
         val cuerpo = data["mensaje"] ?: message.notification?.body ?: ""
-        mostrarNotificacion(titulo, cuerpo)
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            val activadas = try {
+                preferencesRepository.notificacionesActivadas.first()
+            } catch (e: Exception) {
+                true
+            }
+            if (activadas) {
+                mostrarNotificacion(titulo, cuerpo)
+            }
+        }
     }
 
     private fun mostrarNotificacion(titulo: String, cuerpo: String) {

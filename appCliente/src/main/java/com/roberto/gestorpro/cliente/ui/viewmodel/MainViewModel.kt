@@ -8,6 +8,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.roberto.gestorpro.cliente.data.firebase.AutenticacionRepository
 import com.roberto.gestorpro.cliente.data.firebase.ClienteRepository
+import com.roberto.gestorpro.cliente.data.firebase.DispositivoRepository
 import com.roberto.gestorpro.cliente.data.firebase.NegocioRepository
 import com.roberto.gestorpro.cliente.data.firebase.PerfilPendiente
 import com.roberto.gestorpro.cliente.data.firebase.PerfilPendienteRepository
@@ -43,7 +44,8 @@ class MainViewModel @Inject constructor(
     private val negocioRepository: NegocioRepository,
     private val perfilPendienteRepository: PerfilPendienteRepository,
     private val vinculacionRepository: VinculacionRepository,
-    private val clienteRepository: ClienteRepository
+    private val clienteRepository: ClienteRepository,
+    private val dispositivoRepository: DispositivoRepository
 ) : ViewModel() {
 
     private val _autenticando = MutableStateFlow(false)
@@ -234,6 +236,8 @@ class MainViewModel @Inject constructor(
                 if (ficha != null) {
                     _estadoHome.value = estadoHomeDe(ficha)
                 }
+                // Registra el token FCM si hay cliente vinculado (arranque).
+                dispositivoRepository.registrarTokenActual()
             } else {
                 preferencesRepository.borrarIdCliente()
                 _cliente.value = null
@@ -326,6 +330,8 @@ class MainViewModel @Inject constructor(
             preferencesRepository.borrarDniPendiente()
             _perfilPendiente.value = null
             _cliente.value = resultado.clienteId?.let { clienteRepository.leerFicha(it) }
+            // Tras vincularse, registra el token FCM del dispositivo.
+            dispositivoRepository.registrarTokenActual()
             return null
         } finally {
             _operandoRemoto.value = false

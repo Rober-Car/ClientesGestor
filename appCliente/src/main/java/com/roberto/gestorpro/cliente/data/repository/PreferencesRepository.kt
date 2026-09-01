@@ -3,6 +3,7 @@ package com.roberto.gestorpro.cliente.data.repository
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -37,6 +38,7 @@ class PreferencesRepository @Inject constructor(
         private val DNI_PENDIENTE_KEY = stringPreferencesKey("dni_pendiente")
         private val NOMBRE_NEGOCIO_KEY = stringPreferencesKey("nombre_negocio")
         private val LOGO_NEGOCIO_KEY = stringPreferencesKey("logo_negocio")
+        private val NOTIFICACIONES_ACTIVADAS_KEY = booleanPreferencesKey("notificaciones_activadas")
     }
 
     val themeMode: Flow<String> = context.dataStore.data.map { preferences ->
@@ -121,6 +123,22 @@ class PreferencesRepository @Inject constructor(
     suspend fun setLogoNegocio(url: String) {
         context.dataStore.edit { preferences ->
             preferences[LOGO_NEGOCIO_KEY] = url.trim()
+        }
+    }
+
+    /**
+     * notificacionesActivadas
+     * -----------------------
+     * Preferencia local del CLIENTE para recibir (o no) avisos del gimnasio.
+     * Se persiste en DataStore (por dispositivo); por defecto activadas.
+     */
+    val notificacionesActivadas: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[NOTIFICACIONES_ACTIVADAS_KEY] ?: true
+    }
+
+    suspend fun setNotificacionesActivadas(activas: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[NOTIFICACIONES_ACTIVADAS_KEY] = activas
         }
     }
 }

@@ -27,23 +27,30 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import com.roberto.gestorpro.cliente.ui.viewmodel.NotificacionesClienteViewModel
 
 /**
- * Pantalla visual de configuración de notificaciones.
- * El interruptor solo mantiene estado en memoria y no se persiste.
+ * NotificacionesScreen
+ * --------------------
+ * Configuración de notificaciones del CLIENTE. El interruptor se persiste en
+ * DataStore (por dispositivo) y lo respeta el FcmService a la hora de mostrar
+ * la notificación local.
  */
 @Composable
-fun NotificacionesScreen(navController: NavHostController) {
-    var notificacionesActivadas by remember { mutableStateOf(true) }
+fun NotificacionesScreen(
+    navController: NavHostController,
+    viewModel: NotificacionesClienteViewModel = hiltViewModel()
+) {
+    val notificacionesActivadas by viewModel.notificacionesActivadas
+        .collectAsStateWithLifecycle(initialValue = true)
     val morado = Color(0xFF7E57C2)
 
     Scaffold(
@@ -131,7 +138,7 @@ fun NotificacionesScreen(navController: NavHostController) {
                     }
                     Switch(
                         checked = notificacionesActivadas,
-                        onCheckedChange = { notificacionesActivadas = it }
+                        onCheckedChange = { viewModel.setNotificacionesActivadas(it) }
                     )
                 }
             }

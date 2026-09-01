@@ -1026,6 +1026,206 @@ service cloud.firestore {
 
 
     // =========================================================
+    // NOTIFICACIONES (enviadas por el ADMIN)
+    // =========================================================
+
+    // Registro GLOBAL de una notificación enviada por el ADMIN de un negocio
+    // (vista "notificaciones enviadas"). El CLIENTE nunca accede a esta
+    // colección; su buzón vive en notificaciones_por_destinatario.
+    match /notificaciones/{notificacionId} {
+      allow get: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+
+      allow list: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+
+      allow create: if esAdmin()
+        && usuarioActual().negocioId is string
+        && request.resource.data.negocioId == usuarioActual().negocioId
+        && request.resource.data.keys().hasOnly([
+             "negocioId",
+             "titulo",
+             "mensaje",
+             "tipo",
+             "origen",
+             "modoDestino",
+             "idsClientes",
+             "clienteId",
+             "grupo",
+             "fechaCreacion",
+             "fechaEnvio",
+             "programada",
+             "fechaProgramada",
+             "estado"
+           ])
+        && request.resource.data.titulo is string
+        && request.resource.data.mensaje is string
+        && request.resource.data.tipo in ["MANUAL", "MOROSIDAD", "BAJA_CONFIRMADA", "PROGRAMADA"]
+        && request.resource.data.origen in ["MANUAL", "AUTOMATICA", "PRECONFIGURADA"]
+        && request.resource.data.modoDestino in ["INDIVIDUAL", "GRUPO", "TODOS"]
+        && request.resource.data.fechaCreacion is timestamp
+        && request.resource.data.programada is bool
+        && request.resource.data.estado in ["PENDIENTE", "ENVIADA", "PROGRAMADA", "CANCELADA", "ERROR"]
+        && (!("idsClientes" in request.resource.data.keys())
+            || request.resource.data.idsClientes is list)
+        && (!("clienteId" in request.resource.data.keys())
+            || request.resource.data.clienteId is int)
+        && (!("grupo" in request.resource.data.keys())
+            || request.resource.data.grupo is string)
+        && (!("fechaEnvio" in request.resource.data.keys())
+            || request.resource.data.fechaEnvio is timestamp)
+        && (!("fechaProgramada" in request.resource.data.keys())
+            || request.resource.data.fechaProgramada is timestamp);
+
+      allow update: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId
+        && request.resource.data.negocioId == resource.data.negocioId
+        && request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly(["estado", "fechaEnvio", "idsClientes"]);
+
+      allow delete: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+    }
+
+
+    // =========================================================
+    // NOTIFICACIONES POR DESTINATARIO (buzon del CLIENTE)
+    // =========================================================
+
+    // Buzón individual: notificaciones_por_destinatario/{clienteId}_{notificacionId}.
+    // El CLIENTE solo lee y marca como leídas las suyas; el ADMIN de su negocio
+    // las consulta y crea (la creación también puede venir del backend Cloud
+    // Functions, que con Admin SDK omite las Rules).
+    match /notificaciones_por_destinatario/{destinatarioId} {
+      allow get: if esCliente()
+        && resource.data.negocioId == usuarioActual().negocioId
+        && resource.data.clienteId == usuarioActual().clienteId
+        && resource.data.firebaseUid == request.auth.uid;
+
+      allow list: if esCliente()
+        && resource.data.negocioId == usuarioActual().negocioId
+        && resource.data.clienteId == usuarioActual().clienteId
+        && resource.data.firebaseUid == request.auth.uid;
+
+      allow get, list: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+
+      allow create: if esAdmin()
+        && request.resource.data.negocioId == usuarioActual().negocioId
+        && request.resource.data.keys().hasOnly([
+             "negocioId",
+             "notificacionId",
+             "clienteId",
+             "firebaseUid",
+             "titulo",
+             "mensaje",
+             "tipo",
+             "origen",
+             "fechaEnvio",
+             "leida",
+             "fechaLeida"
+           ])
+        && request.resource.data.notificacionId is string
+        && request.resource.data.clienteId is int
+        && request.resource.data.firebaseUid is string
+        && request.resource.data.titulo is string
+        && request.resource.data.mensaje is string
+        && request.resource.data.tipo in ["MANUAL", "MOROSIDAD", "BAJA_CONFIRMADA", "PROGRAMADA"]
+        && request.resource.data.origen in ["MANUAL", "AUTOMATICA", "PRECONFIGURADA"]
+        && request.resource.data.fechaEnvio is timestamp
+        && request.resource.data.leida is bool
+        && string(request.resource.data.clienteId) + "_" + request.resource.data.notificacionId == destinatarioId
+        && (!("fechaLeida" in request.resource.data.keys())
+            || request.resource.data.fechaLeida is timestamp);
+
+      // El CLIENTE solo puede marcar como leída su propia notificación.
+      allow update: if esCliente()
+        && resource.data.negocioId == usuarioActual().negocioId
+        && resource.data.clienteId == usuarioActual().clienteId
+        && resource.data.firebaseUid == request.auth.uid
+        && request.resource.data.leida == true
+        && request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly(["leida", "fechaLeida"])
+        && (!("fechaLeida" in request.resource.data.keys())
+            || request.resource.data.fechaLeida is timestamp);
+
+      allow update: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+
+      allow delete: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+    }
+
+
+    // =========================================================
+    // CONFIGURACION DE NOTIFICACIONES AUTOMATICAS (por negocio)
+    // =========================================================
+
+    match /configuracion_notificaciones/{configId} {
+      allow get, list: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId;
+
+      allow create: if esAdmin()
+        && request.resource.data.negocioId == usuarioActual().negocioId
+        && request.resource.data.keys().hasOnly(["negocioId", "morosidad", "bajaConfirmada"])
+        && request.resource.data.morosidad.activa is bool
+        && request.resource.data.morosidad.recordatorioHoras is int
+        && request.resource.data.bajaConfirmada.activa is bool;
+
+      allow update: if esAdmin()
+        && resource.data.negocioId == usuarioActual().negocioId
+        && request.resource.data.negocioId == resource.data.negocioId
+        && request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly(["morosidad", "bajaConfirmada"])
+        && request.resource.data.morosidad.activa is bool
+        && request.resource.data.morosidad.recordatorioHoras is int
+        && request.resource.data.bajaConfirmada.activa is bool;
+
+      allow delete: if false;
+    }
+
+
+    // =========================================================
+    // DISPOSITIVOS FCM DE UN CLIENTE (clientes/{id}/dispositivos/{token})
+    // =========================================================
+
+    match /clientes/{clienteId}/dispositivos/{token} {
+      function tokenDelClienteAutenticado() {
+        return esCliente()
+          && get(
+               /databases/$(database)/documents/clientes/$(clienteId)
+             ).data.firebaseUid == request.auth.uid;
+      }
+
+      allow get, list: if esAdmin()
+        && get(
+             /databases/$(database)/documents/clientes/$(clienteId)
+           ).data.negocioId == usuarioActual().negocioId;
+
+      allow create: if tokenDelClienteAutenticado()
+        && request.resource.data.token is string
+        && request.resource.data.token == token
+        && request.resource.data.plataforma is string
+        && request.resource.data.keys().hasOnly(["token", "plataforma", "updatedAt"])
+        && (!("updatedAt" in request.resource.data.keys())
+            || request.resource.data.updatedAt is timestamp);
+
+      allow update: if tokenDelClienteAutenticado()
+        && request.resource.data.token is string
+        && request.resource.data.token == token
+        && request.resource.data.plataforma is string
+        && request.resource.data.keys().hasOnly(["token", "plataforma", "updatedAt"])
+        && (!("updatedAt" in request.resource.data.keys())
+            || request.resource.data.updatedAt is timestamp);
+
+      allow delete: if tokenDelClienteAutenticado();
+    }
+
+
+    // =========================================================
     // BLOQUEO POR DEFECTO
     // =========================================================
 

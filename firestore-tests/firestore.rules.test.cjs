@@ -2765,3 +2765,259 @@ test("PRUEBA 88: reserva con apertura futura -> DENY", async () => {
         })
     );
 });
+
+// =========================================================
+// NOTIFICACIONES (Fase B)
+// =========================================================
+
+async function seedAdminNotif(adminUid, negocioId) {
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), "usuarios", adminUid), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId
+        });
+    });
+}
+
+async function seedClienteNotif(clienteUid, clienteId, negocioId) {
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE", activo: true, clienteId, negocioId
+        });
+        await setDoc(
+            doc(database, "clientes", String(clienteId)),
+            fichaCliente(clienteId, negocioId, clienteUid, `88999${clienteId}X`)
+        );
+    });
+}
+
+function notificacionDoc(negocioId, extra = {}) {
+    return {
+        negocioId,
+        titulo: "Aviso del gimnasio",
+        mensaje: "Mensaje de prueba",
+        tipo: "MANUAL",
+        origen: "MANUAL",
+        modoDestino: "INDIVIDUAL",
+        clienteId: 3,
+        fechaCreacion: Timestamp.now(),
+        programada: false,
+        estado: "ENVIADA",
+        ...extra
+    };
+}
+
+function notifDestinatarioDoc(negocioId, clienteId, notificacionId, firebaseUid, extra = {}) {
+    return {
+        negocioId,
+        notificacionId,
+        clienteId,
+        firebaseUid,
+        titulo: "Aviso del gimnasio",
+        mensaje: "Mensaje de prueba",
+        tipo: "MANUAL",
+        origen: "MANUAL",
+        fechaEnvio: Timestamp.now(),
+        leida: false,
+        ...extra
+    };
+}
+
+test("PRUEBA 89: el ADMIN crea la configuracion de notificaciones de su negocio -> ALLOW", async () => {
+    const adminUid = "admin-notif-a";
+    await seedAdminNotif(adminUid, NEGOCIO_A);
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertSucceeds(
+        setDoc(doc(database, "configuracion_notificaciones", NEGOCIO_A), {
+            negocioId: NEGOCIO_A,
+            morosidad: { activa: true, recordatorioHoras: 24 },
+            bajaConfirmada: { activa: true }
+        })
+    );
+});
+
+test("PRUEBA 90: un CLIENTE no puede crear la configuracion de notificaciones -> DENY", async () => {
+    const clienteUid = "cliente-notif-config";
+    await seedClienteNotif(clienteUid, 890, NEGOCIO_A);
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertFails(
+        setDoc(doc(database, "configuracion_notificaciones", NEGOCIO_A), {
+            negocioId: NEGOCIO_A,
+            morosidad: { activa: true, recordatorioHoras: 24 },
+            bajaConfirmada: { activa: true }
+        })
+    );
+});
+
+test("PRUEBA 91: el ADMIN actualiza la configuracion (solo morosidad) -> ALLOW y no puede cambiar negocioId -> DENY", async () => {
+    const adminUid = "admin-notif-b";
+    await seedAdminNotif(adminUid, NEGOCIO_A);
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), "configuracion_notificaciones", NEGOCIO_A), {
+            negocioId: NEGOCIO_A,
+            morosidad: { activa: false, recordatorioHoras: 24 },
+            bajaConfirmada: { activa: false }
+        });
+    });
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertSucceeds(
+        updateDoc(doc(database, "configuracion_notificaciones", NEGOCIO_A), {
+            morosidad: { activa: true, recordatorioHoras: 12 }
+        })
+    );
+    await assertFails(
+        updateDoc(doc(database, "configuracion_notificaciones", NEGOCIO_A), {
+            negocioId: NEGOCIO_B
+        })
+    );
+});
+
+test("PRUEBA 92: el ADMIN crea una notificacion (individual) valida -> ALLOW", async () => {
+    const adminUid = "admin-notif-c";
+    await seedAdminNotif(adminUid, NEGOCIO_A);
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertSucceeds(
+        setDoc(doc(database, "notificaciones", "n-001"), notificacionDoc(NEGOCIO_A))
+    );
+});
+
+test("PRUEBA 93: un CLIENTE no puede crear notificaciones y el ADMIN con tipo invalido -> DENY", async () => {
+    const adminUid = "admin-notif-d";
+    const clienteUid = "cliente-notif-93";
+    await seedAdminNotif(adminUid, NEGOCIO_A);
+    await seedClienteNotif(clienteUid, 893, NEGOCIO_A);
+    const dbCliente = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertFails(
+        setDoc(doc(dbCliente, "notificaciones", "n-093"), notificacionDoc(NEGOCIO_A))
+    );
+    const dbAdmin = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertFails(
+        setDoc(doc(dbAdmin, "notificaciones", "n-093b"), notificacionDoc(NEGOCIO_A, { tipo: "DESCONOCIDO" }))
+    );
+});
+
+test("PRUEBA 94: el ADMIN crea un doc por destinatario con documentId coherente -> ALLOW y con documentId incoherente -> DENY", async () => {
+    const adminUid = "admin-notif-e";
+    await seedAdminNotif(adminUid, NEGOCIO_A);
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertSucceeds(
+        setDoc(
+            doc(database, "notificaciones_por_destinatario", "890_n-002"),
+            notifDestinatarioDoc(NEGOCIO_A, 890, "n-002", CLIENTE_UID)
+        )
+    );
+    await assertFails(
+        setDoc(
+            doc(database, "notificaciones_por_destinatario", "id-incoherente"),
+            notifDestinatarioDoc(NEGOCIO_A, 890, "n-002", CLIENTE_UID)
+        )
+    );
+});
+
+test("PRUEBA 95: un CLIENTE lee SOLO su propia notificacion -> ALLOW y la ajena -> DENY", async () => {
+    const clienteUid = "cliente-notif-95";
+    const otroClienteUid = "otro-notif-95";
+    await seedClienteNotif(clienteUid, 895, NEGOCIO_A);
+    await seedClienteNotif(otroClienteUid, 8951, NEGOCIO_A);
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(
+            doc(database, "notificaciones_por_destinatario", "895_n-095"),
+            notifDestinatarioDoc(NEGOCIO_A, 895, "n-095", clienteUid)
+        );
+        await setDoc(
+            doc(database, "notificaciones_por_destinatario", "8951_n-095"),
+            notifDestinatarioDoc(NEGOCIO_A, 8951, "n-095", otroClienteUid)
+        );
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertSucceeds(
+        getDoc(doc(database, "notificaciones_por_destinatario", "895_n-095"))
+    );
+    await assertFails(
+        getDoc(doc(database, "notificaciones_por_destinatario", "8951_n-095"))
+    );
+});
+
+test("PRUEBA 96: un CLIENTE marca leida su notificacion -> ALLOW; la ajena -> DENY; cambiar otro campo -> DENY", async () => {
+    const clienteUid = "cliente-notif-96";
+    await seedClienteNotif(clienteUid, 896, NEGOCIO_A);
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(
+            doc(database, "notificaciones_por_destinatario", "896_n-096"),
+            notifDestinatarioDoc(NEGOCIO_A, 896, "n-096", clienteUid)
+        );
+        await setDoc(
+            doc(database, "notificaciones_por_destinatario", "897_n-096"),
+            notifDestinatarioDoc(NEGOCIO_A, 897, "n-096", "otro-uid-96")
+        );
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertSucceeds(
+        updateDoc(doc(database, "notificaciones_por_destinatario", "896_n-096"), {
+            leida: true,
+            fechaLeida: Timestamp.now()
+        })
+    );
+    await assertFails(
+        updateDoc(doc(database, "notificaciones_por_destinatario", "896_n-096"), {
+            titulo: "Cambio no permitido"
+        })
+    );
+    await assertFails(
+        updateDoc(doc(database, "notificaciones_por_destinatario", "897_n-096"), {
+            leida: true
+        })
+    );
+});
+
+test("PRUEBA 97: el ADMIN lista notificaciones de su negocio -> ALLOW y de otro negocio -> DENY", async () => {
+    const adminUid = "admin-notif-97";
+    await seedAdminNotif(adminUid, NEGOCIO_A);
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "notificaciones", "n-097"), notificacionDoc(NEGOCIO_A));
+        await setDoc(doc(database, "notificaciones", "n-097b"), notificacionDoc(NEGOCIO_B));
+    });
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertSucceeds(
+        getDocs(query(collection(database, "notificaciones"), where("negocioId", "==", NEGOCIO_A)))
+    );
+    await assertFails(
+        getDocs(query(collection(database, "notificaciones"), where("negocioId", "==", NEGOCIO_B)))
+    );
+});
+
+test("PRUEBA 98: un CLIENTE registra y actualiza su token FCM -> ALLOW y no puede registrar el de otro cliente -> DENY", async () => {
+    const clienteUid = "cliente-notif-98";
+    await seedClienteNotif(clienteUid, 898, NEGOCIO_A);
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        await setDoc(
+            doc(context.firestore(), "clientes", "899"),
+            fichaCliente(899, NEGOCIO_A, "otro-uid-98", "88999899X")
+        );
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    const token = "token-fcm-898";
+    await assertSucceeds(
+        setDoc(doc(database, "clientes", "898", "dispositivos", token), {
+            token,
+            plataforma: "android",
+            updatedAt: Timestamp.now()
+        })
+    );
+    await assertSucceeds(
+        updateDoc(doc(database, "clientes", "898", "dispositivos", token), {
+            plataforma: "android",
+            updatedAt: Timestamp.now()
+        })
+    );
+    await assertFails(
+        setDoc(doc(database, "clientes", "899", "dispositivos", token), {
+            token,
+            plataforma: "android",
+            updatedAt: Timestamp.now()
+        })
+    );
+});
