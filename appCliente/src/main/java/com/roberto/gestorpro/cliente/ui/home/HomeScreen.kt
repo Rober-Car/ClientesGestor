@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Notifications
@@ -38,8 +39,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
@@ -190,7 +194,7 @@ fun HomeScreen(
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.weight(1f)
             ) {
                 if (estadoHome.estado != EstadoIndicadorCliente.BAJA) {
                     item {
@@ -231,8 +235,72 @@ fun HomeScreen(
                     )
                 }
             }
+
+            // Aviso de morosidad: solo cuando el cliente sigue ACTIVO pero su
+            // período está vencido (PAGO_VENCIDO). Debajo de todas las cards,
+            // con poco espacio superior y un margen inferior razonable.
+            if (vinculado && estadoHome.estado == EstadoIndicadorCliente.PAGO_VENCIDO) {
+                AvisoMorosidad(
+                    onRenovar = { navController.navigate(Routes.CUENTA) },
+                    modifier = Modifier.padding(
+                        start = 20.dp,
+                        end = 20.dp,
+                        top = 4.dp,
+                        bottom = 16.dp
+                    )
+                )
+            }
         }
     }
+}
+
+/**
+ * AvisoMorosidad
+ * --------------
+ * Aviso de texto integrado en el Home cuando el cliente sigue ACTIVO pero con
+ * el período vencido (PAGO_VENCIDO). Es una advertencia contextual sin fondo
+ * rojo: todo el texto va en el color de error del tema y la palabra "aquí" se
+ * distingue como enlace (color primario, negrita y subrayada). Solo "aquí" es
+ * clicable y navega a la cuenta del cliente para renovar o solicitar la baja.
+ */
+@Composable
+private fun AvisoMorosidad(
+    onRenovar: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val texto = "Renueva la mensualidad o solicita la baja aquí"
+    val etiqueta = "aquí"
+    val indice = texto.indexOf(etiqueta)
+    val enlaceColor = MaterialTheme.colorScheme.primary
+
+    val annotated = buildAnnotatedString {
+        append(texto)
+        if (indice >= 0) {
+            addStyle(
+                SpanStyle(
+                    color = enlaceColor,
+                    fontWeight = FontWeight.Bold,
+                    textDecoration = TextDecoration.Underline
+                ),
+                indice,
+                indice + etiqueta.length
+            )
+        }
+    }
+
+    ClickableText(
+        text = annotated,
+        onClick = { offset ->
+            if (indice >= 0 && offset in indice until indice + etiqueta.length) {
+                onRenovar()
+            }
+        },
+        style = MaterialTheme.typography.bodyLarge.copy(
+            color = MaterialTheme.colorScheme.error,
+            fontWeight = FontWeight.Medium
+        ),
+        modifier = modifier.fillMaxWidth()
+    )
 }
 
 /**
@@ -346,7 +414,14 @@ private fun HomeClientEstadoIndicator(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         color = color.copy(alpha = 0.08f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        border = BorderStroke(
+            1.dp,
+            if (estado == EstadoVisualCliente.PAGO_VENCIDO) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.outlineVariant
+            }
+        )
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 18.dp),

@@ -382,6 +382,7 @@ private fun nombreDeTipo(tipo: String): String {
         "MOROSIDAD" -> "Morosidad"
         "BAJA_CONFIRMADA" -> "Baja confirmada"
         "PROGRAMADA" -> "Programada"
+        "SOLICITUD_BAJA" -> "Solicitud de baja"
         else -> "Manual"
     }
 }

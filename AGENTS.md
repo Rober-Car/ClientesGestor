@@ -365,7 +365,77 @@ node firestore-tests/auditoria_backfill_indices.cjs
 - **Vinculación del CLIENTE:** el flujo de código maestro + DNI vive en `appCliente` (repositorio `VinculacionRepository`, pantalla de vinculación accesible desde el Home). Las operaciones críticas (VÍA 1 y VÍA 2) deben ejecutarse en Transaction. Nunca reintroducir Vía B/deep links.
 - **Logo del negocio:** la subida vive en `NegocioRepository.guardarLogoRemoto()` (`:app`): `putFile` a `negocios/{uid}/logo.jpg` → `downloadUrl` → WriteBatch con `logo` en `negocios` + `negocios_publicos`. El Cliente lee `negocios_publicos/{id}.logo` y lo muestra con Coil. Requiere el bucket habilitado en Firebase Console.
 
-## Estado actual y pendientes (2026-09-01)
+## Estado actual y pendientes (2026-09-02)
+
+> ACTUALIZACIÓN 2026-09-02 (CORRECCIONES/FUNCIONALIDADES + DIAGNÓSTICO ECONOMÍA): HEAD =
+> `3b113e6 "impplementando codigo para cuando contrate balze2"`. Todo el trabajo
+> posterior a `244db1e` sigue en el working tree SIN commit (incluidas las 2 fases de
+> correcciones de esta sesión). Rules **131/131** (123 + PRUEBA 113–120). Unit `:app`
+> con `NotificacionConfigTest` (5). Detalle en `CONVERSACION_EXPORTADA.md` (Sesiones XXV–XXVII).
+>
+> **Working tree actual (NO revertir, sin commit):**
+> - `app/.../ui/viewmodel/SesionViewModel.kt` — fix regresión PERMISSION_DENIED al generar sesiones.
+> - `app/.../ui/solicitudes/SolicitudesScreen.kt` — búsqueda por cliente + eliminar resueltas + scroll.
+> - `app/.../ui/viewmodel/SolicitudesViewModel.kt` + `app/.../data/firebase/SolicitudRemotoRepository.kt` — eliminar solicitud resuelta; aviso SOLICITUD_BAJA al ADMIN.
+> - `app/.../data/firebase/NotificacionRemotoRepository.kt` — `crearNotificacionSolicitudBaja`, `existeNotificacion`, config con default `bajaConfirmada.activa=true`.
+> - `app/.../data/firebase/BajaClienteRemotoRepository.kt` — BAJA_CONFIRMADA con fecha + idempotencia + default activo.
+> - `app/.../ui/notificaciones/GestionNotificacionesScreen.kt` — tipo "Solicitud de baja".
+> - `appCliente/.../ui/home/HomeScreen.kt` — aviso de morosidad como texto (no Card), borde rojo en Card de estado.
+> - `firestore.rules` — `solicitudes/delete` no PENDIENTE; tipo `SOLICITUD_BAJA` permitido al ADMIN.
+> - `firestore-tests/firestore.rules.test.cjs` — PRUEBA 113–120.
+> - `app/src/test/.../NotificacionConfigTest.kt` (nuevo, 5 tests).
+> - Basura: `firestore-tests/firestore-debug.log`, `.idea/shelf/...`.
+>
+> **Correcciones y funcionalidades cerradas (working tree):**
+> 1. **Regresión sesiones (PERMISSION_DENIED al generar):** causa = el servicio no estaba
+>    replicado en Firestore (negocio actual `6YFNg1...` con `servicios` vacía); la regla
+>    `sesiones/create` exige `servicioValidoParaSesion`. Fix: `SesionViewModel.generarSesiones`
+>    replica el servicio (`crearServicioRemoto`, idempotente) antes de la cascada/réplica.
+>    NO se abrieron permisos. PRUEBA 113–115.
+> 2. **SolicitudesScreen:** búsqueda por datos REALES del cliente (nombre+apellidos/DNI/
+>    teléfono/email/id); eliminar ACEPTADA/RECHAZADA con confirmación; PENDIENTE no
+>    eliminable (UI y Rules); lista con `weight(1f)`. PRUEBA 116–117.
+> 3. **Home appCliente:** aviso de morosidad como texto (color error, "aquí" en primario/
+>    negrita/subrayado, solo "aquí" clicable → `Routes.CUENTA`); Card de estado con borde
+>    `colorScheme.error` cuando PAGO_VENCIDO (contenido/fondo intactos).
+> 4. **Notificación CLIENTE→ADMIN por solicitud de baja:** la crea el ADMIN al cargar
+>    solicitudes PENDIENTES (`SolicitudesViewModel.generarAvisosDeSolicitudesPendientes` →
+>    `crearNotificacionSolicitudBaja`, `notificaciones/solicitud_baja_{clienteId}_{fecha}`,
+>    tipo SOLICITUD_BAJA, origen AUTOMATICA). Se RETIRÓ la creación desde el CLIENTE (las
+>    Rules desplegadas solo permiten `esAdmin()` en `notificaciones`). Rules: `SOLICITUD_BAJA`
+>    añadido al `tipo` del create ADMIN. PRUEBA 118–120.
+> 5. **BAJA_CONFIRMADA:** mensaje con fecha ("Tu baja se ha realizado con fecha dd/MM/yyyy."),
+>    **default `bajaConfirmada.activa = true`** (config inexistente/campo ausente → activa;
+>    el ADMIN puede desactivarla en Configuración), idempotencia con `existeNotificacion` e
+>    ID determinista `baja_confirmada_{clienteId}_{fechaBaja}` (igual que CF).
+>
+> **DIAGNÓSTICO ECONOMÍA (2026-09-02, SOLO LECTURA, nada implementado):** ver
+> `CONVERSACION_EXPORTADA.md` Sesión XXVII. Resumen: NO existe circuito económico (no hay
+> Cuota/Pago/Descuento/Tarifa/método de pago/prorrateo). Un movimiento Room es la "cuota"
+> manual (servicio texto + precio manual + fechaInicio/fechaFin + estado + fechaPago solo en
+> renovación). Solo se replica a Firestore `clientes/{id}.fechaInicioActual/fechaFinActual`
+> (derivados del movimiento con mayor fechaFin). Morosidad derivada y NO persistida, con DOS
+> fuentes (Room: ACTIVO fechaFin<ahora / BAJA PENDIENTE; appCliente/Functions: fechaFinActual).
+> La regla del "cuarto día hábil" NO está implementada en ningún sitio. `movimientos/{id}` tiene
+> reglas Firestore pero la colección no se usa. CF (sin deploy) depende solo de
+> `clientes/{id}.fechaFinActual`. BUG confirmado: editar un movimiento resetea `fechaPago`
+> (`PerfilClienteAdministradorScreen.kt:2094-2109`). Divergencia app/CF en default de config.
+> Hay **10 decisiones de negocio pendientes** (sección 24 del informe / Sesión XXVII).
+>
+> **Pendiente INMEDIATO (decisión del propietario, NO programar hasta decidir):**
+> 1. **ECONOMÍA — decisiones (Sesión XXVII §24):** cuota=movimiento o entidad; Pago
+>    independiente vs fechaPago; tarifas en Servicio; descuentos (estudiante/familia/
+>    jubilado + edad estudiante); altas/prorrateos (tramos, cargo, 0,25 €/día, llave-tarifa);
+>    regla exacta de morosidad ("cuarto día hábil"); BAJA+deuda; replicación mínima a
+>    Firestore; default config app↔CF; appCliente económico o no.
+> 2. **Rules desplegadas OBSOLETAS (01/09 15:18):** no incluyen `clientePuedeAcceder`,
+>    `solicitudes/delete` restringido ni `SOLICITUD_BAJA`. Pendiente de desplegar cuando se
+>    autorice (hasta entonces, en producción el aviso SOLICITUD_BAJA no se puede crear).
+> 3. **Alta Admin PERMISSION_DENIED (Sesión XVIII):** `[DIAG alta]` en `ClienteRemotoRepository`
+>    (hipótesis: documento huérfano existente); retirar logging al cerrar.
+> 4. **Regenerar sesiones en el negocio actual** y confirmar índice `READY`; retirar logs
+>    `ClasesDiagnostico`/`[DIAG sesiones]`.
+> 5. Blaze/Storage/Functions siguen pendientes (sin activar).
 
 > ACTUALIZACIÓN 2026-09-01 (FASES D + E LOCAL + SOLICITUDES DE BAJA + CORRECCIÓN BAJA): HEAD sin
 > cambios funcionales nuevos del desarrollador (todo el trabajo posterior a

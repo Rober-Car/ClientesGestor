@@ -172,6 +172,30 @@ class SolicitudRemotoRepository @Inject constructor(
         }
     }
 
+    /**
+     * eliminarSolicitud
+     * -----------------
+     * Elimina del historial una solicitud ya resuelta (ACEPTADA/RECHAZADA).
+     * Las Rules rechazan el borrado de una solicitud PENDIENTE, por lo que esta
+     * operación no puede eliminar una solicitud que aún requiere decisión.
+     * No modifica el estado del cliente ni borra ningún otro dato.
+     */
+    suspend fun eliminarSolicitud(idSolicitud: String): ResultadoAutenticacion {
+        val uid = auth.currentUser?.uid
+            ?: return ResultadoAutenticacion(false, "No hay ningún usuario autenticado")
+        return try {
+            db.collection(COLECCION_SOLICITUDES)
+                .document(idSolicitud)
+                .delete()
+                .esperar()
+            Log.i(TAG, "Solicitud eliminada del historial: $idSolicitud")
+            ResultadoAutenticacion(true, "Solicitud eliminada del historial")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error eliminando solicitud $idSolicitud", e)
+            ResultadoAutenticacion(false, mensajeDe(e))
+        }
+    }
+
     private fun fechaEnMilisegundos(valor: Any?): Long? = when (valor) {
         is Timestamp -> valor.toDate().time
         is Number -> valor.toLong()

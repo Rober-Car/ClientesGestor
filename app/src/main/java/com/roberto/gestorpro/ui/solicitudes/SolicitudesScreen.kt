@@ -20,7 +20,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -31,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -42,6 +46,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -93,6 +98,8 @@ fun SolicitudesScreen(
 
     var solicitudAAceptar by remember { mutableStateOf<SolicitudBaja?>(null) }
     var solicitudARechazar by remember { mutableStateOf<SolicitudBaja?>(null) }
+    var solicitudAEliminar by remember { mutableStateOf<SolicitudBaja?>(null) }
+    var textoBusqueda by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         viewModel.cargarSolicitudes()
@@ -106,6 +113,24 @@ fun SolicitudesScreen(
     }
 
     val clientesPorId = clientes.associateBy { it.idCliente }
+
+    // Búsqueda por los datos REALES del cliente asociado a la solicitud: el
+    // nombre del modelo ya incluye "nombre apellidos", más teléfono, DNI, email
+    // e id de cliente. Se reutiliza el mismo criterio de ClientesScreen.
+    val solicitudesFiltradas = if (textoBusqueda.isBlank()) {
+        solicitudes
+    } else {
+        solicitudes.filter { solicitud ->
+            val cliente = clientesPorId[solicitud.idCliente]
+            cliente != null && listOf(
+                cliente.nombre,
+                cliente.telefono,
+                cliente.dni,
+                cliente.email.orEmpty(),
+                solicitud.idCliente.toString()
+            ).any { it.contains(textoBusqueda, ignoreCase = true) }
+        }
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
@@ -136,6 +161,32 @@ fun SolicitudesScreen(
                     fontWeight = FontWeight.Bold
                 )
             }
+
+            OutlinedTextField(
+                value = textoBusqueda,
+                onValueChange = { textoBusqueda = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                placeholder = { Text("Buscar por nombre, apellidos o DNI") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Buscar"
+                    )
+                },
+                trailingIcon = {
+                    if (textoBusqueda.isNotEmpty()) {
+                        IconButton(onClick = { textoBusqueda = "" }) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Limpiar búsqueda"
+                            )
+                        }
+                    }
+                },
+                singleLine = true
+            )
 
             error?.let { mensaje ->
                 Text(
@@ -226,20 +277,46 @@ fun SolicitudesScreen(
                 }
 
                 else -> {
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(16.dp)
-                    ) {
-                        items(solicitudes, key = { it.idSolicitud }) { solicitud ->
-                            SolicitudCard(
-                                solicitud = solicitud,
-                                cliente = clientesPorId[solicitud.idCliente],
-                                onEntrar = {
-                                    navController.navigate(Routes.perfilCliente(solicitud.idCliente))
-                                },
-                                onAceptar = { solicitudAAceptar = solicitud },
-                                onRechazar = { solicitudARechazar = solicitud }
+                    if (solicitudesFiltradas.isEmpty()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                modifier = Modifier.size(64.dp),
+                                tint = Color.Gray.copy(alpha = 0.5f)
                             )
+                            Spacer(modifier = Modifier.size(16.dp))
+                            Text(
+                                text = "No se encontraron solicitudes para la búsqueda.",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = Color.Gray,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(16.dp)
+                        ) {
+                            items(solicitudesFiltradas, key = { it.idSolicitud }) { solicitud ->
+                                SolicitudCard(
+                                    solicitud = solicitud,
+                                    cliente = clientesPorId[solicitud.idCliente],
+                                    onEntrar = {
+                                        navController.navigate(Routes.perfilCliente(solicitud.idCliente))
+                                    },
+                                    onAceptar = { solicitudAAceptar = solicitud },
+                                    onRechazar = { solicitudARechazar = solicitud },
+                                    onEliminar = { solicitudAEliminar = solicitud }
+                                )
+                            }
                         }
                     }
                 }
@@ -301,6 +378,33 @@ fun SolicitudesScreen(
             }
         )
     }
+
+    solicitudAEliminar?.let { solicitud ->
+        AlertDialog(
+            onDismissRequest = { solicitudAEliminar = null },
+            title = { Text("¿Eliminar esta solicitud?") },
+            text = {
+                Text(
+                    "Esta acción eliminará la solicitud del historial. " +
+                        "No se modifica el estado del cliente ni se borran sus datos."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.eliminarSolicitud(solicitud)
+                        solicitudAEliminar = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Eliminar", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { solicitudAEliminar = null }) { Text("Cancelar") }
+            }
+        )
+    }
 }
 
 /**
@@ -316,7 +420,8 @@ private fun SolicitudCard(
     cliente: Cliente?,
     onEntrar: () -> Unit,
     onAceptar: () -> Unit,
-    onRechazar: () -> Unit
+    onRechazar: () -> Unit,
+    onEliminar: () -> Unit
 ) {
     val colorEstado = when (solicitud.estado) {
         EstadoSolicitud.ACEPTADA -> Color(0xFF4CAF50)
@@ -404,6 +509,23 @@ private fun SolicitudCard(
                     Spacer(modifier = Modifier.width(4.dp))
                     TextButton(onClick = onAceptar) {
                         Text("Aceptar baja", color = Color(0xFF4CAF50))
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onEliminar) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = Color.Gray
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Eliminar del historial", color = Color.Gray)
                     }
                 }
             }

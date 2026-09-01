@@ -48,6 +48,30 @@ class NotificacionRemotoRepository @Inject constructor(
         const val ESTADO_PROGRAMADA = "PROGRAMADA"
         const val ESTADO_CANCELADA = "CANCELADA"
         const val ESTADO_ERROR = "ERROR"
+
+        /**
+         * configuracionPorDefecto
+         * -----------------------
+         * Configuración aplicada cuando el documento de configuración todavía
+         * no existe: la notificación de BAJA CONFIRMADA está ACTIVA por defecto
+         * (el CLIENTE debe recibir su aviso de baja), mientras que el resto de
+         * preconfiguradas siguen desactivadas.
+         */
+        fun configuracionPorDefecto(): ConfiguracionNotificaciones =
+            ConfiguracionNotificaciones(
+                morosidadActiva = false,
+                recordatorioHoras = 0,
+                bajaConfirmadaActiva = true
+            )
+
+        /**
+         * bajaConfirmadaActivaPorDefecto
+         * ------------------------------
+         * Regla de negocio: la notificación de baja confirmada está activa por
+         * defecto. null (sin configuración o campo ausente) se trata como
+         * activa; solo un false explícito guardado por el ADMIN la desactiva.
+         */
+        fun bajaConfirmadaActivaPorDefecto(valor: Boolean?): Boolean = valor != false
     }
 
     /**
@@ -261,6 +285,75 @@ class NotificacionRemotoRepository @Inject constructor(
     }
 
     /**
+     * existeNotificacion
+     * ------------------
+     * Indica si ya existe un documento de notificación con ese id, con
+     * independencia de su estado. Sirve para no duplicar avisos idempotentes
+     * como el de SOLICITUD_BAJA.
+     */
+    suspend fun existeNotificacion(notificacionId: String): Boolean {
+        return try {
+            db.collection(COLECCION_NOTIFICACIONES)
+                .document(notificacionId)
+                .get()
+                .esperar()
+                .exists()
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * crearNotificacionSolicitudBaja
+     * ------------------------------
+     * Crea en notificaciones/{id} el aviso "Solicitud de baja" que ve el ADMIN
+     * en su bandeja (la colección notificaciones). La crea el ADMIN (la app
+     * ADMIN, al cargar sus solicitudes) porque es el único escritor permitido
+     * por las Rules. Usa un ID determinista (solicitud_baja_{clienteId}_{fecha})
+     * e idempotente: si el documento ya existe, no hace nada.
+     */
+    suspend fun crearNotificacionSolicitudBaja(
+        negocioId: String,
+        clienteId: Int,
+        nombreCliente: String,
+        fechaSolicitud: Long
+    ): ResultadoAutenticacion {
+        val uid = auth.currentUser?.uid
+            ?: return ResultadoAutenticacion(false, "No hay ningún usuario autenticado")
+        val idNotificacion = "solicitud_baja_${clienteId}_$fechaSolicitud"
+        return try {
+            if (existeNotificacion(idNotificacion)) {
+                return ResultadoAutenticacion(true, "Aviso de solicitud de baja ya creado")
+            }
+            db.collection(COLECCION_NOTIFICACIONES)
+                .document(idNotificacion)
+                .set(
+                    mapOf(
+                        "negocioId" to negocioId,
+                        "titulo" to "Solicitud de baja",
+                        "mensaje" to "$nombreCliente ha solicitado la baja.",
+                        "tipo" to "SOLICITUD_BAJA",
+                        "origen" to "AUTOMATICA",
+                        "modoDestino" to "INDIVIDUAL",
+                        "clienteId" to clienteId,
+                        "fechaCreacion" to Timestamp(java.util.Date(fechaSolicitud)),
+                        "programada" to false,
+                        "estado" to ESTADO_PENDIENTE
+                    )
+                )
+                .esperar()
+            Log.i(TAG, "Aviso SOLICITUD_BAJA creado: $idNotificacion")
+            ResultadoAutenticacion(true, "Aviso de solicitud de baja creado")
+        } catch (e: FirebaseFirestoreException) {
+            Log.e(TAG, "Error creando aviso SOLICITUD_BAJA $idNotificacion código=${e.code}", e)
+            ResultadoAutenticacion(false, mensajeDe(e))
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creando aviso SOLICITUD_BAJA $idNotificacion", e)
+            ResultadoAutenticacion(false, mensajeDe(e))
+        }
+    }
+
+    /**
      * cancelarNotificacion
      * --------------------
      * Pone el estado de una notificación programada a CANCELADA. Las Rules
@@ -286,8 +379,10 @@ class NotificacionRemotoRepository @Inject constructor(
     /**
      * obtenerConfiguracion
      * --------------------
-     * Lee configuracion_notificaciones/{negocioId}. Devuelve null si el
-     * documento no existe todavía.
+     * Lee configuracion_notificaciones/{negocioId}. Si el documento no existe
+     * devuelve la configuración POR DEFECTO (bajaConfirmada.activa = true), de
+     * modo que el CLIENTE reciba su aviso de baja sin necesidad de configuración
+     * previa. Devuelve null solo ante un error de lectura.
      */
     suspend fun obtenerConfiguracion(negocioId: String): ConfiguracionNotificaciones? {
         return try {
@@ -295,13 +390,15 @@ class NotificacionRemotoRepository @Inject constructor(
                 .document(negocioId)
                 .get()
                 .esperar()
-            if (!documento.exists()) return null
+            if (!documento.exists()) return configuracionPorDefecto()
             val morosidad = documento.get("morosidad") as? Map<*, *>
             val bajaConfirmada = documento.get("bajaConfirmada") as? Map<*, *>
             ConfiguracionNotificaciones(
                 morosidadActiva = (morosidad?.get("activa") as? Boolean) ?: false,
                 recordatorioHoras = enteroDe(morosidad?.get("recordatorioHoras")) ?: 0,
-                bajaConfirmadaActiva = (bajaConfirmada?.get("activa") as? Boolean) ?: false
+                bajaConfirmadaActiva = bajaConfirmadaActivaPorDefecto(
+                    bajaConfirmada?.get("activa") as? Boolean
+                )
             )
         } catch (e: Exception) {
             Log.e(TAG, "Error leyendo configuración de notificaciones", e)

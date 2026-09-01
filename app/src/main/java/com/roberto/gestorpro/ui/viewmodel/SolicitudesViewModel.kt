@@ -4,10 +4,12 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.roberto.gestorpro.data.firebase.BajaClienteRemotoRepository
+import com.roberto.gestorpro.data.firebase.NotificacionRemotoRepository
 import com.roberto.gestorpro.data.firebase.SolicitudRemotoRepository
 import com.roberto.gestorpro.data.repository.ClienteRepository
 import com.roberto.gestorpro.data.repository.ReservaRepository
 import com.roberto.gestorpro.model.EstadoCliente
+import com.roberto.gestorpro.model.EstadoSolicitud
 import com.roberto.gestorpro.model.SolicitudBaja
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -33,7 +35,8 @@ class SolicitudesViewModel @Inject constructor(
     private val solicitudRemotoRepository: SolicitudRemotoRepository,
     private val clienteRepository: ClienteRepository,
     private val reservaRepository: ReservaRepository,
-    private val bajaClienteRemotoRepository: BajaClienteRemotoRepository
+    private val bajaClienteRemotoRepository: BajaClienteRemotoRepository,
+    private val notificacionRemotoRepository: NotificacionRemotoRepository
 ) : ViewModel() {
 
     private val _cargando = MutableStateFlow(false)
@@ -76,6 +79,7 @@ class SolicitudesViewModel @Inject constructor(
             _error.value = null
             try {
                 _solicitudes.value = solicitudRemotoRepository.obtenerSolicitudes(negocioId)
+                generarAvisosDeSolicitudesPendientes(negocioId, _solicitudes.value)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -84,6 +88,43 @@ class SolicitudesViewModel @Inject constructor(
                 _cargando.value = false
             }
         }
+    }
+
+    /**
+     * generarAvisosDeSolicitudesPendientes
+     * ------------------------------------
+     * Por cada solicitud PENDIENTE que aún no tenga su aviso en la bandeja del
+     * ADMIN (notificaciones/{id} con tipo SOLICITUD_BAJA), lo crea de forma
+     * idempotente (ID determinista). Así el ADMIN recibe el aviso "X ha
+     * solicitado la baja" con la infraestructura existente y sin depender de
+     * Cloud Functions. Un fallo de creación no rompe la carga de la lista.
+     */
+    private suspend fun generarAvisosDeSolicitudesPendientes(
+        negocioId: String,
+        solicitudes: List<SolicitudBaja>
+    ) {
+        solicitudes
+            .filter { it.estado == EstadoSolicitud.PENDIENTE }
+            .forEach { solicitud ->
+                try {
+                    val cliente = clienteRepository.obtenerClientePorIdRepo(solicitud.idCliente)
+                    val nombre = cliente?.let {
+                        "${it.nombre.trim()} ${it.apellidos.trim()}".trim()
+                    }.orEmpty()
+                    notificacionRemotoRepository.crearNotificacionSolicitudBaja(
+                        negocioId = negocioId,
+                        clienteId = solicitud.idCliente,
+                        nombreCliente = nombre.ifBlank { "El cliente" },
+                        fechaSolicitud = solicitud.fechaSolicitud
+                    )
+                } catch (e: Exception) {
+                    Log.e(
+                        TAG,
+                        "No se pudo generar el aviso de la solicitud ${solicitud.idSolicitud}",
+                        e
+                    )
+                }
+            }
     }
 
     /**
@@ -136,6 +177,27 @@ class SolicitudesViewModel @Inject constructor(
             } else {
                 _errorSincronizacion.value = resultado.mensaje
                 _solicitudSinSincronizar.value = solicitud
+            }
+        }
+    }
+
+    /**
+     * eliminarSolicitud
+     * ------------------
+     * Elimina del historial una solicitud ya resuelta (ACEPTADA/RECHAZADA).
+     * No se ofrece para PENDIENTE (las Rules también lo rechazan) y no altera
+     * el estado del cliente ni ningún otro dato.
+     */
+    fun eliminarSolicitud(solicitud: SolicitudBaja) {
+        viewModelScope.launch {
+            _errorSincronizacion.value = null
+            _solicitudSinSincronizar.value = null
+            val resultado = solicitudRemotoRepository.eliminarSolicitud(solicitud.idSolicitud)
+            if (resultado.exito) {
+                _mensajeExito.value = resultado.mensaje
+                cargarSolicitudes()
+            } else {
+                _errorSincronizacion.value = resultado.mensaje
             }
         }
     }

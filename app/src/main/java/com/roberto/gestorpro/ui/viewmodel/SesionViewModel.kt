@@ -7,6 +7,7 @@ import com.roberto.gestorpro.data.entity.ServicioEntity
 import com.roberto.gestorpro.data.entity.SesionEntity
 import com.roberto.gestorpro.data.firebase.ReservaRemotoRepository
 import com.roberto.gestorpro.data.firebase.ResultadoAutenticacion
+import com.roberto.gestorpro.data.firebase.ServicioRemotoRepository
 import com.roberto.gestorpro.data.firebase.SesionRemotoRepository
 import com.roberto.gestorpro.data.repository.ReservaRepository
 import com.roberto.gestorpro.data.repository.SesionRepository
@@ -33,7 +34,8 @@ class SesionViewModel @Inject constructor(
     private val sesionRepository: SesionRepository,
     private val reservaRepository: ReservaRepository,
     private val sesionRemotoRepository: SesionRemotoRepository,
-    private val reservaRemotoRepository: ReservaRemotoRepository
+    private val reservaRemotoRepository: ReservaRemotoRepository,
+    private val servicioRemotoRepository: ServicioRemotoRepository
 ) : ViewModel() {
 
     companion object {
@@ -283,6 +285,19 @@ class SesionViewModel @Inject constructor(
                     throw IllegalStateException(
                         "Room devolvió sesiones sin id (idSesion=0); no se replica a sesiones/0"
                     )
+                }
+
+                Log.d(TAG, "servicio remoto: asegurando réplica del servicio ${servicio.idServicio}...")
+                val servicioRemoto = servicioRemotoRepository.crearServicioRemoto(servicio)
+                if (!servicioRemoto.exito) {
+                    Log.e(TAG, "ERROR réplica de servicio: ${servicioRemoto.mensaje}")
+                    _errorSincronizacion.value =
+                        "Cambio guardado en el dispositivo, pero no sincronizado con la nube: ${servicioRemoto.mensaje}"
+                    _resultadoGeneracion.value = ResultadoGeneracion(
+                        exito = false,
+                        mensaje = "No se pudo generar la programación: el servicio no está sincronizado con la nube (${servicioRemoto.mensaje})"
+                    )
+                    return@launch
                 }
 
                 Log.d(TAG, "cascada remota: eliminarSesionesFuturas...")

@@ -3405,3 +3405,190 @@ test("PRUEBA 112: un CLIENTE ACTIVO sigue pudiendo leer sesiones y reservar -> A
         })
     );
 });
+
+// =========================================================
+// SESIONES: REGRESIONES EXPLICITAS (PRUEBA 113-115)
+// =========================================================
+// La regresión real de producción era que el ADMIN intentaba generar sesiones
+// de un servicio que NO estaba replicado en Firestore: la regla sesiones/create
+// (servicioValidoParaSesion) lo rechaza con PERMISSION_DENIED. Estas pruebas
+// fijan el contrato: el payload exacto de la app pasa, y la falta del servicio
+// remoto se rechaza (la app debe replicar el servicio antes de generar).
+
+test("PRUEBA 113: el ADMIN crea una sesion con el payload exacto de la app (horaDesdeReserva null, plazas=capacidad) -> ALLOW", async () => {
+    const adminUid = "admin-sesiones-regresion-113";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", adminUid), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "servicios", "5100"), servicioDoc(5100, NEGOCIO_A));
+    });
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertSucceeds(
+        setDoc(doc(database, "sesiones", "5101"), sesionDoc(5101, NEGOCIO_A, 5100, {
+            horaDesdeReserva: null,
+            plazasDisponibles: 20,
+            capacidad: 20
+        }))
+    );
+});
+
+test("PRUEBA 114: el ADMIN NO puede crear una sesion si el servicio no esta replicado en Firestore -> DENY", async () => {
+    const adminUid = "admin-sesiones-regresion-114";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), "usuarios", adminUid), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId: NEGOCIO_A
+        });
+    });
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertFails(
+        setDoc(doc(database, "sesiones", "5199"), sesionDoc(5199, NEGOCIO_A, 5198))
+    );
+});
+
+test("PRUEBA 115: el ADMIN regenera la programacion (batch: borra futura + crea nuevas con plazas=capacidad) -> ALLOW", async () => {
+    const adminUid = "admin-sesiones-regresion-115";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", adminUid), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "servicios", "5110"), servicioDoc(5110, NEGOCIO_A));
+        await setDoc(doc(database, "sesiones", "5111"), sesionDoc(5111, NEGOCIO_A, 5110, {
+            fecha: Date.now() + 86400000,
+            plazasDisponibles: 20,
+            capacidad: 20
+        }));
+    });
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    const batch = writeBatch(database);
+    batch.delete(doc(database, "sesiones", "5111"));
+    batch.set(doc(database, "sesiones", "5112"), sesionDoc(5112, NEGOCIO_A, 5110, {
+        fecha: Date.now() + 172800000,
+        horaDesdeReserva: null,
+        plazasDisponibles: 20,
+        capacidad: 20
+    }));
+    await assertSucceeds(batch.commit());
+});
+
+// =========================================================
+// SOLICITUDES: BORRADO DE HISTORIAL (PRUEBA 116-117)
+// =========================================================
+
+test("PRUEBA 116: el ADMIN elimina una solicitud ACEPTADA del historial -> ALLOW", async () => {
+    const adminUid = "admin-solicitudes-delete-116";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), "usuarios", adminUid), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId: NEGOCIO_A
+        });
+        await setDoc(
+            doc(context.firestore(), "solicitudes", "baja_116_1"),
+            solicitudDoc("baja_116_1", NEGOCIO_A, 1160, "cliente-116", { estado: "ACEPTADA" })
+        );
+    });
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertSucceeds(
+        deleteDoc(doc(database, "solicitudes", "baja_116_1"))
+    );
+});
+
+test("PRUEBA 117: el ADMIN NO puede eliminar una solicitud PENDIENTE -> DENY", async () => {
+    const adminUid = "admin-solicitudes-delete-117";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), "usuarios", adminUid), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId: NEGOCIO_A
+        });
+        await setDoc(
+            doc(context.firestore(), "solicitudes", "baja_117_1"),
+            solicitudDoc("baja_117_1", NEGOCIO_A, 1170, "cliente-117", { estado: "PENDIENTE" })
+        );
+    });
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertFails(
+        deleteDoc(doc(database, "solicitudes", "baja_117_1"))
+    );
+});
+
+// =========================================================
+// NOTIFICACION AL ADMIN POR SOLICITUD DE BAJA (PRUEBA 118-120)
+// =========================================================
+// La notificación SOLICITUD_BAJA la crea el ADMIN (único escritor permitido por
+// las Rules) cuando carga sus solicitudes PENDIENTES. El CLIENTE no puede
+// fabricar notificaciones en absoluto.
+
+function notificacionSolicitudBajaDoc(negocioId, clienteId, fechaMillis) {
+    return {
+        negocioId,
+        titulo: "Solicitud de baja",
+        mensaje: "Cliente De Prueba ha solicitado la baja.",
+        tipo: "SOLICITUD_BAJA",
+        origen: "AUTOMATICA",
+        modoDestino: "INDIVIDUAL",
+        clienteId,
+        fechaCreacion: Timestamp.now(),
+        programada: false,
+        estado: "PENDIENTE"
+    };
+}
+
+test("PRUEBA 118: el ADMIN crea la notificacion SOLICITUD_BAJA de su negocio -> ALLOW", async () => {
+    const adminUid = "admin-notif-baja-118";
+    const clienteId = 1180;
+    const fechaMillis = 1700000000000;
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), "usuarios", adminUid), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId: NEGOCIO_A
+        });
+    });
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertSucceeds(
+        setDoc(
+            doc(database, "notificaciones", `solicitud_baja_${clienteId}_${fechaMillis}`),
+            notificacionSolicitudBajaDoc(NEGOCIO_A, clienteId, fechaMillis)
+        )
+    );
+});
+
+test("PRUEBA 119: un CLIENTE NO puede crear una notificacion SOLICITUD_BAJA ni ninguna otra -> DENY", async () => {
+    const clienteUid = "cliente-notif-baja-119";
+    const clienteId = 1190;
+    const fechaMillis = 1700000000000;
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE", activo: true, clienteId, negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "clientes", String(clienteId)), fichaCliente(clienteId, NEGOCIO_A, clienteUid, "11900000X"));
+        await setDoc(
+            doc(database, "solicitudes", `baja_${clienteId}_${fechaMillis}`),
+            solicitudDoc(`baja_${clienteId}_${fechaMillis}`, NEGOCIO_A, clienteId, clienteUid, { estado: "PENDIENTE" })
+        );
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertFails(
+        setDoc(
+            doc(database, "notificaciones", `solicitud_baja_${clienteId}_${fechaMillis}`),
+            notificacionSolicitudBajaDoc(NEGOCIO_A, clienteId, fechaMillis)
+        )
+    );
+});
+
+test("PRUEBA 120: el ADMIN NO puede crear una notificacion SOLICITUD_BAJA de otro negocio -> DENY", async () => {
+    const adminUid = "admin-notif-baja-120";
+    const clienteId = 1200;
+    const fechaMillis = 1700000000000;
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), "usuarios", adminUid), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId: NEGOCIO_A
+        });
+    });
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertFails(
+        setDoc(
+            doc(database, "notificaciones", `solicitud_baja_${clienteId}_${fechaMillis}`),
+            notificacionSolicitudBajaDoc(NEGOCIO_B, clienteId, fechaMillis)
+        )
+    );
+});

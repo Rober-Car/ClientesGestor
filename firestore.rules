@@ -1082,8 +1082,12 @@ service cloud.firestore {
 
       allow update: if false;
 
+      // El ADMIN elimina del historial SOLO solicitudes ya resueltas
+      // (ACEPTADA/RECHAZADA). Una solicitud PENDIENTE no se puede borrar: sigue
+      // requiriendo decisión. El borrado no altera el estado del cliente.
       allow delete: if esAdmin()
-        && resource.data.negocioId == usuarioActual().negocioId;
+        && resource.data.negocioId == usuarioActual().negocioId
+        && resource.data.estado != "PENDIENTE";
 
       allow delete: if false;
     }
@@ -1124,7 +1128,7 @@ service cloud.firestore {
            ])
         && request.resource.data.titulo is string
         && request.resource.data.mensaje is string
-        && request.resource.data.tipo in ["MANUAL", "MOROSIDAD", "BAJA_CONFIRMADA", "PROGRAMADA"]
+        && request.resource.data.tipo in ["MANUAL", "MOROSIDAD", "BAJA_CONFIRMADA", "PROGRAMADA", "SOLICITUD_BAJA"]
         && request.resource.data.origen in ["MANUAL", "AUTOMATICA", "PRECONFIGURADA"]
         && request.resource.data.modoDestino in ["INDIVIDUAL", "GRUPO", "TODOS"]
         && request.resource.data.fechaCreacion is timestamp

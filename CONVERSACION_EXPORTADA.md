@@ -2022,3 +2022,150 @@ generar() → lista con idSesion=0
 - Rules **123/123**; helpers de Functions **13/13**; builds `:app` y `:appCliente` BUILD SUCCESSFUL; `git diff --check` limpio.
 - Sin Blaze, sin deploy de Functions/Storage, sin commit. Cloud Functions preparadas en local, listas para el día que se active la facturación.
 - Pendiente principal: **auditoría y cierre del circuito de ECONOMÍA** (fuente de verdad del movimiento, morosidad real/"cuarto día hábil", pagos, BAJA+deuda, replicación a Firestore para Functions). Luego Blaze → índice `notificaciones(estado, fechaProgramada)` → `npm install` en `functions/` → deploy Functions + `storage.rules` → FCM real → Storage → pruebas finales integradas.
+
+---
+
+# ACTUALIZACIÓN 2026-09-02 (SESIONES XXV–XXVII) — CORRECCIONES/FUNCIONALIDADES + DIAGNÓSTICO ECONOMÍA
+
+> Bloque vigente. HEAD = `3b113e6` (commits del desarrollador posteriores a Sesión XXIV:
+> `9f54d0c`, `287d3ec`, `783ff31`, `5bd7c76`, `f6cfef0`, `459eb9d`, `10bdcea`, `3b113e6`).
+> Todo el trabajo posterior a `244db1e` sigue en el working tree SIN commit. Rules **131/131**
+> (123 + PRUEBA 113–120). Unit `:app` con `NotificacionConfigTest` (5 tests). Sin commit,
+> sin deploy, sin Blaze.
+
+## SESIÓN XXV — FASE DE CORRECCIONES Y PEQUEÑAS FUNCIONALIDADES
+
+### 1. Regresión CRÍTICA: crear/generar sesiones desde el ADMIN (PERMISSION_DENIED) — RESUELTA
+
+- **Síntoma:** al generar sesiones, "Cambio guardado en el dispositivo, pero no sincronizado con
+  la nube: No tienes permisos para esta operación".
+- **Diagnóstico (datos reales de producción vía REST con sesión CLI):** el negocio actual del
+  ADMIN (`6YFNg1LfwrMY32t62iUVUnLHogL2`, "pruebatarde") tenía **`servicios` vacía en Firestore**
+  (0 documentos) aunque el servicio existe en Room (id=1) y los clientes referencian
+  `serviciosContratados=[1]`. La regla `sesiones/create` exige `servicioValidoParaSesion(id, negocio)`
+  (`exists(servicios/{id}) && negocioId coincide && activo == true`); al no existir el documento
+  remoto del servicio, la creación de sesiones se DENIEGA. NO era una regresión de Rules: la
+  sección `sesiones` ADMIN es idéntica entre `287d3ec` (cuando funcionó) y HEAD, y el ruleset
+  desplegado coincide en esa sección con el local (verificado vía REST). El servicio no se había
+  replicado (se creó cuando el ruleset desplegado no tenía `match /servicios` y la réplica falló
+  en silencio).
+- **Fix:** `SesionViewModel.generarSesiones` replica el servicio antes de la cascada/réplica
+  (`servicioRemotoRepository.crearServicioRemoto(servicio)`, idempotente: crea `servicios/{id}`
+  si falta o devuelve "ya sincronizado"). No se abrió ningún permiso. Se inyectó
+  `ServicioRemotoRepository` en `SesionViewModel`.
+- **Regresión asegurada:** el negocio actual quedará arreglado al regenerar sesiones con el build
+  nuevo (la app replica el servicio automáticamente).
+
+### 2. SolicitudesScreen (ADMIN): búsqueda + borrado de resueltas + scroll
+
+- **Búsqueda:** campo de texto que filtra por datos REALES del cliente asociado a la solicitud
+  (`nombre + apellidos`, teléfono, DNI, email e idCliente) usando el mismo criterio
+  `contains(ignoreCase=true)` que `ClientesScreen`. El modelo `Cliente` ya trae "nombre apellidos".
+- **Borrado:** las solicitudes `ACEPTADA`/`RECHAZADA` muestran "Eliminar del historial" con
+  confirmación ("¿Eliminar esta solicitud? / Esta acción eliminará la solicitud del historial. No
+  se modifica el estado del cliente..."). `PENDIENTE` no ofrece la opción y las Rules la rechazan
+  a nivel remoto (`solicitudes/delete` exige `estado != "PENDIENTE"`). Métodos nuevos:
+  `SolicitudRemotoRepository.eliminarSolicitud()` y `SolicitudesViewModel.eliminarSolicitud()`.
+- **Scroll:** la `LazyColumn` pasó a `Modifier.weight(1f)` (ocupaba todo el alto restante bajo
+  encabezado/buscador y desplazaba internamente; antes no tenía restricción de altura).
+
+### 3. Home appCliente: aviso de morosidad y borde de estado
+
+- **Aviso:** se sustituyó la Card roja por un texto integrado (`ClickableText`): todo el texto en
+  `colorScheme.error`, la palabra **"aquí"** en `colorScheme.primary` + negrita + subrayado; SOLO
+  "aquí" es clicable → `Routes.CUENTA`. Aparece solo con `estadoHome.estado == PAGO_VENCIDO`
+  (cliente ACTIVO con período vencido); nunca en BAJA/REGISTRADO/ARCHIVADO/ACTIVO sin vencimiento.
+- **Card de estado:** el `BorderStroke` de `HomeClientEstadoIndicator` usa `colorScheme.error`
+  cuando `PAGO_VENCIDO`; contenido y fondo intactos.
+- **Ajuste final (Sesión XXVI):** el aviso se subió (padding `top=4dp, bottom=16dp`) y aumentó de
+  `bodyMedium` a `bodyLarge`.
+
+### 4. Notificación CLIENTE → ADMIN por solicitud de baja (FLUJO 1) — CORREGIDA
+
+- **Causa de que no llegara:** las Rules DESPLEGADAS (01/09 15:18) solo permiten `esAdmin()` en
+  `notificaciones/create`; la implementación previa hacía que el CLIENTE creara el documento y en
+  producción esa escritura era DENEGADA (el error se tragaba; la solicitud sí se creaba). La
+  bandeja ADMIN (`obtenerNotificaciones`) no filtra por tipo, así que el documento habría aparecido
+  si existiera.
+- **Fix:** la notificación la crea el ADMIN al cargar sus solicitudes PENDIENTES
+  (`SolicitudesViewModel.generarAvisosDeSolicitudesPendientes` →
+  `NotificacionRemotoRepository.crearNotificacionSolicitudBaja`, ID determinista
+  `solicitud_baja_{clienteId}_{fechaSolicitud}`, tipo `SOLICITUD_BAJA`, origen `AUTOMATICA`,
+  estado `PENDIENTE`). Se RETIRÓ la creación desde el CLIENTE (`appCliente/.../SolicitudRepository`
+  vuelve a crear solo la solicitud). Rules: `SOLICITUD_BAJA` añadido al `tipo` permitido en el
+  create ADMIN; retirada la excepción de CLIENTE. PRUEBA 118–120.
+
+### 5. BAJA_CONFIRMADA (FLUJO 2) — CORREGIDA
+
+- **Causa de que no llegara:** solo se generaba si `configuracion_notificaciones/{negocioId}
+  .bajaConfirmada.activa == true`, y en producción no existe el documento (desactivado por defecto).
+  Además el mensaje no llevaba la fecha.
+- **Fix:** `NotificacionRemotoRepository` ahora devuelve `configuracionPorDefecto()` con
+  `bajaConfirmadaActiva = true` cuando la configuración no existe (y trata el campo ausente como
+  activo); el gate de `BajaClienteRemotoRepository.crearBajaConfirmada` usa
+  `bajaConfirmadaActivaPorDefecto(config?.bajaConfirmadaActiva)` (solo un `false` explícito la
+  desactiva). Mensaje nuevo: "Tu baja se ha realizado con fecha dd/MM/yyyy." Idempotencia con
+  `existeNotificacion` e ID determinista `baja_confirmada_{clienteId}_{fechaBaja}` (igual que CF).
+
+### 6. Tests / builds
+
+- Rules **131/131**: PRUEBA 113–115 (sesiones: payload exacto de la app, servicio no replicado →
+  DENY, regeneración batch), 116–117 (borrado de solicitudes), 118–120 (SOLICITUD_BAJA por ADMIN,
+  CLIENTE no puede crear notificaciones, ADMIN de otro negocio DENY).
+- Unit `:app` con `NotificacionConfigTest` (5): default de bajaConfirmada (inexistente/true/false/
+  null) + ID determinista.
+- `:app:assembleDebug` y `:appCliente:assembleDebug` BUILD SUCCESSFUL; `:app:testDebugUnitTest` y
+  `:appCliente:testDebugUnitTest` BUILD SUCCESSFUL; `git diff --check` limpio.
+
+## SESIÓN XXVII — DIAGNÓSTICO COMPLETO DE ECONOMÍA (SOLO LECTURA, nada implementado)
+
+> Petición del propietario: reconstruir la arquitectura económica REAL leyendo el código. NO se
+> modificó ningún archivo; el `git diff` solo muestra los cambios previos. El informe completo está
+> en la respuesta de esta sesión (secciones 1–24). Resumen:
+
+- **NO existe circuito económico.** No hay `CuotaEntity`, `PagoEntity`, `PagoDao`,
+  `PagoRepository`, `Descuento`, `Tarifa`, método de pago (EFECTIVO/BIZUM/TRANSFERENCIA no existen
+  en código) ni prorrateo.
+- **Movimiento Room = la "cuota" de facto:** `servicio` (texto libre), `fechaInicio`, `fechaFin`,
+  `precio` (manual), `estado` (PENDIENTE/PAGADO), `fechaPago` (solo lo rellena la renovación),
+  `observaciones`. CRUD en el perfil; `EconomiaScreen` lo lista en solo lectura y gestiona gastos.
+- **BUG confirmado:** editar un movimiento resetea `fechaPago` a null
+  (`PerfilClienteAdministradorScreen.kt:2094-2109`). NO corregido (tarea de diagnóstico).
+- **`ServicioEntity` no tiene precio.** Los servicios del catálogo (Sala máquinas, CrossFit, Yoga,
+  Pilates) son solo nombre/descripción/activo. La suma de servicios, precios configurables,
+  descuentos, tramos de alta/prorrateos y la "llave como tarifa" NO están implementados.
+- **`fechaInicioActual`/`fechaFinActual`** se derivan en `MovimientoRepository` (movimiento con
+  mayor `fechaFin`) y se replican SOLO a `clientes/{id}` en Firestore. No están en Room.
+- **Morosidad derivada y NO persistida**, con dos fuentes: Room/Admin (`ClienteDao.obtenerIdsMorosos`:
+  ACTIVO con `fechaFin < ahora` o BAJA con movimiento PENDIENTE) y appCliente/Functions
+  (`clientes/{id}.fechaFinActual < ahora`). `EstadoCliente.MOROSO` nunca se persiste. La regla del
+  **"cuarto día hábil" NO está implementada en ningún sitio**.
+- **Firestore:** solo se replica el periodo; la colección `movimientos` tiene reglas (ADMIN) pero no
+  se usa. No hay `pagos` ni `cuotas` remotas.
+- **Cloud Functions (sin deploy):** entradaMorosidad/recordatorio/bajaConfirmada dependen solo de
+  `clientes/{id}.fechaFinActual` + `configuracion_notificaciones`. `leerConfiguracion` de Functions
+  trata la config inexistente como desactivada, mientras la app ahora la trata como activa →
+  **divergencia pendiente de decidir**.
+- **10 decisiones de negocio pendientes** (sección 24 del informe): cuota=movimiento o entidad;
+  Pago independiente vs fechaPago; tarifas en Servicio; descuentos + edad estudiante; altas/
+  prorrateos (tramos, 0,25 €/día, llave-tarifa); regla exacta de morosidad; BAJA+deuda;
+  replicación mínima a Firestore; default config app↔CF; appCliente económico o no.
+
+## ESTADO ACTUAL (cierre 2026-09-02)
+
+- HEAD = `3b113e6`; working tree con las 2 fases de correcciones + diagnóstico ECONOMÍA (sin
+  cambios de economía). Rules **131/131**; unit `:app` 6 tests (1 stub + 5 NotificacionConfig);
+  builds `:app`/`:appCliente` BUILD SUCCESSFUL; `git diff --check` limpio. Sin commit/deploy/Blaze.
+- **Rules desplegadas OBSOLETAS (01/09 15:18):** sin `clientePuedeAcceder`, sin
+  `solicitudes/delete` restringido y sin `SOLICITUD_BAJA`. Pendiente de desplegar cuando se autorice.
+- **Próximo paso (decisión del propietario):** responder a las **10 decisiones de ECONOMÍA**
+  (Sesión XXVII §24) y autorizar implementación. Después: fases de implementación económica →
+  Blaze/Functions/Storage.
+
+## PARA REANUDAR
+
+1. Leer `AGENTS.md` (estado 2026-09-02) y esta Sesión XXVII (diagnóstico ECONOMÍA, §24 decisiones).
+2. El propietario decide sobre las 10 cuestiones económicas ANTES de programar.
+3. Revisar/commitear el working tree (2 fases de correcciones) cuando se autorice.
+4. Desplegar Rules (cuando se autorice) para activar en producción `clientePuedeAcceder`,
+   `solicitudes/delete` y `SOLICITUD_BAJA`.

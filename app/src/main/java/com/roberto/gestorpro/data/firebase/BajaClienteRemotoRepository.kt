@@ -35,6 +35,16 @@ class BajaClienteRemotoRepository @Inject constructor(
         private const val COLECCION_RESERVAS = "reservas"
         private const val COLECCION_SESIONES = "sesiones"
         private const val TAG = "BajaClienteRemotoRepository"
+
+        /**
+         * idNotificacionBajaConfirmada
+         * ----------------------------
+         * ID determinista de la notificación de baja confirmada (compartido con
+         * Cloud Functions). Garantiza que para la misma ficha y fecha de baja
+         * solo exista un documento, evitando duplicados.
+         */
+        fun idNotificacionBajaConfirmada(idCliente: Int, fechaBajaMillis: Long): String =
+            "baja_confirmada_${idCliente}_$fechaBajaMillis"
     }
 
     /**
@@ -146,15 +156,20 @@ class BajaClienteRemotoRepository @Inject constructor(
         try {
             val config = notificacionRemotoRepository.obtenerConfiguracion(negocioId)
             val uidValido = firebaseUid?.takeIf { it.isNotBlank() }
-            if (config?.bajaConfirmadaActiva != true || uidValido == null) return
+            if (uidValido == null) return
+            // Activa por defecto: solo se suprime con un false explícito del ADMIN.
+            if (!NotificacionRemotoRepository.bajaConfirmadaActivaPorDefecto(
+                    config?.bajaConfirmadaActiva
+                )
+            ) return
 
-            val notificacionId = "baja_confirmada_${idCliente}_$fechaBajaMillis"
-            if (notificacionRemotoRepository.existeNotificacionFinalizada(notificacionId)) return
+            val notificacionId = idNotificacionBajaConfirmada(idCliente, fechaBajaMillis)
+            if (notificacionRemotoRepository.existeNotificacion(notificacionId)) return
 
             notificacionRemotoRepository.crearNotificacion(
                 negocioId = negocioId,
                 titulo = "Baja confirmada",
-                mensaje = "Tu baja en el gimnasio ha sido confirmada.",
+                mensaje = "Tu baja se ha realizado con fecha ${formatearFecha(fechaBajaMillis)}.",
                 modoDestino = "INDIVIDUAL",
                 clienteId = idCliente,
                 destinatarios = listOf(DestinatarioResuelto(idCliente, uidValido)),
@@ -176,6 +191,12 @@ class BajaClienteRemotoRepository @Inject constructor(
         val m = partes.getOrNull(1)?.toLongOrNull() ?: 0L
         return h * 60 + m
     }
+
+    private fun formatearFecha(millis: Long): String =
+        java.time.Instant.ofEpochMilli(millis)
+            .atZone(java.time.ZoneId.systemDefault())
+            .toLocalDate()
+            .format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
 
     private fun mensajeDe(e: Exception): String {
         return when {
