@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AccountBox
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
@@ -176,6 +177,17 @@ fun HomeScreen(
                         iconContainerColor = Color(0xFFE91E63),
                         iconTint = Color.White,
                         onClick = { navController.navigate(Routes.NOTIFICACIONES) }
+                    )
+                }
+                item {
+                    MenuCard(
+                        titulo = "Solicitudes",
+                        descripcion = "Solicitudes de baja",
+                        icono = Icons.Default.Email,
+                        containerColor = Color(0xFF00ACC1).copy(alpha = 0.12f),
+                        iconContainerColor = Color(0xFF00ACC1),
+                        iconTint = Color.White,
+                        onClick = { navController.navigate(Routes.SOLICITUDES) }
                     )
                 }
             }

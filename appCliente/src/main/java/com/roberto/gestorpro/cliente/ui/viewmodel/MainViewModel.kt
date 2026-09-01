@@ -12,13 +12,15 @@ import com.roberto.gestorpro.cliente.data.firebase.DispositivoRepository
 import com.roberto.gestorpro.cliente.data.firebase.NegocioRepository
 import com.roberto.gestorpro.cliente.data.firebase.PerfilPendiente
 import com.roberto.gestorpro.cliente.data.firebase.PerfilPendienteRepository
+import com.roberto.gestorpro.cliente.data.firebase.SolicitudRepository
 import com.roberto.gestorpro.cliente.data.firebase.VinculacionRepository
 import com.roberto.gestorpro.cliente.data.firebase.esperar
 import com.roberto.gestorpro.cliente.data.repository.PreferencesRepository
 import com.roberto.gestorpro.cliente.model.Cliente
+import com.roberto.gestorpro.cliente.model.EstadoCliente
 import com.roberto.gestorpro.cliente.model.EstadoHomeCliente
 import com.roberto.gestorpro.cliente.model.EstadoIndicadorCliente
-import com.roberto.gestorpro.cliente.model.EstadoCliente
+import com.roberto.gestorpro.cliente.model.SolicitudBaja
 import com.roberto.gestorpro.cliente.navigation.Routes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -45,7 +47,8 @@ class MainViewModel @Inject constructor(
     private val perfilPendienteRepository: PerfilPendienteRepository,
     private val vinculacionRepository: VinculacionRepository,
     private val clienteRepository: ClienteRepository,
-    private val dispositivoRepository: DispositivoRepository
+    private val dispositivoRepository: DispositivoRepository,
+    private val solicitudRepository: SolicitudRepository
 ) : ViewModel() {
 
     private val _autenticando = MutableStateFlow(false)
@@ -65,6 +68,18 @@ class MainViewModel @Inject constructor(
 
     private val _perfilPendiente = MutableStateFlow<PerfilPendiente?>(null)
     val perfilPendiente: StateFlow<PerfilPendiente?> = _perfilPendiente.asStateFlow()
+
+    private val _solicitudesBaja = MutableStateFlow<List<SolicitudBaja>>(emptyList())
+    val solicitudesBaja: StateFlow<List<SolicitudBaja>> = _solicitudesBaja.asStateFlow()
+
+    private val _cargandoSolicitudesBaja = MutableStateFlow(false)
+    val cargandoSolicitudesBaja: StateFlow<Boolean> = _cargandoSolicitudesBaja.asStateFlow()
+
+    private val _operandoSolicitudBaja = MutableStateFlow(false)
+    val operandoSolicitudBaja: StateFlow<Boolean> = _operandoSolicitudBaja.asStateFlow()
+
+    private val _errorSolicitudBaja = MutableStateFlow<String?>(null)
+    val errorSolicitudBaja: StateFlow<String?> = _errorSolicitudBaja.asStateFlow()
 
     val themeMode = preferencesRepository.themeMode.stateIn(
         scope = viewModelScope,
@@ -498,6 +513,54 @@ class MainViewModel @Inject constructor(
             return null
         } finally {
             _operandoRemoto.value = false
+        }
+    }
+
+    /**
+     * cargarSolicitudesBaja
+     * ---------------------
+     * Carga las solicitudes de baja propias del cliente vinculado (Firestore).
+     */
+    fun cargarSolicitudesBaja() {
+        viewModelScope.launch {
+            val id = preferencesRepository.idCliente.first() ?: return@launch
+            val negocio = preferencesRepository.negocioId.first()
+                ?.takeIf { it.isNotBlank() } ?: return@launch
+            _cargandoSolicitudesBaja.value = true
+            _errorSolicitudBaja.value = null
+            try {
+                _solicitudesBaja.value = solicitudRepository.obtenerSolicitudes(id, negocio)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _errorSolicitudBaja.value =
+                    e.message ?: "No se pudieron cargar las solicitudes"
+            } finally {
+                _cargandoSolicitudesBaja.value = false
+            }
+        }
+    }
+
+    /**
+     * solicitarBaja
+     * -------------
+     * Crea una solicitud de baja PENDIENTE. Devuelve un error (String?) o null
+     * si se creó correctamente. El repositorio rechaza el alta si ya existe una
+     * solicitud PENDIENTE, así que no se puede duplicar.
+     */
+    suspend fun solicitarBaja(motivo: String?): String? {
+        val id = preferencesRepository.idCliente.first() ?: return "Sin ficha vinculada"
+        val negocio = preferencesRepository.negocioId.first()
+            ?.takeIf { it.isNotBlank() } ?: return "Sin negocio vinculado"
+        _operandoSolicitudBaja.value = true
+        try {
+            val resultado = solicitudRepository.crearSolicitudBaja(id, negocio, motivo)
+            if (!resultado.exito) return resultado.mensaje
+            _mensaje.value = resultado.mensaje
+            cargarSolicitudesBaja()
+            return null
+        } finally {
+            _operandoSolicitudBaja.value = false
         }
     }
 }

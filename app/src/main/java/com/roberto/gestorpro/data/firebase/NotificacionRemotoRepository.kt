@@ -159,13 +159,16 @@ class NotificacionRemotoRepository @Inject constructor(
         destinatarios: List<DestinatarioResuelto>,
         idsObjetivo: List<Int>,
         programada: Boolean,
-        fechaProgramada: Long?
+        fechaProgramada: Long?,
+        tipo: String = TIPO_MANUAL,
+        origen: String = ORIGEN_MANUAL,
+        notificacionId: String? = null
     ): ResultadoAutenticacion {
         val uid = auth.currentUser?.uid
             ?: return ResultadoAutenticacion(false, "No hay ningún usuario autenticado")
 
-        val notificacionId = generarIdNotificacion()
-        val tipo = if (programada) TIPO_PROGRAMADA else TIPO_MANUAL
+        val idNotificacion = notificacionId ?: generarIdNotificacion()
+        val tipoFinal = if (programada && tipo == TIPO_MANUAL) TIPO_PROGRAMADA else tipo
         val idsParaRegistro = if (programada) {
             idsObjetivo.distinct()
         } else {
@@ -176,7 +179,8 @@ class NotificacionRemotoRepository @Inject constructor(
             negocioId = negocioId,
             titulo = titulo,
             mensaje = mensaje,
-            tipo = tipo,
+            tipo = tipoFinal,
+            origen = origen,
             modoDestino = modoDestino,
             clienteId = clienteId,
             idsClientes = idsParaRegistro,
@@ -187,7 +191,7 @@ class NotificacionRemotoRepository @Inject constructor(
 
         return try {
             db.collection(COLECCION_NOTIFICACIONES)
-                .document(notificacionId)
+                .document(idNotificacion)
                 .set(docPrincipal)
                 .esperar()
 
@@ -196,7 +200,7 @@ class NotificacionRemotoRepository @Inject constructor(
                     // Sin destinatarios vinculados: no se puede enviar.
                     // Se deja el registro en ERROR para no arrastrar un PENDIENTE eterno.
                     db.collection(COLECCION_NOTIFICACIONES)
-                        .document(notificacionId)
+                        .document(idNotificacion)
                         .update("estado", ESTADO_ERROR)
                         .esperar()
                     return ResultadoAutenticacion(
@@ -206,10 +210,11 @@ class NotificacionRemotoRepository @Inject constructor(
                 }
                 crearBuzones(
                     negocioId = negocioId,
-                    notificacionId = notificacionId,
+                    notificacionId = idNotificacion,
                     titulo = titulo,
                     mensaje = mensaje,
-                    tipo = tipo,
+                    tipo = tipoFinal,
+                    origen = origen,
                     destinatarios = destinatarios
                 )
                 // NOTA (Fase E): el envío inmediato se deja en PENDIENTE a
@@ -220,7 +225,7 @@ class NotificacionRemotoRepository @Inject constructor(
 
             Log.i(
                 TAG,
-                "Notificación creada: $notificacionId " +
+                "Notificación creada: $idNotificacion " +
                     "programada=$programada destinatarios=${destinatarios.size}"
             )
             ResultadoAutenticacion(
@@ -228,11 +233,30 @@ class NotificacionRemotoRepository @Inject constructor(
                 if (programada) "Notificación programada" else "Notificación creada"
             )
         } catch (e: FirebaseFirestoreException) {
-            Log.e(TAG, "Error creando notificación $notificacionId código=${e.code}", e)
+            Log.e(TAG, "Error creando notificación $idNotificacion código=${e.code}", e)
             ResultadoAutenticacion(false, mensajeDe(e))
         } catch (e: Exception) {
-            Log.e(TAG, "Error creando notificación $notificacionId", e)
+            Log.e(TAG, "Error creando notificación $idNotificacion", e)
             ResultadoAutenticacion(false, mensajeDe(e))
+        }
+    }
+
+    /**
+     * existeNotificacionFinalizada
+     * ----------------------------
+     * Indica si ya existe un documento de notificación con ese id y su estado
+     * ya no es PENDIENTE (p. ej. ya ENVIADA por Cloud Functions). Sirve para
+     * no sobrescribir una notificación automática que el backend ya procesó.
+     */
+    suspend fun existeNotificacionFinalizada(notificacionId: String): Boolean {
+        return try {
+            val documento = db.collection(COLECCION_NOTIFICACIONES)
+                .document(notificacionId)
+                .get()
+                .esperar()
+            documento.exists() && documento.getString("estado") != ESTADO_PENDIENTE
+        } catch (e: Exception) {
+            false
         }
     }
 
@@ -339,6 +363,7 @@ class NotificacionRemotoRepository @Inject constructor(
         titulo: String,
         mensaje: String,
         tipo: String,
+        origen: String,
         destinatarios: List<DestinatarioResuelto>
     ) {
         destinatarios.chunked(MAX_ESCRITURAS_POR_BATCH).forEach { lote ->
@@ -355,7 +380,7 @@ class NotificacionRemotoRepository @Inject constructor(
                         "titulo" to titulo,
                         "mensaje" to mensaje,
                         "tipo" to tipo,
-                        "origen" to ORIGEN_MANUAL,
+                        "origen" to origen,
                         "fechaEnvio" to Timestamp.now(),
                         "leida" to false
                     )
@@ -394,6 +419,7 @@ class NotificacionRemotoRepository @Inject constructor(
         titulo: String,
         mensaje: String,
         tipo: String,
+        origen: String,
         modoDestino: String,
         clienteId: Int?,
         idsClientes: List<Int>,
@@ -406,7 +432,7 @@ class NotificacionRemotoRepository @Inject constructor(
             "titulo" to titulo,
             "mensaje" to mensaje,
             "tipo" to tipo,
-            "origen" to ORIGEN_MANUAL,
+            "origen" to origen,
             "modoDestino" to modoDestino,
             "idsClientes" to idsClientes,
             "fechaCreacion" to Timestamp.now(),

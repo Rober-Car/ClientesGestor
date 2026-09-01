@@ -242,4 +242,11 @@ object Routes {
      */
     const val SELECCIONAR_CLIENTES = "seleccionar_clientes"
 
+    /**
+     * SOLICITUDES
+     * -----------
+     * Ruta de la pantalla de gestión de solicitudes de baja del ADMIN.
+     */
+    const val SOLICITUDES = "solicitudes"
+
 }

@@ -29,6 +29,16 @@ service cloud.firestore {
         && u.activo == true;
     }
 
+    // Un CLIENTE puede solicitar la baja solo si su ficha está en un estado
+    // que lo permite (no BAJA ni ARCHIVADO) y pertenece a su negocio.
+    function esClientePuedeSolicitarBaja(clienteId, negocioId) {
+      let p = /databases/$(database)/documents/clientes/$(clienteId);
+      return exists(p)
+        && get(p).data.negocioId == negocioId
+        && get(p).data.estado != "BAJA"
+        && get(p).data.estado != "ARCHIVADO";
+    }
+
     // Una sola lectura de la ficha del cliente del usuario autenticado.
     // El servicio se identifica por su id (int), igual que en
     // clientes/{idCliente}.serviciosContratados.
@@ -997,6 +1007,10 @@ service cloud.firestore {
     // =========================================================
     // SOLICITUDES
     // =========================================================
+    // Flujo de solicitudes de baja (y futuras altas). El CLIENTE crea su
+    // propia solicitud PENDIENTE (tipo BAJA/ALTA) y solo puede consultar las
+    // suyas; el ADMIN de su negocio la acepta o rechaza y solo la modifica en
+    // el sentido permitido (resolución), nunca de forma arbitraria.
 
     match /solicitudes/{solicitudId} {
       allow get, list: if esAdmin()
@@ -1006,15 +1020,50 @@ service cloud.firestore {
         && resource.data.negocioId == usuarioActual().negocioId
         && resource.data.idCliente == usuarioActual().clienteId;
 
+      // El CLIENTE solo crea para sí mismo, siempre PENDIENTE, con los campos
+      // exactos del contrato, y solo si su ficha le permite solicitar la baja
+      // (no BAJA ni ARCHIVADO).
       allow create: if esCliente()
         && request.resource.data.negocioId == usuarioActual().negocioId
         && request.resource.data.idCliente == usuarioActual().clienteId
         && request.resource.data.estado == "PENDIENTE"
-        && request.resource.data.tipo in ["ALTA", "BAJA"];
+        && request.resource.data.tipo in ["ALTA", "BAJA"]
+        && request.resource.data.firebaseUid == request.auth.uid
+        && request.resource.data.keys().hasOnly([
+             "idSolicitud",
+             "negocioId",
+             "idCliente",
+             "firebaseUid",
+             "fechaSolicitud",
+             "estado",
+             "tipo",
+             "motivo"
+           ])
+        && request.resource.data.idSolicitud is string
+        && request.resource.data.fechaSolicitud is timestamp
+        && (!("motivo" in request.resource.data.keys())
+            || request.resource.data.motivo is string)
+        && esClientePuedeSolicitarBaja(
+             request.resource.data.idCliente,
+             request.resource.data.negocioId
+           );
 
+      // El ADMIN resuelve la solicitud: solo desde PENDIENTE y únicamente los
+      // campos de resolución. Una solicitud ya ACEPTADA/RECHAZADA no se puede
+      // volver a modificar.
       allow update: if esAdmin()
         && resource.data.negocioId == usuarioActual().negocioId
-        && request.resource.data.negocioId == usuarioActual().negocioId;
+        && resource.data.negocioId is string
+        && request.resource.data.negocioId == resource.data.negocioId
+        && resource.data.estado == "PENDIENTE"
+        && request.resource.data.estado in ["ACEPTADA", "RECHAZADA"]
+        && request.resource.data.diff(resource.data)
+            .affectedKeys()
+            .hasOnly(["estado", "fechaResolucion", "resueltaPor", "motivo"])
+        && (!("fechaResolucion" in request.resource.data.keys())
+            || request.resource.data.fechaResolucion is timestamp)
+        && (!("resueltaPor" in request.resource.data.keys())
+            || request.resource.data.resueltaPor is string);
 
       allow update: if false;
 

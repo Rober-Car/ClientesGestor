@@ -43,6 +43,7 @@ import com.roberto.gestorpro.ui.servicios.EditarSesionScreen
 import com.roberto.gestorpro.ui.servicios.ProgramarSesionesScreen
 import com.roberto.gestorpro.ui.servicios.ServiciosScreen
 import com.roberto.gestorpro.ui.servicios.SesionReservasScreen
+import com.roberto.gestorpro.ui.solicitudes.SolicitudesScreen
 import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 import com.roberto.gestorpro.ui.viewmodel.NotificacionesViewModel
 
@@ -320,6 +321,10 @@ fun AppNavigation() {
                 navController = navController,
                 viewModel = notificacionesViewModel
             )
+        }
+
+        composable(Routes.SOLICITUDES) {
+            SolicitudesScreen(navController)
         }
 
     }

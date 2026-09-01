@@ -3021,3 +3021,275 @@ test("PRUEBA 98: un CLIENTE registra y actualiza su token FCM -> ALLOW y no pued
         })
     );
 });
+
+// =========================================================
+// SOLICITUDES DE BAJA (PRUEBA 99-108)
+// =========================================================
+
+function solicitudDoc(idSolicitud, negocioId, idCliente, firebaseUid, extra = {}) {
+    return {
+        idSolicitud,
+        negocioId,
+        idCliente,
+        firebaseUid,
+        fechaSolicitud: Timestamp.now(),
+        estado: extra.estado ?? "PENDIENTE",
+        tipo: extra.tipo ?? "BAJA",
+        ...extra
+    };
+}
+
+test("PRUEBA 99: un CLIENTE crea su solicitud de baja -> ALLOW", async () => {
+    const clienteUid = "cliente-sol-99";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE",
+            activo: true,
+            clienteId: 990,
+            negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "clientes", "990"), fichaCliente(990, NEGOCIO_A, clienteUid, "99000099A"));
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertSucceeds(
+        setDoc(
+            doc(database, "solicitudes", "baja_990_1700000000000"),
+            solicitudDoc("baja_990_1700000000000", NEGOCIO_A, 990, clienteUid)
+        )
+    );
+});
+
+test("PRUEBA 100: un CLIENTE no puede crear una solicitud para otro cliente -> DENY", async () => {
+    const clienteUid = "cliente-sol-100";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE",
+            activo: true,
+            clienteId: 1000,
+            negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "clientes", "1000"), fichaCliente(1000, NEGOCIO_A, clienteUid, "10000010A"));
+        await setDoc(doc(database, "clientes", "1001"), fichaCliente(1001, NEGOCIO_A, "otro-uid-100", "10000011A"));
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertFails(
+        setDoc(
+            doc(database, "solicitudes", "baja_1001_1700000000000"),
+            solicitudDoc("baja_1001_1700000000000", NEGOCIO_A, 1001, "otro-uid-100")
+        )
+    );
+});
+
+test("PRUEBA 101: un CLIENTE consulta su propia solicitud -> ALLOW", async () => {
+    const clienteUid = "cliente-sol-101";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE",
+            activo: true,
+            clienteId: 1010,
+            negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "clientes", "1010"), fichaCliente(1010, NEGOCIO_A, clienteUid, "10100010A"));
+        await setDoc(
+            doc(database, "solicitudes", "baja_1010_1700000000000"),
+            solicitudDoc("baja_1010_1700000000000", NEGOCIO_A, 1010, clienteUid)
+        );
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertSucceeds(
+        getDoc(doc(database, "solicitudes", "baja_1010_1700000000000"))
+    );
+});
+
+test("PRUEBA 102: un CLIENTE no puede consultar la solicitud de otro -> DENY", async () => {
+    const clienteUid = "cliente-sol-102";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE",
+            activo: true,
+            clienteId: 1020,
+            negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "clientes", "1020"), fichaCliente(1020, NEGOCIO_A, clienteUid, "10200010A"));
+        await setDoc(
+            doc(database, "solicitudes", "baja_1021_1700000000000"),
+            solicitudDoc("baja_1021_1700000000000", NEGOCIO_A, 1021, "otro-uid-102")
+        );
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertFails(
+        getDoc(doc(database, "solicitudes", "baja_1021_1700000000000"))
+    );
+});
+
+test("PRUEBA 103: un CLIENTE no puede cambiar el estado de su solicitud -> DENY", async () => {
+    const clienteUid = "cliente-sol-103";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE",
+            activo: true,
+            clienteId: 1030,
+            negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "clientes", "1030"), fichaCliente(1030, NEGOCIO_A, clienteUid, "10300010A"));
+        await setDoc(
+            doc(database, "solicitudes", "baja_1030_1700000000000"),
+            solicitudDoc("baja_1030_1700000000000", NEGOCIO_A, 1030, clienteUid)
+        );
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertFails(
+        updateDoc(doc(database, "solicitudes", "baja_1030_1700000000000"), {
+            estado: "ACEPTADA"
+        })
+    );
+});
+
+test("PRUEBA 104: el ADMIN consulta solicitudes de su negocio -> ALLOW", async () => {
+    const adminUid = "admin-sol-104";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", adminUid), {
+            rol: "ADMIN",
+            activo: true,
+            clienteId: null,
+            negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "clientes", "1040"), fichaCliente(1040, NEGOCIO_A, "cliente-104", "10400010A"));
+        await setDoc(
+            doc(database, "solicitudes", "baja_1040_1700000000000"),
+            solicitudDoc("baja_1040_1700000000000", NEGOCIO_A, 1040, "cliente-104")
+        );
+    });
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertSucceeds(
+        getDocs(query(collection(database, "solicitudes"), where("negocioId", "==", NEGOCIO_A)))
+    );
+    await assertSucceeds(
+        getDoc(doc(database, "solicitudes", "baja_1040_1700000000000"))
+    );
+});
+
+test("PRUEBA 105: el ADMIN no consulta solicitudes de otro negocio -> DENY", async () => {
+    const adminUid = "admin-sol-105";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", adminUid), {
+            rol: "ADMIN",
+            activo: true,
+            clienteId: null,
+            negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "clientes", "1050"), fichaCliente(1050, NEGOCIO_B, "cliente-105", "10500010A"));
+        await setDoc(
+            doc(database, "solicitudes", "baja_1050_1700000000000"),
+            solicitudDoc("baja_1050_1700000000000", NEGOCIO_B, 1050, "cliente-105")
+        );
+    });
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertFails(
+        getDoc(doc(database, "solicitudes", "baja_1050_1700000000000"))
+    );
+    await assertFails(
+        getDocs(query(collection(database, "solicitudes"), where("negocioId", "==", NEGOCIO_B)))
+    );
+});
+
+test("PRUEBA 106: el ADMIN acepta una solicitud de su negocio -> ALLOW", async () => {
+    const adminUid = "admin-sol-106";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", adminUid), {
+            rol: "ADMIN",
+            activo: true,
+            clienteId: null,
+            negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "clientes", "1060"), fichaCliente(1060, NEGOCIO_A, "cliente-106", "10600010A"));
+        await setDoc(
+            doc(database, "solicitudes", "baja_1060_1700000000000"),
+            solicitudDoc("baja_1060_1700000000000", NEGOCIO_A, 1060, "cliente-106")
+        );
+    });
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertSucceeds(
+        updateDoc(doc(database, "solicitudes", "baja_1060_1700000000000"), {
+            estado: "ACEPTADA",
+            fechaResolucion: Timestamp.now(),
+            resueltaPor: adminUid
+        })
+    );
+});
+
+test("PRUEBA 107: el ADMIN no modifica una solicitud de otro negocio -> DENY", async () => {
+    const adminUid = "admin-sol-107";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", adminUid), {
+            rol: "ADMIN",
+            activo: true,
+            clienteId: null,
+            negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "clientes", "1070"), fichaCliente(1070, NEGOCIO_B, "cliente-107", "10700010A"));
+        await setDoc(
+            doc(database, "solicitudes", "baja_1070_1700000000000"),
+            solicitudDoc("baja_1070_1700000000000", NEGOCIO_B, 1070, "cliente-107")
+        );
+    });
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertFails(
+        updateDoc(doc(database, "solicitudes", "baja_1070_1700000000000"), {
+            estado: "RECHAZADA",
+            fechaResolucion: Timestamp.now(),
+            resueltaPor: adminUid
+        })
+    );
+});
+
+test("PRUEBA 108: solicitudes con datos inválidos o cliente no apto -> DENY", async () => {
+    const clienteUid = "cliente-sol-108";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE",
+            activo: true,
+            clienteId: 1080,
+            negocioId: NEGOCIO_A
+        });
+        // Ficha de otro cliente ya en BAJA (no puede solicitar).
+        await setDoc(doc(database, "clientes", "1081"), fichaCliente(1081, NEGOCIO_A, "otro-uid-108", "10800010A", { estado: "BAJA" }));
+        // Ficha propia ACTIVA.
+        await setDoc(doc(database, "clientes", "1080"), fichaCliente(1080, NEGOCIO_A, clienteUid, "10800000A"));
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+
+    // estado no PENDIENTE
+    await assertFails(
+        setDoc(doc(database, "solicitudes", "bad-108-1"), solicitudDoc("bad-108-1", NEGOCIO_A, 1080, clienteUid, { estado: "ACEPTADA" }))
+    );
+    // tipo inválido
+    await assertFails(
+        setDoc(doc(database, "solicitudes", "bad-108-2"), solicitudDoc("bad-108-2", NEGOCIO_A, 1080, clienteUid, { tipo: "CANCELACION" }))
+    );
+    // campos extra fuera del contrato
+    await assertFails(
+        setDoc(doc(database, "solicitudes", "bad-108-3"), {
+            ...solicitudDoc("bad-108-3", NEGOCIO_A, 1080, clienteUid),
+            campoInesperado: "x"
+        })
+    );
+    // firebaseUid ajeno
+    await assertFails(
+        setDoc(doc(database, "solicitudes", "bad-108-4"), solicitudDoc("bad-108-4", NEGOCIO_A, 1080, "otro-uid-108"))
+    );
+    // cliente en BAJA no puede solicitar
+    await assertFails(
+        setDoc(doc(database, "solicitudes", "bad-108-5"), solicitudDoc("bad-108-5", NEGOCIO_A, 1081, "otro-uid-108"))
+    );
+});
