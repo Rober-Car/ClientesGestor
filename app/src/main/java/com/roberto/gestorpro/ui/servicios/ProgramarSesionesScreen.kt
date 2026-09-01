@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -31,10 +32,13 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SelectableDates
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -42,6 +46,7 @@ import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TimePickerState
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -87,19 +92,50 @@ fun ProgramarSesionesScreen(
 ) {
     val servicio by servicioViewModel.servicioSeleccionado.collectAsStateWithLifecycle()
     val sesiones by sesionViewModel.sesiones.collectAsStateWithLifecycle()
+    val operando by sesionViewModel.operando.collectAsStateWithLifecycle()
+    val errorSincronizacion by sesionViewModel.errorSincronizacion.collectAsStateWithLifecycle()
+    val sesionSinSincronizar by sesionViewModel.sesionSinSincronizar.collectAsStateWithLifecycle()
+    val resultadoGeneracion by sesionViewModel.resultadoGeneracion.collectAsStateWithLifecycle()
+
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    /**
+     * Muestra en una snackbar el resultado real de la última generación
+     * (éxito o error). Si terminó bien, vuelve a la pantalla anterior;
+     * si falló, la pantalla permanece para que el usuario vea el banner
+     * de sincronización y pueda reintentar.
+     */
+    LaunchedEffect(resultadoGeneracion) {
+        resultadoGeneracion?.let { resultado ->
+            snackbarHostState.showSnackbar(resultado.mensaje)
+            if (resultado.exito) {
+                navController.popBackStack()
+            }
+        }
+    }
+
+    /**
+     * Al abandonar la pantalla se limpia el resultado de generación para
+     * que una reentrada posterior no reaccione a un resultado obsoleto.
+     */
+    DisposableEffect(Unit) {
+        onDispose {
+            sesionViewModel.limpiarResultadoGeneracion()
+        }
+    }
 
     var desde by remember { mutableStateOf<Long?>(null) }
     var hasta by remember { mutableStateOf<Long?>(null) }
     var diasSeleccionados by remember { mutableStateOf(setOf<DayOfWeek>()) }
     var horasPorDia by remember { mutableStateOf(mapOf<DayOfWeek, String>()) }
-    var aperturasPorDia by remember { mutableStateOf(mapOf<DayOfWeek, String?>()) }
+    var aperturaReservas by remember { mutableStateOf<String?>(null) }
     var duracion by remember { mutableStateOf("60") }
     var capacidad by remember { mutableStateOf("20") }
 
     var mostrarDatePickerInicio by remember { mutableStateOf(false) }
     var mostrarDatePickerFin by remember { mutableStateOf(false) }
     var diaConTimePicker by remember { mutableStateOf<DayOfWeek?>(null) }
-    var diaConAperturaTimePicker by remember { mutableStateOf<DayOfWeek?>(null) }
+    var mostrarSelectorApertura by remember { mutableStateOf(false) }
 
     var errorDesde by remember { mutableStateOf(false) }
     var errorHasta by remember { mutableStateOf(false) }
@@ -141,7 +177,9 @@ fun ProgramarSesionesScreen(
         DayOfWeek.SUNDAY to "Dom"
     )
 
-    Scaffold { innerPadding ->
+    Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -261,7 +299,6 @@ fun ProgramarSesionesScreen(
             diasSemana.forEachIndexed { index, (dia, letra) ->
                 val seleccionado = diasSeleccionados.contains(dia)
                 val hora = horasPorDia[dia]
-                val apertura = aperturasPorDia[dia]
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -280,10 +317,6 @@ fun ProgramarSesionesScreen(
                                 }
                                 if (!seleccionado && hora == null) {
                                     horasPorDia = horasPorDia + (dia to "18:00")
-                                }
-                                if (!seleccionado) {
-                                    // Por defecto, apertura = inicio del día (null).
-                                    aperturasPorDia = aperturasPorDia + (dia to null)
                                 }
                                 errorDias = false
                             },
@@ -314,14 +347,49 @@ fun ProgramarSesionesScreen(
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(hora ?: "18:00")
                         }
-                        TextButton(onClick = { diaConAperturaTimePicker = dia }) {
-                            Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(apertura?.let { "Apertura $it" } ?: "Inicio")
-                        }
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "Apertura de reservas",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            OutlinedTextField(
+                value = aperturaReservas?.let { "Apertura: $it" } ?: "Desde el inicio",
+                onValueChange = { },
+                readOnly = true,
+                enabled = false,
+                label = { Text("Apertura de reservas") },
+                supportingText = {
+                    Text(
+                        text = if (aperturaReservas == null) {
+                            "Los clientes podrán reservar desde el inicio del día"
+                        } else {
+                            "Los clientes podrán reservar a partir de las $aperturaReservas"
+                        }
+                    )
+                },
+                trailingIcon = {
+                    Icon(Icons.Default.Schedule, contentDescription = null)
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                    disabledContainerColor = Color.Transparent,
+                    disabledBorderColor = MaterialTheme.colorScheme.outline,
+                    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        mostrarSelectorApertura = true
+                    }
+            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -377,14 +445,13 @@ fun ProgramarSesionesScreen(
                             desde = desde!!,
                             hasta = hasta!!,
                             horariosPorDia = horasPorDia.filterKeys { it in diasSeleccionados },
-                            aperturasPorDia = aperturasPorDia.filterKeys { it in diasSeleccionados },
+                            aperturaReservas = aperturaReservas,
                             duracionMinutos = duracion.toInt(),
                             capacidad = capacidad.toInt()
                         )
-                        navController.popBackStack()
                     }
                 },
-                enabled = servicio?.activo == true,
+                enabled = servicio?.activo == true && !operando,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF1E88E5),
@@ -392,7 +459,37 @@ fun ProgramarSesionesScreen(
                     disabledContainerColor = Color(0xFFBDBDBD)
                 )
             ) {
-                Text("Generar sesiones")
+                Text(if (operando) "Generando sesiones..." else "Generar sesiones")
+            }
+
+            if (errorSincronizacion != null || sesionSinSincronizar != null) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = errorSincronizacion
+                                ?: "Hay cambios pendientes de sincronizar con la nube.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        OutlinedButton(
+                            onClick = { sesionViewModel.reintentarSincronizacion() },
+                            enabled = sesionSinSincronizar != null
+                        ) {
+                            Text("Reintentar sincronización")
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -562,9 +659,8 @@ fun ProgramarSesionesScreen(
         )
     }
 
-    val diaApertura = diaConAperturaTimePicker
-    if (diaApertura != null) {
-        val aperturaActual = aperturasPorDia[diaApertura] ?: "00:00"
+    if (mostrarSelectorApertura) {
+        val aperturaActual = aperturaReservas ?: "00:00"
         val partes = aperturaActual.split(":")
         val initialHour = partes.getOrNull(0)?.toIntOrNull() ?: 0
         val initialMinute = partes.getOrNull(1)?.toIntOrNull() ?: 0
@@ -575,23 +671,23 @@ fun ProgramarSesionesScreen(
         )
 
         AlertDialog(
-            onDismissRequest = { diaConAperturaTimePicker = null },
+            onDismissRequest = { mostrarSelectorApertura = false },
             confirmButton = {
                 TextButton(onClick = {
                     val h = timePickerState.hour.toString().padStart(2, '0')
                     val m = timePickerState.minute.toString().padStart(2, '0')
-                    aperturasPorDia = aperturasPorDia + (diaApertura to "$h:$m")
-                    diaConAperturaTimePicker = null
+                    aperturaReservas = "$h:$m"
+                    mostrarSelectorApertura = false
                 }) {
                     Text("Aceptar")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { diaConAperturaTimePicker = null }) { Text("Cancelar") }
+                TextButton(onClick = { mostrarSelectorApertura = false }) { Text("Cancelar") }
             },
             title = {
                 Text(
-                    text = "Apertura de reservas para ${diasNombres.first { it.first == diaApertura }.second}",
+                    text = "Apertura de reservas",
                     style = MaterialTheme.typography.titleMedium
                 )
             },
@@ -609,9 +705,8 @@ fun ProgramarSesionesScreen(
                     TimePicker(state = timePickerState)
                     Spacer(modifier = Modifier.height(8.dp))
                     TextButton(onClick = {
-                        // Abrir desde el inicio del día (null).
-                        aperturasPorDia = aperturasPorDia + (diaApertura to null)
-                        diaConAperturaTimePicker = null
+                        aperturaReservas = null
+                        mostrarSelectorApertura = false
                     }) {
                         Text("Abrir desde el inicio")
                     }

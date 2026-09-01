@@ -34,6 +34,10 @@ class SesionRepository @Inject constructor(
         return sesionDao.obtenerSesionesFuturasPorServicio(idServicio, desde)
     }
 
+    suspend fun obtenerSesionesFuturasPorServicioSync(idServicio: Int, desde: Long): List<SesionEntity> {
+        return sesionDao.obtenerSesionesFuturasPorServicioSync(idServicio, desde)
+    }
+
     suspend fun obtenerSesionPorId(idSesion: Int): SesionEntity? {
         return sesionDao.obtenerSesionPorId(idSesion)
     }

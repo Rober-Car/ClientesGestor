@@ -34,6 +34,9 @@ interface SesionDao {
     @Query("SELECT * FROM sesion WHERE idServicio = :idServicio AND fecha >= :desde ORDER BY fecha ASC, hora ASC")
     fun obtenerSesionesFuturasPorServicio(idServicio: Int, desde: Long): Flow<List<SesionEntity>>
 
+    @Query("SELECT * FROM sesion WHERE idServicio = :idServicio AND fecha >= :desde ORDER BY fecha ASC, hora ASC")
+    suspend fun obtenerSesionesFuturasPorServicioSync(idServicio: Int, desde: Long): List<SesionEntity>
+
     @Query("SELECT * FROM sesion WHERE idSesion = :idSesion")
     suspend fun obtenerSesionPorId(idSesion: Int): SesionEntity?
 

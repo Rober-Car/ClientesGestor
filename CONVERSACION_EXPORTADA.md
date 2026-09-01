@@ -1,6 +1,6 @@
 # Conversación GestorPro - Análisis Firestore Rules Límite 1000 Expresiones
-## Fecha: 2026-08-30
-## Estado: ⭐ RESUELTO Y AVANZADO — Ver las últimas actualizaciones al final: sincronización de períodos Admin → Firestore, estado real del Home Cliente, corrección de Vía A código maestro+DNI y tests 92/92. Pendiente: reservas del CLIENTE, bucket de Storage, backfill de índices y commits.
+## Fecha: 2026-09-01
+## Estado: ⭐ RESUELTO Y AVANZADO — Ver las últimas actualizaciones al final: apertura global de reservas, bug idSesion=0 corregido, logging diagnóstico. Tests 99/99. Pendiente: verificar réplica en producción, reservas del CLIENTE, bucket de Storage, backfill de índices y commits.
 
 ---
 
@@ -1819,6 +1819,102 @@ reportó como "NO solucionados" pese a que el código compilaba:
 4. Pendientes heredados (sin resolver): PERMISSION_DENIED en alta Admin (`[DIAG alta]`, Sesión XVIII),
    bucket de Storage, backfill de `indices_clientes`, limpieza de `Clase`/`SesionClase`,
    crear negocio con PERMISSION_DENIED (hipótesis token), validar `rol == "ADMIN"` en login Admin.
+
+---
+
+---
+
+# ACTUALIZACIÓN 2026-09-01 (SESIÓN XX) — APERTURA GLOBAL + BUG idSesion=0 CORREGIDO + LOGGING DIAGNÓSTICO
+
+> Bloque vigente. Sesiones anteriores quedan como histórico. Se corrige el diseño de apertura
+> de reservas (de por-día a global), se corrige el bug crítico `idSesion = 0` que impedía la
+> réplica a Firestore, y se añade logging diagnóstico para confirmar el funcionamiento.
+
+## PROBLEMA 1 — UI de apertura de reservas: de por-día a global (CORREGIDO)
+
+### Diagnóstico
+
+- La UI de `ProgramarSesionesScreen` original tenía un selector de apertura **por cada día** seleccionado (`aperturasPorDia: Map<DayOfWeek, String?>`). Esto era confuso para el usuario: si seleccionaba 5 días, tenía que configurar la apertura 5 veces.
+- El usuario solicitó un **diseño global**: un solo campo "Apertura de reservas" que se aplique a **todas** las sesiones generadas en esa operación.
+
+### Cambios implementados
+
+- **`ProgramarSesionesScreen.kt`:**
+  - `aperturasPorDia: Map<DayOfWeek, String?>` → `aperturaReservas: String?` (campo único global).
+  - `mostrarSelectorApertura` reemplaza a `diaConAperturaTimePicker`.
+  - Campo `OutlinedTextField` con `TimePicker` **fuera del loop de días**, antes de Duración/Capacidad.
+  - Texto descriptivo: "Los clientes podrán reservar a partir de las HH:mm" o "desde el inicio del día".
+  - Botón "Desde el inicio" en el diálogo para limpiar la apertura.
+- **`SesionViewModel.kt`:**
+  - `generarSesiones()` y `generar()` ahora reciben `aperturaReservas: String?` en lugar de `aperturasPorDia: Map<DayOfWeek, String?>`.
+  - `horaDesdeReserva = aperturaReservas` para **todas** las sesiones generadas en la operación.
+- **Edición individual:** `EditarSesionScreen` mantiene el campo "Apertura de reservas" por sesión individual (sin cambios). El ADMIN puede ajustar la apertura de una sesión concreta después de generarla.
+
+### Validación
+- Compilación `:app:assembleDebug` → BUILD SUCCESSFUL.
+- La UI muestra el campo global correctamente, el TimePicker funciona, y el valor se propaga a todas las sesiones.
+
+## PROBLEMA 2 — Bug `idSesion = 0` en réplica a Firestore (CORREGIDO)
+
+### Diagnóstico
+
+- **Síntoma:** al pulsar "Generar sesiones" en el Admin, las sesiones se creaban correctamente en Room con IDs reales (1, 2, 3...), pero en Firestore aparecían todas en `sesiones/0`.
+- **Causa raíz:** `SesionViewModel.generar()` creaba `SesionEntity` con `idSesion = 0` (autoGenerate de Room). La función `insertarSesiones()` del DAO retornaba `Unit` sin propagar los IDs auto-generados de vuelta a la lista. La lista `nuevas` pasada a `sincronizarSesionesGeneradas()` tenía todos los IDs en 0 → todas las sesiones se escribían en el mismo documento `sesiones/0`.
+- **Impacto:** la réplica parecía exitosa ("commit OK"), pero en Firestore solo existía 1 documento (`sesiones/0`) con los datos de la última sesión. appCliente no veía clases porque `idSesion` era 0 y no coincidía con las reservas.
+
+### Corrección
+
+- **`SesionDao.kt`:** añadido `obtenerSesionesFuturasPorServicioSync()` (suspend, returns `List<SesionEntity>`) — consulta síncrona (no Flow) que devuelve las sesiones con sus IDs reales.
+- **`SesionRepository.kt`:** expuesta `obtenerSesionesFuturasPorServicioSync()`.
+- **`SesionViewModel.generarSesiones()`:** tras `reservaRepository.regenerarProgramacion()`, se leen las sesiones de vuelta con `sesionRepository.obtenerSesionesFuturasPorServicioSync(servicio.idServicio, inicioHoy)` para obtener IDs reales (1, 2, 3...). Estas sesiones con IDs reales se pasan a `reservaRemotoRepository.eliminarSesionesFuturasConReservasRemoto()` y a `replicar()`.
+
+### Flujo corregido
+```
+generar() → lista con idSesion=0
+  → regenerarProgramacion() → Room insert → IDs reales (1, 2, 3...)
+  → obtenerSesionesFuturasPorServicioSync() → lista con IDs reales
+  → cascada remota (usa IDs reales)
+  → sincronizarSesionesGeneradas() → Firestore recibe IDs reales
+```
+
+### Validación
+- Compilación `:app:assembleDebug` → BUILD SUCCESSFUL.
+- Tests de Rules: **99/99** OK.
+- Test unitario `:appCliente:testDebugUnitTest` → BUILD SUCCESSFUL.
+
+## PROBLEMA 3 — Logging diagnóstico añadido (TEMPORAL)
+
+### Objetivo
+- Confirmar que la réplica funciona correctamente en producción con IDs reales.
+- Verificar que los `idSesion` en Firestore son 1, 2, 3... (no 0).
+
+### Archivos con logging `[DIAG sesiones]`
+- **`SesionViewModel.kt`:** `generarSesiones()` loga IDs generados, sesiones leídas de Room, resultado de cascada y réplica.
+- **`SesionRemotoRepository.kt`:** `sincronizarSesionesGeneradas()` loga query, documentos encontrados, batch operations y commit.
+- **`ReservaRemotoRepository.kt`:** `eliminarSesionesFuturasConReservasRemoto()` loga query y eliminación.
+
+### Instrucciones de retiro
+- Cuando se confirme que la colección `sesiones` en Firestore tiene documentos con IDs reales → retirar los logs `[DIAG sesiones]` de los 3 archivos.
+- También retirar los logs `ClasesDiagnostico` de `SesionesClienteViewModel.kt` en appCliente.
+
+## Archivos modificados en Sesión XX (sin commit)
+
+- `app/src/main/java/com/roberto/gestorpro/ui/servicios/ProgramarSesionesScreen.kt` — UI apertura global.
+- `app/src/main/java/com/roberto/gestorpro/ui/viewmodel/SesionViewModel.kt` — firma + bug fix + logging.
+- `app/src/main/java/com/roberto/gestorpro/data/dao/SesionDao.kt` — `obtenerSesionesFuturasPorServicioSync()`.
+- `app/src/main/java/com/roberto/gestorpro/data/repository/SesionRepository.kt` — expuesta nueva función.
+- `app/src/main/java/com/roberto/gestorpro/data/firebase/SesionRemotoRepository.kt` — logging.
+- `app/src/main/java/com/roberto/gestorpro/data/firebase/ReservaRemotoRepository.kt` — logging.
+- `AGENTS.md` — actualización de estado.
+- `CONVERSACION_EXPORTADA.md` — esta sesión.
+
+## Para REANUDAR
+
+1. **Verificar en Logcat:** al generar sesiones, buscar `[DIAG sesiones]` y confirmar que los `idSesion` son 1, 2, 3... (no 0).
+2. **Verificar en Firebase Console:** la colección `sesiones` debe tener documentos con IDs reales.
+3. **Verificar en appCliente:** `ClasesScreen` debe mostrar las sesiones de hoy (si hay servicios contratados+activos).
+4. **Retirar logs temporales** cuando todo funcione.
+5. Pendientes heredados (sin resolver): PERMISSION_DENIED en alta Admin, bucket de Storage, backfill de `indices_clientes`, limpieza de `Clase`/`SesionClase`, commits pendientes.
 
 ---
 

@@ -1,10 +1,12 @@
 package com.roberto.gestorpro.ui.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.roberto.gestorpro.data.entity.ServicioEntity
 import com.roberto.gestorpro.data.entity.SesionEntity
 import com.roberto.gestorpro.data.firebase.ReservaRemotoRepository
+import com.roberto.gestorpro.data.firebase.ResultadoAutenticacion
 import com.roberto.gestorpro.data.firebase.SesionRemotoRepository
 import com.roberto.gestorpro.data.repository.ReservaRepository
 import com.roberto.gestorpro.data.repository.SesionRepository
@@ -34,6 +36,10 @@ class SesionViewModel @Inject constructor(
     private val reservaRemotoRepository: ReservaRemotoRepository
 ) : ViewModel() {
 
+    companion object {
+        private const val TAG = "DIAG sesiones"
+    }
+
     private val _sesiones = MutableStateFlow<List<SesionEntity>>(emptyList())
     val sesiones: StateFlow<List<SesionEntity>> = _sesiones.asStateFlow()
 
@@ -53,6 +59,16 @@ class SesionViewModel @Inject constructor(
      */
     private val _errorSincronizacion = MutableStateFlow<String?>(null)
     val errorSincronizacion: StateFlow<String?> = _errorSincronizacion.asStateFlow()
+
+    /**
+     * _resultadoGeneracion / resultadoGeneracion
+     * --------------------------------------------
+     * Resultado de la última generación de sesiones: si terminó con éxito
+     * (Room insertado + réplica Firestore commit OK) o el mensaje de error
+     * real (cascada remota o commit rechazado). null = sin resultado aún.
+     */
+    private val _resultadoGeneracion = MutableStateFlow<ResultadoGeneracion?>(null)
+    val resultadoGeneracion: StateFlow<ResultadoGeneracion?> = _resultadoGeneracion.asStateFlow()
 
     /**
      * _sesionSinSincronizar / sesionSinSincronizar
@@ -125,11 +141,16 @@ class SesionViewModel @Inject constructor(
      * --------
      * Réplica write-through de una operación de sesión hacia Firestore.
      * Si falla, no revierte el cambio local y deja la operación preparada
-     * para el reintento manual.
+     * para el reintento manual. Devuelve el resultado real de la réplica
+     * para que el flujo de generación pueda propagar éxito/error a la UI.
      */
-    private suspend fun replicar(pendiente: PendienteSesion) {
+    private suspend fun replicar(pendiente: PendienteSesion): ResultadoAutenticacion {
         _errorSincronizacion.value = null
         _sesionSinSincronizar.value = null
+
+        Log.d(TAG, "replicar: operacion=${pendiente.operacion}, " +
+            "idServicio=${pendiente.servicio?.idServicio}, desde=${pendiente.desde}, " +
+            "sesionesNuevas=${pendiente.sesionesNuevas.size}")
 
         val resultado = when (pendiente.operacion) {
             OperacionSesion.ACTUALIZAR ->
@@ -142,11 +163,16 @@ class SesionViewModel @Inject constructor(
                 )
         }
 
-        if (!resultado.exito) {
+        if (resultado.exito) {
+            Log.d(TAG, "réplica OK: ${resultado.mensaje}")
+        } else {
+            Log.e(TAG, "ERROR réplica: exito=${resultado.exito}, mensaje=${resultado.mensaje}")
             _errorSincronizacion.value =
                 "Cambio guardado en el dispositivo, pero no sincronizado con la nube: ${resultado.mensaje}"
             _sesionSinSincronizar.value = pendiente
         }
+
+        return resultado
     }
 
     /**
@@ -156,58 +182,123 @@ class SesionViewModel @Inject constructor(
      * futuras (y sus reservas en Room) y después genera las nuevas sesiones
      * dentro del intervalo [desde, hasta]. Cada día seleccionado usa su propia
      * hora. plazasDisponibles = capacidad. Las sesiones pasadas se conservan.
-     * aperturasPorDia define, por día, la hora desde la que se permite reservar
-     * (horaDesdeReserva); null = abierta desde el inicio del día.
+     * aperturaReservas define la hora desde la que se permite reservar
+     * (horaDesdeReserva) para todas las sesiones generadas; null = abierta
+     * desde el inicio del día.
      * La programación resultante se sincroniza con Firestore.
+     * El resultado (éxito o error real) se publica en resultadoGeneracion
+     * para que la pantalla pueda mostrarlo sin depender de Logcat.
      */
     fun generarSesiones(
         servicio: ServicioEntity,
         desde: Long,
         hasta: Long,
         horariosPorDia: Map<DayOfWeek, String>,
-        aperturasPorDia: Map<DayOfWeek, String?>,
+        aperturaReservas: String?,
         duracionMinutos: Int,
         capacidad: Int
     ) {
         viewModelScope.launch {
             _operando.value = true
+            _errorSincronizacion.value = null
+            _sesionSinSincronizar.value = null
+            _resultadoGeneracion.value = null
             try {
                 val inicioHoy = ServicioViewModel.inicioDeHoy()
+
+                Log.d(TAG, "generarSesiones: idServicio=${servicio.idServicio}, " +
+                    "negocioId=${servicio.negocioId}, desde=$desde, hasta=$hasta, " +
+                    "dias=${horariosPorDia.keys}, aperturaReservas=$aperturaReservas, " +
+                    "duracion=$duracionMinutos, capacidad=$capacidad, inicioHoy=$inicioHoy")
 
                 val nuevas = generar(
                     servicio = servicio,
                     desde = desde,
                     hasta = hasta,
                     horariosPorDia = horariosPorDia,
-                    aperturasPorDia = aperturasPorDia,
+                    aperturaReservas = aperturaReservas,
                     duracionMinutos = duracionMinutos,
                     capacidad = capacidad
                 )
 
-                // Atómico en Room: elimina reservas de las futuras eliminadas,
-                // elimina esas sesiones futuras y crea las nuevas.
+                Log.d(TAG, "sesiones generadas: ${nuevas.size}")
+                nuevas.forEach { s ->
+                    Log.d(TAG, "  -> idSesion=${s.idSesion}, fecha=${s.fecha}, " +
+                        "hora=${s.hora}, apertura=${s.horaDesdeReserva}, " +
+                        "idServicio=${s.idServicio}, negocioId=${s.negocioId}")
+                }
+
+                Log.d(TAG, "Room: regenerarProgramacion...")
                 reservaRepository.regenerarProgramacion(
                     idServicio = servicio.idServicio,
                     desde = inicioHoy,
                     nuevas = nuevas
                 )
-                // Remoto: primero la cascada (sesiones futuras con sus reservas,
-                // atómica por sesión), después la programación nueva.
+                Log.d(TAG, "Room OK: ${nuevas.size} sesiones insertadas")
+
+                Log.d(TAG, "Room: leyendo sesiones con IDs reales...")
+                val sesionesConIds = sesionRepository.obtenerSesionesFuturasPorServicioSync(
+                    servicio.idServicio, inicioHoy
+                )
+                Log.d(TAG, "Sesiones reales de Room: ${sesionesConIds.size}")
+                sesionesConIds.forEach { s ->
+                    Log.d(TAG, "  -> idSesion=${s.idSesion}, fecha=${s.fecha}, " +
+                        "hora=${s.hora}, apertura=${s.horaDesdeReserva}, " +
+                        "idServicio=${s.idServicio}, negocioId=${s.negocioId}")
+                }
+
+                if (sesionesConIds.isEmpty() && nuevas.isNotEmpty()) {
+                    throw IllegalStateException(
+                        "Room no devolvió las sesiones recién generadas (${nuevas.size} esperadas)"
+                    )
+                }
+                if (sesionesConIds.any { it.idSesion <= 0 }) {
+                    throw IllegalStateException(
+                        "Room devolvió sesiones sin id (idSesion=0); no se replica a sesiones/0"
+                    )
+                }
+
+                Log.d(TAG, "cascada remota: eliminarSesionesFuturas...")
                 val cascada = reservaRemotoRepository
                     .eliminarSesionesFuturasConReservasRemoto(servicio.idServicio, inicioHoy)
+                Log.d(TAG, "cascada remota resultado: exito=${cascada.exito}, mensaje=${cascada.mensaje}")
+
                 if (cascada.exito) {
-                    replicar(
+                    Log.d(TAG, "replicar: sincronizarSesionesGeneradas (con IDs reales)...")
+                    val replica = replicar(
                         PendienteSesion(
                             operacion = OperacionSesion.GENERAR,
                             servicio = servicio,
                             desde = inicioHoy,
-                            sesionesNuevas = nuevas
+                            sesionesNuevas = sesionesConIds
                         )
                     )
+                    _resultadoGeneracion.value = if (replica.exito) {
+                        ResultadoGeneracion(
+                            exito = true,
+                            mensaje = "${sesionesConIds.size} sesiones generadas y sincronizadas con la nube"
+                        )
+                    } else {
+                        ResultadoGeneracion(
+                            exito = false,
+                            mensaje = "Cambio guardado en el dispositivo, pero no sincronizado con la nube: ${replica.mensaje}"
+                        )
+                    }
                 } else {
+                    Log.e(TAG, "ERROR cascada: ${cascada.mensaje}")
                     _errorSincronizacion.value =
                         "Cambio guardado en el dispositivo, pero no sincronizado con la nube: ${cascada.mensaje}"
+                    _resultadoGeneracion.value = ResultadoGeneracion(
+                        exito = false,
+                        mensaje = "No se pudo sincronizar la programación: ${cascada.mensaje}"
+                    )
                 }
+            } catch (e: Exception) {
+                Log.e(TAG, "ERROR generarSesiones: ${e.message}", e)
+                _resultadoGeneracion.value = ResultadoGeneracion(
+                    exito = false,
+                    mensaje = "Error al generar las sesiones: ${e.message ?: "error desconocido"}"
+                )
             } finally {
                 _operando.value = false
             }
@@ -248,18 +339,28 @@ class SesionViewModel @Inject constructor(
     }
 
     /**
+     * limpiarResultadoGeneracion
+     * ---------------------------
+     * Limpia el resultado de la última generación al abandonar la pantalla
+     * de programación, para que una reentrada no reaccione a un resultado viejo.
+     */
+    fun limpiarResultadoGeneracion() {
+        _resultadoGeneracion.value = null
+    }
+
+    /**
      * generar
      * -------
      * Construye la lista de SesionEntity para el intervalo y días indicados.
-     * aperturasPorDia aporta, por día, el valor de horaDesdeReserva (null = abierta
-     * desde el inicio del día).
+     * aperturaReservas aporta el valor de horaDesdeReserva para todas las sesiones
+     * generadas (null = abierta desde el inicio del día).
      */
     private fun generar(
         servicio: ServicioEntity,
         desde: Long,
         hasta: Long,
         horariosPorDia: Map<DayOfWeek, String>,
-        aperturasPorDia: Map<DayOfWeek, String?>,
+        aperturaReservas: String?,
         duracionMinutos: Int,
         capacidad: Int
     ): List<SesionEntity> {
@@ -284,7 +385,7 @@ class SesionViewModel @Inject constructor(
                         duracionMinutos = duracionMinutos,
                         capacidad = capacidad,
                         plazasDisponibles = capacidad,
-                        horaDesdeReserva = aperturasPorDia[fecha.dayOfWeek]
+                        horaDesdeReserva = aperturaReservas
                     )
                 )
             }
@@ -313,5 +414,16 @@ class SesionViewModel @Inject constructor(
         val servicio: ServicioEntity? = null,
         val desde: Long? = null,
         val sesionesNuevas: List<SesionEntity> = emptyList()
+    )
+
+    /**
+     * ResultadoGeneracion
+     * --------------------
+     * Resultado visible de la última generación de sesiones.
+     * exito = true si Room insertó y el commit de Firestore terminó bien.
+     */
+    data class ResultadoGeneracion(
+        val exito: Boolean,
+        val mensaje: String
     )
 }

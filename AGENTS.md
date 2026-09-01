@@ -364,43 +364,24 @@ node firestore-tests/auditoria_backfill_indices.cjs
 - **Vinculación del CLIENTE:** el flujo de código maestro + DNI vive en `appCliente` (repositorio `VinculacionRepository`, pantalla de vinculación accesible desde el Home). Las operaciones críticas (VÍA 1 y VÍA 2) deben ejecutarse en Transaction. Nunca reintroducir Vía B/deep links.
 - **Logo del negocio:** la subida vive en `NegocioRepository.guardarLogoRemoto()` (`:app`): `putFile` a `negocios/{uid}/logo.jpg` → `downloadUrl` → WriteBatch con `logo` en `negocios` + `negocios_publicos`. El Cliente lee `negocios_publicos/{id}.logo` y lo muestra con Coil. Requiere el bucket habilitado en Firebase Console.
 
-## Estado actual y pendientes (2026-09-01)
+## Estado actual y pendientes (2026-08-31)
 
-> ACTUALIZACIÓN 2026-09-01 (SESIÓN XX): HEAD = `4e29d8c "Conectando las sesiones"`. Tests de Rules
-> **99/99**. Detalle en `CONVERSACION_EXPORTADA.md` (Sesiones XII–XX).
+> ACTUALIZACIÓN 2026-08-31 (SESIÓN XIX): HEAD = `244db1e "Conectando las sesiones"` (commit del
+> desarrollador; incluye la fase `horaDesdeReserva` completa). Tests de Rules **99/99**. Detalle en
+> `CONVERSACION_EXPORTADA.md` (Sesiones XII–XIX).
 >
-> **ELIMINADO el seed automático de datos de prueba de Room** (causa confirmada del fallo de
-> sincronización de CLIENTES en un PC nuevo): `AppModule.insertarDatosPrueba()` (20 clientes ficticios
-> ids 1-20, 18 movimientos, 4 gastos) se ejecutaba en `RoomDatabase.Callback.onCreate()`. En un PC con
-> BD vacía, el primer cliente real recibía `idCliente=21/22` y colisionaba con `clientes/21`/`22` e
-> índices ya existentes en Firestore → `batch.set`→update→DENY → "Guardado en el dispositivo, pero no
-> sincronizado". Se eliminó la llamada, la función y los imports sin uso (`RoomDatabase`, `TimeUnit`)
-> en `app/.../di/AppModule.kt` (-102 líneas). Validado: builds OK, `:app:testDebugUnitTest` OK, Rules
-> 99/99, `git diff --check` limpio para el archivo. SIN commit ni deploy. Prueba pendiente: BD limpia
-> (desinstalar o `adb shell pm clear com.roberto.gestorpro`) → primer cliente real debe recibir
-> `idCliente=1` y replicarse sin colisión.
+> **ÍNDICES COMPUESTOS CREADOS en `gestorpro-50e83`** (causa raíz de que `sesiones` estuviera VACÍA
+> en Firestore y appCliente no viera clases): `sesiones(idServicio, negocioId)`,
+> `reservas(clienteId, negocioId)`, `reservas(sesionId, negocioId)`. El emulador no exige índices,
+> por eso los tests pasaban mientras la réplica Admin fallaba silenciosamente en producción.
+> PENDIENTE: confirmar `READY` y **regenerar las sesiones desde el Admin** para que se repliquen.
 >
-> **DIAGNÓSTICO de réplica de SESIONES (sin cambios, a decidir):** los logs `[DIAG sesiones]` NO
-> existen en el código commiteado (el `Update Project` perdió los del working tree del otro PC). Bug
-> `idSesion=0` en el código actual: `SesionEntity.idSesion` es `val`, `SesionDao.insertarSesiones`
-> devuelve `Unit` y `SesionViewModel.generarSesiones` pasa la lista pre-insert (`nuevas`) a la réplica
-> → todas las sesiones se `batch.set` al documento `sesiones/0`. `ProgramarSesionesScreen` hace
-> `popBackStack()` inmediato y no muestra `errorSincronizacion` (fallo invisible). Apertura de reservas
-> implementada POR DÍA (deseado: UNA global). `servicios/3` "CrossFit 3" existe (activo); `sesiones` =
-> 0 docs; índices compuestos creados y existentes.
+> El working tree tiene **5 archivos sin commitear** (NO revertir): `PerfilClienteAdministradorScreen`
+> (campo "Servicio" en detalle del movimiento), `DetalleServicioScreen` (fix fecha sesión de hoy),
+> `EditarSesionScreen` (fix DatePicker UTC), `ProgramarSesionesScreen` (lista de sesiones +
+> navegación a edición), `SesionesClienteViewModel` (logs `ClasesDiagnostico` + `esDeHoy()`).
 >
-> El working tree tiene cambios sin commitear (NO revertir): `AppModule.kt` (eliminación del seed, esta
-> sesión), `appCliente` (`AppNavigation.kt`/`Routes.kt`/`HomeScreen.kt` modificados y
-> `MisReservasScreen.kt` borrado — eliminación de "Mis reservas" por otra IA) y
-> `firestore-tests/firestore-debug.log` (basura del emulador).
->
-> Diagnóstico cerrado del **PERMISSION_DENIED en el alta Admin** (Sesión XVIII, ahora resuelto a nivel
-> de causa): el payload de `crearClienteRemoto()` es correcto contra las Rules locales (test de
-> aislamiento `firestore-tests/diagnostico_alta_cliente.test.cjs` = 7/7). La causa era que **un
-> documento del batch ya existía** en Firestore (ficha/índice/privado), convirtiendo `batch.set()` en
-> `update` que las Rules deniegan. En un PC nuevo el disparador era el seed de Room (ids 1-20). Queda
-> logging temporal `[DIAG alta]` en `ClienteRemotoRepository.crearClienteRemoto()` (incluye
-> `existencia previa`); retirarlo al confirmar la prueba de BD limpia.
+> Diagnóstico en curso del **PERMISSION_DENIED en el alta Admin** (Sesión XVIII): el payload y la lógica de `crearClienteRemoto()` son correctos contra las Rules locales (test de aislamiento `firestore-tests/diagnostico_alta_cliente.test.cjs` = 7/7). La causa más probable es que **uno de los 3 documentos del batch ya existe** en Firestore (índice/ficha/privado de un intento anterior), lo que convierte `batch.set()` en `update` y las Rules lo deniegan. Hay logging temporal `[DIAG alta]` en `ClienteRemotoRepository.crearClienteRemoto()` (incluye `existencia previa`) para confirmarlo; retirarlo al cerrar la causa.
 
 Implementado y compilado (`:app` y `:appCliente` BUILD SUCCESSFUL; `:app:compileDebugKotlin` EXITCODE 0; Rules **92/92 OK**):
 
@@ -423,13 +404,12 @@ Implementado y compilado (`:app` y `:appCliente` BUILD SUCCESSFUL; `:app:compile
 
 Pendiente para continuar:
 
-0. **Prueba de BD limpia de CLIENTES (Sesión XX):** desinstalar la app o `adb shell pm clear com.roberto.gestorpro` → abrir ADMIN → crear el primer cliente real → debe recibir **`idCliente=1`** y replicarse sin colisión (`[DIAG alta] existencia previa -> false,false,false`). Tras confirmar, retirar el logging temporal `[DIAG alta]` de `ClienteRemotoRepository.crearClienteRemoto()`.
-1. **Bug `idSesion=0` en la réplica de SESIONES (Sesión XX, pendiente de aprobación):** `SesionEntity.idSesion` es `val`, `SesionDao.insertarSesiones` devuelve `Unit` y `SesionViewModel.generarSesiones` pasa la lista pre-insert (`nuevas`, idSesion=0) a `replicar` → todas las sesiones se `batch.set` a `sesiones/0`. Fix propuesto: tras `regenerarProgramacion`, releer las sesiones nuevas desde Room y pasarlas con ids reales a `replicar`. Además: `ProgramarSesionesScreen` no muestra `errorSincronizacion` y hace `popBackStack()` inmediato (fallo invisible) → mostrar el error y no navegar atrás automáticamente.
-2. **Apertura de reservas GLOBAL (Sesión XX):** hoy `ProgramarSesionesScreen` configura la apertura POR DÍA (`aperturasPorDia` + TimePicker por día). Comportamiento deseado: UNA apertura global aplicada a toda la generación (`horaDesdeReserva` = la misma hora en todas las sesiones), manteniendo la edición individual posterior desde "Gestionar sesiones → Ver / editar" (ya existe en `EditarSesionScreen`).
-3. **ÍNDICES DE `sesiones`/`reservas` en producción (Sesión XIX):** ya creados y verificados existentes (`sesiones(idServicio, negocioId)`, `reservas(clienteId, negocioId)`, `reservas(sesionId, negocioId)`). Confirmar `READY` en consola y, tras resolver el bug `idSesion=0`, **regenerar las sesiones desde el Admin** para que se repliquen a Firestore. Retirar los logs `ClasesDiagnostico` de `SesionesClienteViewModel` al confirmarlo.
-4. **Reservas del CLIENTE (pendientes de validación real):** requieren que `sesiones` se replique a Firestore (bloqueado hoy por el bug `idSesion=0`) y los índices compuestos.
-5. **Habilitar el bucket de Storage** y desplegar `storage.rules` (hasta entonces el logo falla).
-6. **Backfill de `indices_clientes`** (DRY-RUN: 2 índices). NO ejecutar sin aprobación.
-7. **Limpieza definitiva de `Clase`/`SesionClase`** y de `ServicioItem` (sin uso).
-8. **Commits pendientes y basura versionada:** working tree con `AppModule.kt` (seed eliminado, Sesión XX), appCliente (eliminación de "Mis reservas") y `firestore-tests/firestore-debug.log` (basura del emulador). Limpiar también `build_*.txt`.
-9. Pendientes heredados: crear negocio con `PERMISSION_DENIED` (hipótesis token) y validar `rol == "ADMIN"` en el login de Admin (hoy solo exige doc existente + activo).
+0. **ÍNDICES DE `sesiones`/`reservas` en producción (Sesión XIX):** creados vía API REST en `gestorpro-50e83` (`sesiones(idServicio, negocioId)`, `reservas(clienteId, negocioId)`, `reservas(sesionId, negocioId)`). Confirmar `READY` en consola y **regenerar las sesiones desde el Admin** (Gestionar sesiones → Generar sesiones) para que se repliquen a Firestore. Tras esto, appCliente debe mostrar las clases. Retirar los logs `ClasesDiagnostico` de `SesionesClienteViewModel` al confirmarlo.
+1. **PERMISSION_DENIED en alta Admin — EN DIAGNÓSTICO (Sesión XVIII):** el payload de `crearClienteRemoto()` pasa las Rules locales (test `diagnostico_alta_cliente.test.cjs` 7/7). La hipótesis principal es que uno de los 3 documentos del batch (`clientes/{id}`, `indices_clientes/{negocioId}_{dni}`, `clientes_privados/{id}`) **ya existe** en Firestore de un intento anterior, convirtiendo el `batch.set()` en `update` que las Rules deniegan. Siguiente paso: reproducir el alta con el logging temporal `[DIAG alta]` (incluye `existencia previa -> ...=true`) para confirmar cuál documento existe; después limpiar el documento huérfano (con aprobación) o ajustar la réplica, y retirar el logging temporal.
+2. **Diagnóstico PERMISSION_DENIED en baja/eliminación de servicios — RESUELTO a nivel de Rules (Sesión XIII):** la causa era que las queries administrativas de cascada (`reservas` por `sesionId`, `sesiones` por `idServicio`) no incluían `negocioId`, así las reglas `sesiones/list` y `reservas/list` las negaban (rules-are-not-filters). Se corrigió en `ReservaRemotoRepository`/`SesionRemotoRepository` (filtro `negocioId` + fail-closed si la sesión no existe pero tiene reservas) y se añadieron 8 pruebas de regresión (PRUEBA 33A–33H). Tests **90/90**, `:app:assembleDebug` BUILD SUCCESSFUL. **Riesgo abierto:** el crash de la app en alta/reactivación no se aisló (no se aportó stacktrace/logcat); conviene validar en dispositivo con el build corregido y, si persiste, capturar el logcat.
+3. **Reservas del CLIENTE (implementadas en commits previos a Sesión XIX, pendientes de validación real):** `Reserva` model + `ReservaRepository`/`ReservasClienteViewModel`/`MisReservasScreen` (Transaction `reservas/{clienteId}_{sesionId}`), reservar/cancelar en `ClasesScreen`. Requieren que `sesiones`/`reservas` tengan índices compuestos (creados en Sesión XIX) y que las sesiones se repliquen.
+4. **Habilitar el bucket de Storage** y desplegar `storage.rules` (hasta entonces el logo falla).
+5. **Backfill de `indices_clientes`** (DRY-RUN: 2 índices). NO ejecutar sin aprobación. Relacionado con el pendiente 1: un índice huérfano podría ser el que provoca el PERMISSION_DENIED del alta.
+6. **Limpieza definitiva de `Clase`/`SesionClase`** y de `ServicioItem` (sin uso).
+7. **Commits pendientes** (5 archivos del working tree de la Sesión XIX: PerfilClienteAdministradorScreen, DetalleServicioScreen, EditarSesionScreen, ProgramarSesionesScreen, SesionesClienteViewModel) y limpieza de basura versionada (`build_*.txt`, `firestore-tests/firestore-debug.log`).
+8. Pendientes heredados: crear negocio con `PERMISSION_DENIED` (hipótesis token) y validar `rol == "ADMIN"` en el login de Admin (hoy solo exige doc existente + activo).
