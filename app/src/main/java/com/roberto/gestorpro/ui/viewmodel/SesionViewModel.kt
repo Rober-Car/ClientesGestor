@@ -10,7 +10,7 @@ import com.roberto.gestorpro.data.firebase.ResultadoAutenticacion
 import com.roberto.gestorpro.data.firebase.SesionRemotoRepository
 import com.roberto.gestorpro.data.repository.ReservaRepository
 import com.roberto.gestorpro.data.repository.SesionRepository
-import com.roberto.gestorpro.model.ReservaConCliente
+import com.roberto.gestorpro.model.ReservaClienteDetalle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,8 +46,18 @@ class SesionViewModel @Inject constructor(
     private val _sesionDetalle = MutableStateFlow<SesionEntity?>(null)
     val sesionDetalle: StateFlow<SesionEntity?> = _sesionDetalle.asStateFlow()
 
-    private val _reservasDetalle = MutableStateFlow<List<ReservaConCliente>>(emptyList())
-    val reservasDetalle: StateFlow<List<ReservaConCliente>> = _reservasDetalle.asStateFlow()
+    private val _reservasDetalle = MutableStateFlow<List<ReservaClienteDetalle>>(emptyList())
+    val reservasDetalle: StateFlow<List<ReservaClienteDetalle>> = _reservasDetalle.asStateFlow()
+
+    /**
+     * _plazasDisponiblesRemoto / plazasDisponiblesRemoto
+     * ---------------------------------------------------
+     * Plazas disponibles REALES de una sesión leídas desde Firestore
+     * (fuente de verdad de las reservas creadas por appCliente). null =
+     * aún sin leer o lectura fallida.
+     */
+    private val _plazasDisponiblesRemoto = MutableStateFlow<Int?>(null)
+    val plazasDisponiblesRemoto: StateFlow<Int?> = _plazasDisponiblesRemoto.asStateFlow()
 
     private val _operando = MutableStateFlow(false)
     val operando: StateFlow<Boolean> = _operando.asStateFlow()
@@ -104,10 +114,27 @@ class SesionViewModel @Inject constructor(
      * cargarReservasSesion
      * --------------------
      * Carga las reservas (con datos del cliente) de una sesión concreta.
+     * La fuente de verdad son las reservas creadas por appCliente en
+     * Firestore (reservas/{clienteId}_{sesionId}); se consultan
+     * directamente desde Firestore, no desde la Room local del Admin.
      */
     fun cargarReservasSesion(idSesion: Int) {
         viewModelScope.launch {
-            _reservasDetalle.value = reservaRepository.obtenerReservasConCliente(idSesion)
+            _reservasDetalle.value = reservaRemotoRepository.obtenerReservasDeSesionRemoto(idSesion)
+        }
+    }
+
+    /**
+     * refrescarPlazasSesion
+     * ---------------------
+     * Actualiza plazasDisponiblesRemoto con el valor REAL de Firestore
+     * (sesiones/{idSesion}) para reflejar las reservas creadas o canceladas
+     * por appCliente, que no actualizan la Room local del Admin.
+     */
+    fun refrescarPlazasSesion(idSesion: Int) {
+        viewModelScope.launch {
+            _plazasDisponiblesRemoto.value =
+                sesionRemotoRepository.obtenerPlazasDisponiblesRemoto(idSesion)
         }
     }
 

@@ -16,12 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Badge
-import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.EventSeat
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -33,7 +28,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -44,12 +38,12 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
-import com.roberto.gestorpro.model.ReservaConCliente
+import com.roberto.gestorpro.model.ReservaClienteDetalle
+import com.roberto.gestorpro.navigation.Routes
+import com.roberto.gestorpro.ui.components.ClienteItem
+import com.roberto.gestorpro.ui.viewmodel.ClienteViewModel
+import com.roberto.gestorpro.ui.viewmodel.ServicioViewModel
 import com.roberto.gestorpro.ui.viewmodel.SesionViewModel
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 /**
  * SesionReservasScreen
@@ -61,24 +55,28 @@ import java.util.Locale
 fun SesionReservasScreen(
     navController: NavHostController,
     idSesion: Int,
-    viewModel: SesionViewModel = hiltViewModel()
+    viewModel: SesionViewModel = hiltViewModel(),
+    clienteViewModel: ClienteViewModel = hiltViewModel(),
+    servicioViewModel: ServicioViewModel = hiltViewModel()
 ) {
     val sesion by viewModel.sesionDetalle.collectAsStateWithLifecycle()
     val reservas by viewModel.reservasDetalle.collectAsStateWithLifecycle()
+    val morososIds by clienteViewModel.morososIds.collectAsStateWithLifecycle()
+    val servicio by servicioViewModel.servicioSeleccionado.collectAsStateWithLifecycle()
 
     LaunchedEffect(idSesion) {
         viewModel.cargarSesion(idSesion)
         viewModel.cargarReservasSesion(idSesion)
     }
 
+    LaunchedEffect(sesion?.idServicio) {
+        sesion?.let { servicioViewModel.cargarServicio(it.idServicio) }
+    }
+
     DisposableEffect(Unit) {
         onDispose {
             viewModel.limpiarDetalle()
         }
-    }
-
-    val formatoFecha = remember {
-        DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM 'de' yyyy", Locale("es"))
     }
 
     Scaffold(
@@ -125,6 +123,17 @@ fun SesionReservasScreen(
                 )
             } else {
                 val s = sesion!!
+                val plazasDisponibles = s.capacidad - reservas.size
+                val textoPlazas = if (plazasDisponibles == 1) {
+                    "1 plaza disponible"
+                } else {
+                    "$plazasDisponibles plazas disponibles"
+                }
+                val textoReservadas = if (reservas.size == 1) {
+                    "1 reservada"
+                } else {
+                    "${reservas.size} reservadas"
+                }
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -137,17 +146,14 @@ fun SesionReservasScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            text = fechaLegible(s.fecha, formatoFecha),
+                            text = servicio?.nombre ?: "Servicio",
                             style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
                             color = Color(0xFF1E88E5)
                         )
                         FilaDatoSesionReserva(
-                            icono = Icons.Default.Schedule,
-                            texto = "Hora: ${s.hora} · ${s.duracionMinutos} min"
-                        )
-                        FilaDatoSesionReserva(
                             icono = Icons.Default.EventSeat,
-                            texto = "Plazas: ${s.capacidad - s.plazasDisponibles} de ${s.capacidad} reservadas"
+                            texto = "$textoPlazas · $textoReservadas"
                         )
                     }
                 }
@@ -172,8 +178,19 @@ fun SesionReservasScreen(
                     LazyColumn(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(reservas, key = { it.idReserva }) { reserva ->
-                            ItemReservaClienteServicio(reserva)
+                        items(reservas, key = { it.idCliente }) { reserva ->
+                            ClienteItem(
+                                nombre = "${reserva.nombre} ${reserva.apellidos}".trim(),
+                                telefono = reserva.telefono,
+                                estado = reserva.estado,
+                                foto = reserva.foto,
+                                esMoroso = reserva.idCliente in morososIds,
+                                onClick = {
+                                    navController.navigate(
+                                        Routes.perfilCliente(reserva.idCliente)
+                                    )
+                                }
+                            )
                         }
                     }
                 }
@@ -205,79 +222,4 @@ private fun FilaDatoSesionReserva(
             style = MaterialTheme.typography.bodyLarge
         )
     }
-}
-
-/**
- * ItemReservaClienteServicio
- * --------------------------
- * Tarjeta de un cliente reservado en la sesión.
- */
-@Composable
-private fun ItemReservaClienteServicio(reserva: ReservaConCliente) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = null,
-                    tint = Color(0xFF64B5F6),
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "${reserva.nombre} ${reserva.apellidos}",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Phone,
-                    contentDescription = null,
-                    tint = Color(0xFF64B5F6),
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = reserva.telefono.ifBlank { "Sin teléfono" },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Badge,
-                    contentDescription = null,
-                    tint = Color(0xFF64B5F6),
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "ID cliente: ${reserva.idCliente}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
-/**
- * fechaLegible
- * ------------
- * Convierte un timestamp en una fecha larga legible en español.
- */
-private fun fechaLegible(millis: Long, formato: DateTimeFormatter): String {
-    return Instant.ofEpochMilli(millis)
-        .atZone(ZoneId.systemDefault())
-        .toLocalDate()
-        .format(formato)
 }

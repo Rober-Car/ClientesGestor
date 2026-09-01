@@ -17,7 +17,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -28,7 +27,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -51,7 +49,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
-import com.roberto.gestorpro.navigation.Routes
 import com.roberto.gestorpro.ui.viewmodel.SesionViewModel
 import java.time.Instant
 import java.time.ZoneId
@@ -62,9 +59,10 @@ import java.time.format.DateTimeFormatter
  * EditarSesionScreen
  * ------------------
  * Pantalla "Ver / editar sesión": permite consultar una sesión concreta y
- * modificar su fecha, hora, duración y capacidad.
+ * modificar su fecha, hora, apertura de reservas, duración y capacidad.
  * Las reservas existentes se conservan; si cambia la capacidad se recalculan
  * las plazas disponibles para no dejar reservas huérfanas.
+ * La apertura de reservas (horaDesdeReserva) es individual de cada sesión.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -294,19 +292,6 @@ fun EditarSesionScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-
-                OutlinedButton(
-                    onClick = { navController.navigate(Routes.sesionReservas(idSesion)) },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Ver reservas de la sesión")
-                }
 
                 Button(
                     onClick = {

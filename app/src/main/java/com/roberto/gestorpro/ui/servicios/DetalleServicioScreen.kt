@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.roberto.gestorpro.data.entity.SesionEntity
@@ -64,6 +65,7 @@ fun DetalleServicioScreen(
 ) {
     val servicio by servicioViewModel.servicioSeleccionado.collectAsStateWithLifecycle()
     val sesiones by sesionViewModel.sesiones.collectAsStateWithLifecycle()
+    val plazasRemotas by sesionViewModel.plazasDisponiblesRemoto.collectAsStateWithLifecycle()
 
     LaunchedEffect(idServicio) {
         servicioViewModel.cargarServicio(idServicio)
@@ -76,6 +78,16 @@ fun DetalleServicioScreen(
     }
     val sesionHoy = sesiones.firstOrNull {
         Instant.ofEpochMilli(it.fecha).atZone(ZoneId.systemDefault()).toLocalDate() == hoyLocal
+    }
+
+    // Refresca las plazas reales desde Firestore al entrar y al reanudar
+    // (volver de reservas/edición), para reflejar reservas hechas por appCliente.
+    LifecycleResumeEffect(sesionHoy?.idSesion) {
+        val id = sesionHoy?.idSesion
+        if (id != null) {
+            sesionViewModel.refrescarPlazasSesion(id)
+        }
+        onPauseOrDispose { }
     }
 
     Scaffold { innerPadding ->
@@ -186,6 +198,10 @@ fun DetalleServicioScreen(
                     CardSesionHoy(
                         sesion = sesionHoy,
                         formatter = formatter,
+                        plazasDisponibles = plazasRemotas ?: sesionHoy.plazasDisponibles,
+                        onVerReservas = {
+                            navController.navigate(Routes.sesionReservas(sesionHoy.idSesion))
+                        },
                         onVerEditar = {
                             navController.navigate(Routes.editarSesion(sesionHoy.idSesion))
                         }
@@ -255,20 +271,28 @@ private fun FilaDatoDetalle(etiqueta: String, valor: String) {
 /**
  * CardSesionHoy
  * -------------
- * Tarjeta de la sesión del día actual con sus datos y la acción
- * "Ver / editar sesión".
+ * Tarjeta resumida de la sesión del día actual: fecha, hora, plazas
+ * disponibles (reales, desde Firestore) y las acciones "Ver reservas de la
+ * sesión" y "Ver / editar sesión". La apertura de reservas y otros datos se
+ * consultan/modifican desde la edición individual.
  */
 @Composable
 private fun CardSesionHoy(
     sesion: SesionEntity,
     formatter: DateTimeFormatter,
+    plazasDisponibles: Int,
+    onVerReservas: () -> Unit,
     onVerEditar: () -> Unit
 ) {
     val fechaStr = Instant.ofEpochMilli(sesion.fecha)
         .atZone(ZoneId.systemDefault())
         .toLocalDate()
         .format(formatter)
-    val inscritos = sesion.capacidad - sesion.plazasDisponibles
+    val textoPlazas = if (plazasDisponibles == 1) {
+        "1 plaza disponible de ${sesion.capacidad}"
+    } else {
+        "$plazasDisponibles plazas disponibles de ${sesion.capacidad}"
+    }
 
     Card(
         modifier = Modifier
@@ -298,25 +322,16 @@ private fun CardSesionHoy(
                 )
             }
             FilaDatoDetalle("Hora", sesion.hora)
-            FilaDatoDetalle("Duración", "${sesion.duracionMinutos} minutos")
-            FilaDatoDetalle("Capacidad", "${sesion.capacidad} plazas")
-            FilaDatoDetalle(
-                "Apertura de reservas",
-                sesion.horaDesdeReserva?.let { "Desde las $it" } ?: "Desde el inicio del día"
-            )
+            FilaDatoDetalle("Plazas", textoPlazas)
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onVerReservas) {
                 Icon(
                     imageVector = Icons.Default.EventSeat,
                     contentDescription = null,
-                    tint = Color(0xFF64B5F6),
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(18.dp)
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Plazas disponibles: ${sesion.plazasDisponibles} de ${sesion.capacidad} ($inscritos reservadas)",
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Ver reservas de la sesión")
             }
 
             TextButton(onClick = onVerEditar) {

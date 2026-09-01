@@ -243,6 +243,34 @@ class SesionRemotoRepository @Inject constructor(
     }
 
     /**
+     * obtenerPlazasDisponiblesRemoto
+     * ------------------------------
+     * Lee de Firestore las plazas disponibles REALES de una sesión
+     * (sesiones/{idSesion}), que es donde se actualizan las reservas creadas
+     * por appCliente. Devuelve null si la sesión no existe, no pertenece al
+     * negocio autenticado o falla la lectura.
+     */
+    suspend fun obtenerPlazasDisponiblesRemoto(idSesion: Int): Int? {
+        val uid = auth.currentUser?.uid
+            ?: return null
+        val negocioId = negocioIdDeAdmin(uid)
+        return try {
+            val documento = db.collection(COLECCION_SESIONES)
+                .document(idSesion.toString())
+                .get()
+                .esperar()
+            if (!documento.exists() || documento.getString("negocioId") != negocioId) {
+                null
+            } else {
+                documento.getLong("plazasDisponibles")?.toInt()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "obtenerPlazasDisponiblesRemoto: idSesion=$idSesion falló: ${e.message}", e)
+            null
+        }
+    }
+
+    /**
      * obtenerIdsSesionesDelServicio
      * -----------------------------
      * Consulta las sesiones de un servicio y su negocio con filtros de igualdad

@@ -5,6 +5,8 @@ import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.roberto.gestorpro.model.EstadoCliente
+import com.roberto.gestorpro.model.ReservaClienteDetalle
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -184,6 +186,73 @@ class ReservaRemotoRepository @Inject constructor(
         } catch (e: Exception) {
             ResultadoAutenticacion(false, mensajeDe(e))
         }
+    }
+
+    /**
+     * obtenerReservasDeSesionRemoto
+     * -----------------------------
+     * Obtiene las reservas de una sesión directamente desde Firestore
+     * (reservas/{clienteId}_{sesionId}), que es la fuente de verdad de las
+     * reservas creadas por appCliente. Consulta por sesionId + negocioId
+     * (el índice compuesto correspondiente ya existe en producción) y
+     * enriquece cada reserva con los datos del cliente (nombre, apellidos,
+     * teléfono, foto y estado real) desde clientes/{idCliente}. Si la
+     * operación falla, devuelve lista vacía para no romper la pantalla.
+     */
+    suspend fun obtenerReservasDeSesionRemoto(idSesion: Int): List<ReservaClienteDetalle> {
+        val uid = auth.currentUser?.uid
+            ?: return emptyList()
+        val negocioId = uid
+
+        return try {
+            val reservas = db.collection(COLECCION_RESERVAS)
+                .whereEqualTo("sesionId", idSesion)
+                .whereEqualTo("negocioId", negocioId)
+                .get()
+                .esperar()
+                .documents
+
+            reservas.mapNotNull { documento ->
+                val clienteId = documento.getLong("clienteId")?.toInt()
+                    ?: return@mapNotNull null
+                val cliente = db.collection(COLECCION_CLIENTES)
+                    .document(clienteId.toString())
+                    .get()
+                    .esperar()
+                if (!cliente.exists()) {
+                    Log.w(TAG, "obtenerReservasDeSesionRemoto: cliente $clienteId no existe")
+                    return@mapNotNull null
+                }
+                ReservaClienteDetalle(
+                    idCliente = clienteId,
+                    nombre = cliente.getString("nombre") ?: "",
+                    apellidos = cliente.getString("apellidos") ?: "",
+                    telefono = cliente.getString("telefono") ?: "",
+                    foto = cliente.getString("foto") ?: "",
+                    estado = estadoDe(cliente.getString("estado"))
+                )
+            }.sortedWith(compareBy({ it.nombre }, { it.apellidos }))
+        } catch (e: Exception) {
+            val codigo = (e as? FirebaseFirestoreException)?.code?.name ?: "NO_FIRESTORE_CODE"
+            Log.e(
+                TAG,
+                "obtenerReservasDeSesionRemoto: idSesion=$idSesion falló. códigoFirebase=$codigo",
+                e
+            )
+            emptyList()
+        }
+    }
+
+    /**
+     * estadoDe
+     * --------
+     * Convierte el valor remoto de clientes/{idCliente}.estado al enum
+     * EstadoCliente. Ante un valor ausente o desconocido devuelve ACTIVO
+     * (fail-closed, nunca lanza).
+     */
+    private fun estadoDe(valor: String?): EstadoCliente {
+        if (valor == null) return EstadoCliente.ACTIVO
+        return runCatching { EstadoCliente.valueOf(valor) }.getOrDefault(EstadoCliente.ACTIVO)
     }
 
     /**

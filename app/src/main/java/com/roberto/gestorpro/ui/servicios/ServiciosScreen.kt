@@ -1,7 +1,10 @@
 package com.roberto.gestorpro.ui.servicios
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -42,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -329,8 +333,10 @@ private fun TextoVacio(texto: String) {
  * ServicioCard
  * ------------
  * Tarjeta de un servicio.
- * - Activo: acciones "Editar" y "Dar de baja".
- * - De baja: acciones "Reactivar" y "Eliminar" (sin editar).
+ * - Activo: acciones secundarias "Editar" y "Dar de baja".
+ * - De baja: acciones secundarias "Reactivar" y "Eliminar" (sin editar).
+ * Jerarquía visual: el icono y el nombre del servicio son el elemento
+ * principal; las acciones quedan como botones de texto discretos al pie.
  */
 @Composable
 private fun ServicioCard(
@@ -341,6 +347,7 @@ private fun ServicioCard(
     onReactivar: () -> Unit,
     onEliminar: () -> Unit
 ) {
+    val colorPrimario = if (servicio.activo) Color(0xFF1E88E5) else Color.Gray
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -352,22 +359,31 @@ private fun ServicioCard(
             } else {
                 Color.Gray.copy(alpha = 0.08f)
             }
-        )
+        ),
+        border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.6f))
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.FitnessCenter,
-                    contentDescription = null,
-                    tint = if (servicio.activo) Color(0xFF1E88E5) else Color.Gray,
-                    modifier = Modifier.size(28.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(colorPrimario.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FitnessCenter,
+                        contentDescription = null,
+                        tint = colorPrimario,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = servicio.nombre,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -398,65 +414,39 @@ private fun ServicioCard(
                 }
             }
 
-            Spacer(modifier = Modifier.size(8.dp))
+            Spacer(modifier = Modifier.size(4.dp))
 
-            if (servicio.activo) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedButton(
-                        onClick = onEditar,
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 8.dp)
-                    ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (servicio.activo) {
+                    TextButton(onClick = onEditar) {
                         Icon(
                             imageVector = Icons.Default.Edit,
                             contentDescription = "Editar",
                             modifier = Modifier.size(16.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text("Editar")
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = onDarDeBaja,
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFFF9800),
-                            contentColor = Color.White
-                        )
-                    ) {
-                        Text("Dar de baja")
+                    TextButton(onClick = onDarDeBaja) {
+                        Text("Dar de baja", color = Color(0xFFFF9800))
                     }
-                }
-            } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Button(
-                        onClick = onReactivar,
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF4CAF50),
-                            contentColor = Color.White
-                        )
-                    ) {
-                        Text("Reactivar")
+                } else {
+                    TextButton(onClick = onReactivar) {
+                        Text("Reactivar", color = Color(0xFF4CAF50))
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    OutlinedButton(
-                        onClick = onEliminar,
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 8.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color.Red
-                        )
-                    ) {
+                    TextButton(onClick = onEliminar) {
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "Eliminar",
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(16.dp),
+                            tint = Color.Red
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Eliminar")
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Eliminar", color = Color.Red)
                     }
                 }
             }
