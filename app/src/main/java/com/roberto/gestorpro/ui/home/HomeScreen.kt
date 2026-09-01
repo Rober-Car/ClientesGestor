@@ -175,7 +175,7 @@ fun HomeScreen(
                         containerColor = Color(0xFFE91E63).copy(alpha = 0.12f),
                         iconContainerColor = Color(0xFFE91E63),
                         iconTint = Color.White,
-                        onClick = {}
+                        onClick = { navController.navigate(Routes.NOTIFICACIONES) }
                     )
                 }
             }

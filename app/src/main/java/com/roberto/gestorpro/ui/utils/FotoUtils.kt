@@ -168,3 +168,24 @@ internal fun guardaFotoEnInterna(context: Context, uri: Uri): String? {
         null
     }
 }
+
+/**
+ * Tamaño máximo (bytes) permitido para una foto de cliente en Cloud Storage
+ * (5 MB), coherente con storage.rules.
+ */
+const val MAX_FOTO_STORAGE_BYTES = 5 * 1024 * 1024
+
+/**
+ * rutaFotoClienteEnStorage
+ * ------------------------
+ * Ruta estable de la foto de un cliente en Cloud Storage (migración futura
+ * desde el almacenamiento local). Estructura: clientes/{clienteId}/foto.jpg.
+ * La ruta es fija por cliente: al sustituir la foto se sobrescribe el mismo
+ * objeto y se actualiza la referencia en Firestore.
+ *
+ * NOTA: mientras el proyecto no tenga Storage habilitado (Blaze + bucket),
+ * la app sigue guardando y mostrando las fotos desde el almacenamiento local
+ * (campo `foto` = ruta de archivo absoluta). Este helper solo fija la
+ * convención de la migración futura.
+ */
+fun rutaFotoClienteEnStorage(clienteId: Int): String = "clientes/$clienteId/foto.jpg"

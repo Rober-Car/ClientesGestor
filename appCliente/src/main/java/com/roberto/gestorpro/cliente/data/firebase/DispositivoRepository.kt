@@ -51,12 +51,18 @@ class DispositivoRepository @Inject constructor(
      * registrarToken
      * --------------
      * Guarda o actualiza el token del dispositivo bajo la ficha del cliente.
-     * Si el cliente no está vinculado aún, no escribe nada. Los fallos se
-     * registran pero no rompen la app (las Rules de la subcolección pueden
-     * llegar más tarde; se reintentará con el siguiente token/mensaje).
+     * Almacena también `notificacionesActivadas` (preferencia del dispositivo)
+     * para que Cloud Functions omita este token cuando el CLIENTE las haya
+     * desactivado. Si el cliente no está vinculado aún, no escribe nada. Los
+     * fallos se registran pero no rompen la app.
      */
     suspend fun registrarToken(token: String) {
         val idCliente = preferencesRepository.idCliente.first() ?: return
+        val activadas = try {
+            preferencesRepository.notificacionesActivadas.first()
+        } catch (e: Exception) {
+            true
+        }
         try {
             db.collection(COLECCION_CLIENTES)
                 .document(idCliente.toString())
@@ -66,14 +72,44 @@ class DispositivoRepository @Inject constructor(
                     mapOf(
                         "token" to token,
                         "plataforma" to "android",
+                        "notificacionesActivadas" to activadas,
                         "updatedAt" to FieldValue.serverTimestamp()
                     ),
                     SetOptions.merge()
                 )
                 .esperar()
-            Log.d(TAG, "Token FCM registrado para el cliente $idCliente")
+            Log.d(TAG, "Token FCM registrado para el cliente $idCliente (avisos=$activadas)")
         } catch (e: Exception) {
             Log.e(TAG, "Error al registrar el token FCM del cliente $idCliente: ${e.message}", e)
+        }
+    }
+
+    /**
+     * actualizarNotificacionesActivadas
+     * ---------------------------------
+     * Refleja en el documento del dispositivo actual el estado del switch
+     * "Recibir avisos del gimnasio". Cloud Functions lo consultará para omitir
+     * los tokens con notificacionesActivadas == false. Sin cliente vinculado o
+     * sin token no hace nada.
+     */
+    suspend fun actualizarNotificacionesActivadas(activadas: Boolean) {
+        val idCliente = preferencesRepository.idCliente.first() ?: return
+        val token = try {
+            FirebaseMessaging.getInstance().token.esperar()
+        } catch (e: Exception) {
+            Log.w(TAG, "No se pudo obtener el token FCM para actualizar avisos: ${e.message}")
+            return
+        }
+        try {
+            db.collection(COLECCION_CLIENTES)
+                .document(idCliente.toString())
+                .collection(COLECCION_DISPOSITIVOS)
+                .document(token)
+                .update("notificacionesActivadas", activadas)
+                .esperar()
+            Log.d(TAG, "Preferencia de avisos actualizada en el dispositivo: activadas=$activadas")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error al actualizar notificacionesActivadas del dispositivo: ${e.message}", e)
         }
     }
 }

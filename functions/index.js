@@ -1,14 +1,52 @@
 /**
- * Cloud Functions de GestorPro.
+ * Cloud Functions de GestorPro (Fase E - envío real de notificaciones).
  *
- * FASE A (infraestructura): esqueleto del backend de notificaciones.
- * La aplicación inicializa firebase-admin aquí; los triggers reales se
- * implementarán en la Fase E:
- *   - onWrite(notificaciones_por_destinatario) -> envío de push FCM.
- *   - scheduler -> notificaciones PROGRAMADAS vencidas.
- *   - scheduler -> recordatorio de morosidad cada 24h.
- *   - onUpdate(clientes/{id}) -> "Baja confirmada" cuando estado -> BAJA.
+ * Cloud Functions 2ª generación. Requiere plan Blaze (no desplegar hasta que
+ * la facturación esté activa).
+ *
+ * Triggers:
+ *   - notificacionInmediata  : onDocumentCreated("notificaciones/{id}").
+ *   - procesarProgramadas    : onSchedule cada 2 minutos (PROGRAMADA vencidas).
+ *   - recordatorioMorosidad  : onSchedule cada 1 hora (recordatorio 24h).
+ *   - entradaMorosidad       : onDocumentUpdated("clientes/{id}").
+ *   - bajaConfirmada         : onDocumentUpdated("clientes/{id}").
+ *
+ * Índice compuesto requerido en Firestore:
+ *   notificaciones(estado ASC, fechaProgramada ASC)
  */
 const { initializeApp } = require("firebase-admin/app");
-
 initializeApp();
+
+const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { setGlobalOptions } = require("firebase-functions/v2");
+
+const {
+  procesarNotificacionInmediata,
+  procesarProgramadas,
+  procesarRecordatorioMorosidad,
+  procesarEntradaMorosidad,
+  procesarBajaConfirmada,
+} = require("./lib/procesadores");
+
+// Región cercana a España y límites razonables para los barridos.
+setGlobalOptions({ region: "europe-west1", maxInstances: 10 });
+
+exports.notificacionInmediata = onDocumentCreated(
+  "notificaciones/{notificacionId}",
+  procesarNotificacionInmediata
+);
+
+exports.procesarProgramadas = onSchedule("every 2 minutes", procesarProgramadas);
+
+exports.recordatorioMorosidad = onSchedule("every 1 hour", procesarRecordatorioMorosidad);
+
+exports.entradaMorosidad = onDocumentUpdated(
+  "clientes/{clienteId}",
+  procesarEntradaMorosidad
+);
+
+exports.bajaConfirmada = onDocumentUpdated(
+  "clientes/{clienteId}",
+  procesarBajaConfirmada
+);

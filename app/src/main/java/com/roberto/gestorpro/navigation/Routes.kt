@@ -214,4 +214,32 @@ object Routes {
         return "$MODIFICARCLIENTE/$idCliente"
     }
 
+    /**
+     * NOTIFICACIONES
+     * --------------
+     * Ruta de la pantalla principal de gestión de notificaciones del ADMIN.
+     */
+    const val NOTIFICACIONES = "notificaciones"
+
+    /**
+     * CREAR_NOTIFICACION
+     * ------------------
+     * Ruta del formulario de creación de una notificación del ADMIN.
+     */
+    const val CREAR_NOTIFICACION = "crear_notificacion"
+
+    /**
+     * CONFIG_NOTIFICACIONES
+     * ---------------------
+     * Ruta de la configuración de notificaciones preconfiguradas del negocio.
+     */
+    const val CONFIG_NOTIFICACIONES = "config_notificaciones"
+
+    /**
+     * SELECCIONAR_CLIENTES
+     * --------------------
+     * Ruta de la pantalla de selección de clientes para una notificación GRUPAL.
+     */
+    const val SELECCIONAR_CLIENTES = "seleccionar_clientes"
+
 }

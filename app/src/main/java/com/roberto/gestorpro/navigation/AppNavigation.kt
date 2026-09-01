@@ -33,6 +33,10 @@ import com.roberto.gestorpro.ui.configuracion.MiNegocioScreen
 import com.roberto.gestorpro.ui.configuracion.PreferenciasScreen
 import com.roberto.gestorpro.ui.economia.EconomiaScreen
 import com.roberto.gestorpro.ui.home.HomeScreen
+import com.roberto.gestorpro.ui.notificaciones.ConfigNotificacionesScreen
+import com.roberto.gestorpro.ui.notificaciones.CrearNotificacionScreen
+import com.roberto.gestorpro.ui.notificaciones.GestionNotificacionesScreen
+import com.roberto.gestorpro.ui.notificaciones.SeleccionarClientesScreen
 import com.roberto.gestorpro.ui.servicios.DetalleServicioScreen
 import com.roberto.gestorpro.ui.servicios.EditarServicioScreen
 import com.roberto.gestorpro.ui.servicios.EditarSesionScreen
@@ -40,6 +44,7 @@ import com.roberto.gestorpro.ui.servicios.ProgramarSesionesScreen
 import com.roberto.gestorpro.ui.servicios.ServiciosScreen
 import com.roberto.gestorpro.ui.servicios.SesionReservasScreen
 import com.roberto.gestorpro.ui.viewmodel.MainViewModel
+import com.roberto.gestorpro.ui.viewmodel.NotificacionesViewModel
 
 /**
  * AppNavigation.kt
@@ -62,6 +67,11 @@ fun AppNavigation() {
     val navController = rememberNavController()
 
     val mainViewModel: MainViewModel = hiltViewModel()
+
+    // ViewModel compartido por las pantallas de notificaciones (lista, crear,
+    // configuración): al obtenerlo a nivel de AppNavigation se mantiene una
+    // única instancia durante toda la navegación de notificaciones.
+    val notificacionesViewModel: NotificacionesViewModel = hiltViewModel()
 
     var destinoInicial by remember { mutableStateOf<String?>(null) }
 
@@ -282,6 +292,34 @@ fun AppNavigation() {
                     idSesion = idSesion
                 )
             }
+        }
+
+        composable(Routes.NOTIFICACIONES) {
+            GestionNotificacionesScreen(
+                navController = navController,
+                viewModel = notificacionesViewModel
+            )
+        }
+
+        composable(Routes.CREAR_NOTIFICACION) {
+            CrearNotificacionScreen(
+                navController = navController,
+                viewModel = notificacionesViewModel
+            )
+        }
+
+        composable(Routes.CONFIG_NOTIFICACIONES) {
+            ConfigNotificacionesScreen(
+                navController = navController,
+                viewModel = notificacionesViewModel
+            )
+        }
+
+        composable(Routes.SELECCIONAR_CLIENTES) {
+            SeleccionarClientesScreen(
+                navController = navController,
+                viewModel = notificacionesViewModel
+            )
         }
 
     }

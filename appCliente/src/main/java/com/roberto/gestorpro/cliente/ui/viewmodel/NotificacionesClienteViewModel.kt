@@ -2,6 +2,7 @@ package com.roberto.gestorpro.cliente.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.roberto.gestorpro.cliente.data.firebase.DispositivoRepository
 import com.roberto.gestorpro.cliente.data.firebase.NotificacionRepository
 import com.roberto.gestorpro.cliente.data.repository.PreferencesRepository
 import com.roberto.gestorpro.cliente.model.Notificacion
@@ -23,7 +24,8 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class NotificacionesClienteViewModel @Inject constructor(
     private val preferencesRepository: PreferencesRepository,
-    private val notificacionRepository: NotificacionRepository
+    private val notificacionRepository: NotificacionRepository,
+    private val dispositivoRepository: DispositivoRepository
 ) : ViewModel() {
 
     private val _cargando = MutableStateFlow(false)
@@ -44,6 +46,9 @@ class NotificacionesClienteViewModel @Inject constructor(
     fun setNotificacionesActivadas(activas: Boolean) {
         viewModelScope.launch {
             preferencesRepository.setNotificacionesActivadas(activas)
+            // Refleja el switch en el documento del dispositivo para que Cloud
+            // Functions omita este token cuando el aviso esté desactivado.
+            dispositivoRepository.actualizarNotificacionesActivadas(activas)
         }
     }
 

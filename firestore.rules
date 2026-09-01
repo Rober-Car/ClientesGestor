@@ -1100,13 +1100,11 @@ service cloud.firestore {
     match /notificaciones_por_destinatario/{destinatarioId} {
       allow get: if esCliente()
         && resource.data.negocioId == usuarioActual().negocioId
-        && resource.data.clienteId == usuarioActual().clienteId
-        && resource.data.firebaseUid == request.auth.uid;
+        && resource.data.clienteId == usuarioActual().clienteId;
 
       allow list: if esCliente()
         && resource.data.negocioId == usuarioActual().negocioId
-        && resource.data.clienteId == usuarioActual().clienteId
-        && resource.data.firebaseUid == request.auth.uid;
+        && resource.data.clienteId == usuarioActual().clienteId;
 
       allow get, list: if esAdmin()
         && resource.data.negocioId == usuarioActual().negocioId;

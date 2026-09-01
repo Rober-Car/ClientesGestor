@@ -20,6 +20,25 @@ service firebase.storage {
     }
 
     // =========================================================
+    // FOTOS DE CLIENTES (migración futura desde almacenamiento local)
+    // Ruta estable: clientes/{clienteId}/foto.jpg
+    // =========================================================
+
+    match /clientes/{clienteId}/foto.jpg {
+      // Lectura:
+      //  - el ADMIN del negocio al que pertenece el cliente;
+      //  - el CLIENTE únicamente de su propia foto (firebaseUid == uid).
+      allow read: if request.auth != null
+        && (esAdminDelCliente(clienteId) || esDuenioDeLaFoto(clienteId));
+
+      // Escritura (subir/sustituir/borrar): solo el ADMIN del negocio del
+      // cliente. Un usuario nunca puede escribir en la ruta de otro.
+      // Se valida tipo de archivo (image/*) y tamaño máximo (5 MB).
+      allow write: if esAdminDelCliente(clienteId)
+        && esImagenValida();
+    }
+
+    // =========================================================
     // BLOQUEO POR DEFECTO
     // =========================================================
 
@@ -35,4 +54,35 @@ function esAdminDelNegocio(negocioId) {
   ).data;
   return u.rol == 'ADMIN'
     && u.negocioId == negocioId;
+}
+
+// El ADMIN propietario del negocio al que pertenece el cliente.
+function esAdminDelCliente(clienteId) {
+  let u = firestore.get(
+    /databases/(default)/documents/usuarios/$(request.auth.uid)
+  );
+  let c = firestore.get(
+    /databases/(default)/documents/clientes/$(clienteId)
+  );
+  return u != null
+    && u.data.rol == 'ADMIN'
+    && u.data.negocioId != null
+    && c != null
+    && c.data.negocioId == u.data.negocioId;
+}
+
+// El CLIENTE solo accede a su propia foto.
+function esDuenioDeLaFoto(clienteId) {
+  let c = firestore.get(
+    /databases/(default)/documents/clientes/$(clienteId)
+  );
+  return c != null
+    && c.data.firebaseUid == request.auth.uid;
+}
+
+// Imagen válida: tipo image/* y máximo 5 MB.
+function esImagenValida() {
+  return request.resource != null
+    && request.resource.size <= 5 * 1024 * 1024
+    && request.resource.contentType.matches('image/.*');
 }

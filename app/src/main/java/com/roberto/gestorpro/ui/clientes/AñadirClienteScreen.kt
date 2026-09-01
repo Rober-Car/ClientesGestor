@@ -29,10 +29,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.Icon
@@ -56,6 +58,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -81,12 +84,14 @@ import com.roberto.gestorpro.ui.utils.guardaFotoEnInterna
 import com.roberto.gestorpro.ui.utils.guardarFotoDeCamara
 import com.roberto.gestorpro.ui.utils.uriDeFotoTemporal
 import com.roberto.gestorpro.ui.viewmodel.ClienteViewModel
+import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 import java.io.File
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.launch
 
 /* ============================================================
  * ============ BLOQUE 2: DOCUMENTACIÓN DEL ARCHIVO ===========
@@ -131,7 +136,16 @@ fun AñadirClienteScreen(
      * Es el ViewModel de clientes que recibe la pantalla.
      * Sirve para guardar el nuevo cliente en la base de datos cuando se complete el formulario.
      */
-    viewModel: ClienteViewModel = hiltViewModel()
+    viewModel: ClienteViewModel = hiltViewModel(),
+    /**
+     * mainViewModel
+     * -------------
+     * ✔ TIPO: parámetro (param) → MainViewModel (inyectado por Hilt)
+     * Es el ViewModel general de la app.
+     * Sirve para comprobar que el administrador tiene un negocio creado antes de
+     * permitir el alta de un cliente nuevo.
+     */
+    mainViewModel: MainViewModel = hiltViewModel()
 
 ) {
 
@@ -359,6 +373,7 @@ fun AñadirClienteScreen(
      * Sirve para mostrar los avisos flotantes sin que queden ocultos bajo el scroll.
      */
     val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
 
     /**
      * LaunchedEffect(error)
@@ -415,6 +430,32 @@ fun AñadirClienteScreen(
         viewModel.limpiarError()
         if (idCliente != null) {
             viewModel.obtenerClienteParaEditar(idCliente)
+        }
+    }
+
+    /**
+     * negocioOk
+     * ---------
+     * ✔ TIPO: variable con estado (var) → Boolean?
+     * Indica si el administrador tiene un negocio creado antes de permitir el
+     * alta. null = comprobando; false = sin negocio (se bloquea el alta);
+     * true = negocio válido. En modo edición no se comprueba (si hay clientes
+     * que editar es porque ya existe negocio).
+     */
+    var negocioOk by remember {
+        mutableStateOf<Boolean?>(if (idCliente != null) true else null)
+    }
+
+    /**
+     * LaunchedEffect(negocioOk)
+     * -------------------------
+     * Comprueba, al entrar en el alta, que el administrador tiene un negocio
+     * creado en la nube. Si no lo tiene, la pantalla muestra el aviso y no
+     * permite llegar al botón de guardar.
+     */
+    LaunchedEffect(Unit) {
+        if (idCliente == null) {
+            negocioOk = mainViewModel.existeNegocioPropio()
         }
     }
 
@@ -564,6 +605,33 @@ fun AñadirClienteScreen(
             }
         }
     ) { innerPadding ->
+
+    if (idCliente == null && negocioOk == null) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+        return@Scaffold
+    }
+
+    /**
+     * GUARD DE NEGOCIO: en modo alta, si el administrador todavía no tiene
+     * negocio creado (o aún se está comprobando y ha dado false), no se muestra
+     * el formulario: se bloquea el alta y se ofrece la navegación a la creación
+     * del negocio. Así el usuario no llega nunca a un error de Firestore al guardar.
+     */
+    if (idCliente == null && negocioOk == false) {
+        SinNegocioContenido(
+            onCrearNegocio = { navController.navigate(Routes.CREAR_NEGOCIO) },
+            onConfigurarNegocio = { navController.navigate(Routes.MINEGOCIO) }
+        )
+        return@Scaffold
+    }
+
     /**
      * Column del formulario
      * ---------------------
@@ -995,6 +1063,19 @@ fun AñadirClienteScreen(
         Button(
             onClick = {
                 viewModel.limpiarError()
+
+                // SEGUNDA BARRERA: aunque el formulario se muestre solo con
+                // negocioOk == true, se vuelve a comprobar antes de guardar un
+                // cliente nuevo para no llegar a un error de Firestore.
+                if (idCliente == null && negocioOk != true) {
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar(
+                            "No puedes crear clientes todavía. Primero debes crear tu negocio."
+                        )
+                    }
+                    return@Button
+                }
+
                 errorNombre = nombre.isBlank()
                 errorApellidos = apellidos.isBlank()
                 errorDni = !esDniValido(dni)
@@ -1298,4 +1379,61 @@ private fun esEmailValido(email: String): Boolean {
     return android.util.Patterns.EMAIL_ADDRESS
         .matcher(email)
         .matches()
+}
+
+/**
+ * SinNegocioContenido
+ * -------------------
+ * Pantalla de bloqueo del alta de clientes cuando el administrador todavía no
+ * tiene creado su negocio. Muestra el motivo y ofrece la navegación a la
+ * creación o configuración del negocio.
+ */
+@Composable
+private fun SinNegocioContenido(
+    onCrearNegocio: () -> Unit,
+    onConfigurarNegocio: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.AccountBalance,
+            contentDescription = null,
+            modifier = Modifier.size(64.dp),
+            tint = Color.Gray.copy(alpha = 0.5f)
+        )
+        Spacer(modifier = Modifier.size(16.dp))
+        Text(
+            text = "No puedes crear clientes todavía.",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(modifier = Modifier.size(8.dp))
+        Text(
+            text = "Primero debes crear tu negocio para poder dar de alta clientes.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.Gray,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+        Spacer(modifier = Modifier.size(24.dp))
+        Button(
+            onClick = onCrearNegocio,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF1E88E5),
+                contentColor = Color.White
+            )
+        ) {
+            Text("Crear negocio")
+        }
+        Spacer(modifier = Modifier.size(8.dp))
+        TextButton(onClick = onConfigurarNegocio) {
+            Text("Ir a la configuración del negocio")
+        }
+    }
 }

@@ -19,6 +19,8 @@ import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,6 +51,8 @@ fun ClienteItem(
     onClick: () -> Unit,
     onArchivar: (() -> Unit)? = null,
     onRestaurar: (() -> Unit)? = null,
+    seleccionable: Boolean = false,
+    seleccionado: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var mostrarDialogoArchivar by remember { mutableStateOf(false) }
@@ -123,6 +127,14 @@ fun ClienteItem(
                         color = Color.Gray
                     )
                 }
+            }
+
+            if (seleccionable) {
+                Checkbox(
+                    checked = seleccionado,
+                    onCheckedChange = { onClick() },
+                    colors = CheckboxDefaults.colors(checkedColor = Color(0xFF1E88E5))
+                )
             }
 
             if (onArchivar != null) {
