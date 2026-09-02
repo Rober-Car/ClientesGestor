@@ -367,6 +367,63 @@ node firestore-tests/auditoria_backfill_indices.cjs
 
 ## Estado actual y pendientes (2026-09-02)
 
+> ACTUALIZACIÓN 2026-09-02 (ECONOMÍA FASES 1–5 + AJUSTES LLAVE/CARDS + SELECTOR NOTIFICACIÓN):
+> HEAD = `3b113e6 "impplementando codigo para cuando contrate balze2"` (SIN commits nuevos; todo lo
+> de esta tanda está en el working tree). Detalle cronológico en `CONVERSACION_EXPORTADA.md`
+> (Sesiones XXVIII en adelante).
+>
+> **Cambios cerrados en esta tanda (todo compilando, sin commit ni deploy):**
+> 1. **Llave como servicio normal:** eliminado `tieneLlave` (Room v13→14 con recreación de
+>    `cliente` sin la columna), de `model/Cliente`, de la UI (AñadirCliente/Perfil), de la réplica a
+>    Firestore y de las Rules (hasOnly). Sin migrar valores antiguos (decisión: descartar). La
+>    "llave" se gestiona como un servicio normal contratado. appCliente solo conserva cambios
+>    previos sin commitear (parser sin el campo).
+> 2. **ServiciosScreen:** card COMPACTO (sin chip "ACTIVO/DE BAJA" dentro) y ahora muestra el
+>    **precio del servicio** (`30 €` / `12,50 €`).
+> 3. **FASE 1 — Modelos Room (Room v14):** `ServicioEntity.precio: Double = 0.0`;
+>    `MovimientoEntity` pasa a `servicios: List<Int>` + `precioFinal: Double` + `metodoPago:
+>    MetodoPago?` (desaparecen `servicio`/`precio`); nuevos `model/MetodoPago` (EFECTIVO/BIZUM/
+>    TRANSFERENCIA) y `MetodoPagoConverter`. `MIGRACION_13_14` no destructiva (recrea `servicio`
+>    con precio=0 y `movimiento` con precioFinal=precio, metodoPago=NULL y servicios mapeado por
+>    nombre exacto único; si no hay correspondencia segura → `[]`).
+> 4. **FASE 2 — Precio de servicios (UI + Firestore):** campo Precio en EditarServicioScreen
+>    (≥0); ServiciosScreen muestra el precio; VM/Repo remoto envían `precio`; Rules `servicios`
+>    aceptan `precio` (number) en create/update (en update solo se exige si se toca). Rules
+>    **135/135** (PRUEBA 21B/21C/25B/25C nuevas).
+> 5. **FASE 3 — Movimientos multi-servicio:** Nuevo movimiento con checkboxes de ACTIVOS
+>    (nombre+precio) y propuesta `precioFinal` = suma (flag manual que NO se sobrescribe; botón
+>    "Usar precio calculado"). Edición multi; inactivos históricos se conservan bloqueados.
+>    Crear/editar NO modifica `serviciosContratados`. Helpers `util/MovimientoPrecio` (10 tests).
+> 6. **FASE 4 — Pagos en el movimiento:** `util/MovimientoPago.resolver` (12 tests): PENDIENTE→
+>    PAGADO fija fechaPago (hoy salvo fecha elegida); PAGADO→PENDIENTE limpia fechaPago+metodoPago;
+>    método opcional; edición conserva fecha/método existentes (bug de pérdida corregido); detalle
+>    de EconomiaScreen muestra fecha y método.
+> 7. **FASE 5 — Deuda y morosidad en Room (Room v15):** `ClienteEntity`/`Cliente` con
+>    `moroso: Boolean` y `fechaEntradaMorosidad: Long?`. Motor ÚNICO `util/MovimientoMorosidad`
+>    (17 tests): deuda = PENDIENTES exigibles (`fechaFin <= ahora`); ACTIVO moroso si deuda>0 o
+>    perdió continuidad PAGADA; BAJA moroso SOLO por deuda; fechaEntrada = fechaFin del periodo y
+>    NO se reinicia al recalcular. `ClienteDao.obtenerIdsMorosos()` ahora lee `moroso=1`;
+>    `MovimientoRepository` recalcula tras cada CRUD y expone `recalcularMorosidadDeCliente` (se
+>    llama también en bajas/restauración). NO se eliminó `EstadoCliente.MOROSO` todavía; sin
+>    `MOROSO_BAJA`, PagoEntity ni pagos parciales.
+> 8. **Corrección notificaciones:** el selector INDIVIDUAL ya NO abre diálogo: reutiliza la
+>    pantalla completa `SeleccionarClientesScreen` con `ModoSeleccion.UNO` (selección única;
+>    "Continuar" fija `NotificacionesViewModel.seleccionIndividual`; volver atrás no lo modifica).
+>    GRUPO sin cambios (ruta `seleccionar_clientes?modo=grupo|individual`). `DialogoSeleccionarClientes`
+>    queda sin uso (no eliminado).
+>
+> **Verificación:** `:app`/`:appCliente` BUILD SUCCESSFUL; `:app:testDebugUnitTest` **45/45**
+> (Example 1 + MovimientoPrecio 10 + MovimientoPago 12 + MovimientoMorosidad 17 +
+> NotificacionConfig 5); Rules **135/135** (sin cambios tras Fase 2).
+> **No tocado:** Firestore de movimientos, Functions, appCliente (salvo previos sin commitear),
+> notificaciones de envío. Room v15 con migraciones 11→12,12→13,13→14,14→15 (fallback destructivo
+> aún presente como respaldo, no usado en estas rutas).
+> **Pendiente inmediato (decisión del propietario):** siguiente fase de economía (¿resumen/deuda
+> en UI de Economía?, ¿sincronización Firestore de movimientos o resumen?, retirar
+> `EstadoCliente.MOROSO`, alinear default de config app↔Functions) + revisión/commit del working
+> tree y limpieza de basura (Rules desplegadas siguen obsoletas: sin `clientePuedeAcceder`,
+> `solicitudes/delete` ni `SOLICITUD_BAJA`/`precio`).
+
 > ACTUALIZACIÓN 2026-09-02 (CORRECCIONES/FUNCIONALIDADES + DIAGNÓSTICO ECONOMÍA): HEAD =
 > `3b113e6 "impplementando codigo para cuando contrate balze2"`. Todo el trabajo
 > posterior a `244db1e` sigue en el working tree SIN commit (incluidas las 2 fases de
