@@ -258,4 +258,11 @@ object Routes {
      */
     const val SOLICITUDES = "solicitudes"
 
+    /**
+     * POLITICA_PRIVACIDAD
+     * -------------------
+     * Ruta de la política de privacidad de GestPro (app Admin).
+     */
+    const val POLITICA_PRIVACIDAD = "politica_privacidad"
+
 }

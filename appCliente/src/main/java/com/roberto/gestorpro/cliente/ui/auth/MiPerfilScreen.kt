@@ -18,19 +18,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -52,6 +48,8 @@ import coil3.compose.AsyncImage
 import com.roberto.gestorpro.cliente.data.firebase.PerfilPendiente
 import com.roberto.gestorpro.cliente.model.Cliente
 import com.roberto.gestorpro.cliente.navigation.Routes
+import com.roberto.gestorpro.cliente.ui.components.AppNavigationBackButton
+import com.roberto.gestorpro.cliente.ui.components.AppPrimaryButton
 import com.roberto.gestorpro.cliente.ui.viewmodel.MainViewModel
 import java.io.File
 
@@ -100,14 +98,7 @@ fun MiPerfilScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Volver",
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(26.dp)
-                        )
-                    }
+                    AppNavigationBackButton(onClick = { navController.popBackStack() })
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
                         text = "Mi perfil",
@@ -233,13 +224,10 @@ fun MiPerfilScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            Button(
-                onClick = { navController.navigate(Routes.EDITAR_PERFIL) },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
-            ) {
-                Text("Modificar mis datos", color = Color.White)
-            }
+            AppPrimaryButton(
+                text = "Modificar mis datos",
+                onClick = { navController.navigate(Routes.EDITAR_PERFIL) }
+            )
         }
     }
 }

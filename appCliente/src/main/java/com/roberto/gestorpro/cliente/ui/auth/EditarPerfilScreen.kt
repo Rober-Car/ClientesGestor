@@ -20,13 +20,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -52,6 +48,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
 import com.roberto.gestorpro.cliente.data.firebase.PerfilPendiente
+import com.roberto.gestorpro.cliente.ui.components.AppNavigationBackButton
+import com.roberto.gestorpro.cliente.ui.components.AppPrimaryButton
 import com.roberto.gestorpro.cliente.ui.components.BotonSelectorFoto
 import com.roberto.gestorpro.cliente.ui.utils.crearFotoTemporal
 import com.roberto.gestorpro.cliente.ui.utils.guardaFotoEnInterna
@@ -162,14 +160,7 @@ fun EditarPerfilScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Volver",
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(26.dp)
-                        )
-                    }
+                    AppNavigationBackButton(onClick = { navController.popBackStack() })
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
                         text = "Modificar mis datos",
@@ -313,7 +304,8 @@ fun EditarPerfilScreen(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            Button(
+            AppPrimaryButton(
+                text = "Guardar cambios",
                 onClick = {
                     mensajeError = ""
                     scope.launch {
@@ -349,12 +341,8 @@ fun EditarPerfilScreen(
                 enabled = !operandoRemoto &&
                     nombre.isNotBlank() && apellidos.isNotBlank() &&
                     telefono.isNotBlank() &&
-                    (!vinculado && dni.isNotBlank() || vinculado),
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E88E5))
-            ) {
-                Text("Guardar cambios", color = Color.White)
-            }
+                    (!vinculado && dni.isNotBlank() || vinculado)
+            )
 
             if (operandoRemoto) {
                 Spacer(modifier = Modifier.height(12.dp))

@@ -16,11 +16,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -47,6 +44,8 @@ import androidx.navigation.NavHostController
 import com.roberto.gestorpro.model.EstadoCliente
 import com.roberto.gestorpro.model.FiltroClientes
 import com.roberto.gestorpro.ui.clientes.FilterChipItem
+import com.roberto.gestorpro.ui.components.AppNavigationBackButton
+import com.roberto.gestorpro.ui.components.AppPrimaryButton
 import com.roberto.gestorpro.ui.components.ClienteItem
 import com.roberto.gestorpro.ui.viewmodel.ClienteViewModel
 import com.roberto.gestorpro.ui.viewmodel.NotificacionesViewModel
@@ -171,7 +170,8 @@ fun SeleccionarClientesScreen(
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.weight(1f)
                     )
-                    Button(
+                    AppPrimaryButton(
+                        text = "Continuar",
                         onClick = {
                             if (esIndividual) {
                                 // Solo la confirmación fija el cliente individual;
@@ -181,13 +181,8 @@ fun SeleccionarClientesScreen(
                             navController.popBackStack()
                         },
                         enabled = seleccionados.isNotEmpty(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF1E88E5),
-                            contentColor = Color.White
-                        )
-                    ) {
-                        Text("Continuar")
-                    }
+                        fullWidth = false
+                    )
                 }
             }
         }
@@ -203,13 +198,7 @@ fun SeleccionarClientesScreen(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
-                        modifier = Modifier.size(30.dp)
-                    )
-                }
+                AppNavigationBackButton(onClick = { navController.popBackStack() })
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = "Seleccionar clientes",

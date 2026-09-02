@@ -27,7 +27,6 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Icon
@@ -54,6 +53,7 @@ import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
 import com.roberto.gestorpro.cliente.navigation.Routes
 import com.roberto.gestorpro.cliente.model.EstadoIndicadorCliente
+import com.roberto.gestorpro.cliente.ui.components.AppPrimaryButton
 import com.roberto.gestorpro.cliente.ui.viewmodel.MainViewModel
 import java.time.Instant
 import java.time.ZoneId
@@ -158,9 +158,11 @@ fun HomeScreen(
                             textAlign = TextAlign.Center
                         )
                         Spacer(modifier = Modifier.height(12.dp))
-                        Button(onClick = { navController.navigate(Routes.INICIO) }) {
-                            Text("Vincular gimnasio")
-                        }
+                        AppPrimaryButton(
+                            text = "Vincular gimnasio",
+                            onClick = { navController.navigate(Routes.INICIO) },
+                            fullWidth = false
+                        )
                     }
                 }
             }

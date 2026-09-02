@@ -21,21 +21,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -61,6 +57,8 @@ import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
 import com.roberto.gestorpro.cliente.data.firebase.PerfilPendiente
 import com.roberto.gestorpro.cliente.navigation.Routes
+import com.roberto.gestorpro.cliente.ui.components.AppNavigationBackButton
+import com.roberto.gestorpro.cliente.ui.components.AppPrimaryButton
 import com.roberto.gestorpro.cliente.ui.components.BotonSelectorFoto
 import com.roberto.gestorpro.cliente.ui.utils.crearFotoTemporal
 import com.roberto.gestorpro.cliente.ui.utils.guardaFotoEnInterna
@@ -163,14 +161,7 @@ fun CompletarPerfilScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Volver",
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(26.dp)
-                        )
-                    }
+                    AppNavigationBackButton(onClick = { navController.popBackStack() })
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
                         text = "Completa tu registro",
@@ -342,7 +333,8 @@ fun CompletarPerfilScreen(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            Button(
+            AppPrimaryButton(
+                text = "Guardar perfil",
                 onClick = {
                     mensajeError = ""
                     scope.launch {
@@ -370,12 +362,8 @@ fun CompletarPerfilScreen(
                 },
                 enabled = !operandoRemoto &&
                     nombre.isNotBlank() && apellidos.isNotBlank() && dni.isNotBlank() &&
-                    telefono.isNotBlank() && fechaNacimientoMillis != null && foto.isNotBlank(),
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E88E5))
-            ) {
-                Text("Guardar perfil", color = Color.White)
-            }
+                    telefono.isNotBlank() && fechaNacimientoMillis != null && foto.isNotBlank()
+            )
 
             if (operandoRemoto) {
                 Spacer(modifier = Modifier.height(12.dp))

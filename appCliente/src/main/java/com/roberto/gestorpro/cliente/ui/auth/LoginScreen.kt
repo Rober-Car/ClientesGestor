@@ -182,6 +182,16 @@ fun LoginScreen(
                 ) {
                     Text("¿No tienes cuenta? Crear una")
                 }
+
+                TextButton(
+                    onClick = { navController.navigate(Routes.POLITICA_PRIVACIDAD) }
+                ) {
+                    Text(
+                        text = "Política de privacidad",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

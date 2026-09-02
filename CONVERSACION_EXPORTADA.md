@@ -2280,3 +2280,57 @@ generar() → lista con idSesion=0
    Firestore de movimientos/resumen; retirar `EstadoCliente.MOROSO`; alinear default app↔Functions).
 3. Revisar/commitear el working tree acumulado y limpiar basura (Rules desplegadas obsoletas,
    `firestore-debug.log`, `DialogoSeleccionarClientes` sin uso).
+
+---
+
+# ACTUALIZACIÓN 2026-09-0X (CHECKPOINT CIERRE DE CONVERSACIÓN) — ECONOMÍA FASE 6 + CORRECCIÓN ALTA/VÍAS + POLÍTICA PRIVACIDAD + UNIFICACIÓN VISUAL BOTONES
+
+> Estado de CONTINUACIÓN. HEAD del desarrollador: `3b94164 "mejoras y correciones"`. Working tree con
+> 29 cambios SIN commit. Esta sección resume TODO lo hecho en esta conversación y las INCONSISTENCIAS
+> detectadas (el árbol mezcla avances con reverts del desarrollador). Ver detalle operativo en AGENTS.md
+> (Estado actual y pendientes).
+
+## 1) ECONOMÍA — FASE 6: Sincronización Room → Firestore (movimientos + resumen)
+- `util/MovimientoFirestore.kt`: mapeador puro MovimientoEntity→documento + resumen del cliente.
+- `data/firebase/MovimientoRemotoRepository.kt`: crear/actualizar/eliminar en `movimientos/{id}` (documentId determinista `idMovimiento.toString()`), con comprobación de propiedad (no pisar otro negocio).
+- `MovimientoDao.insertarMovimiento` → devuelve `Long` (rowid) para conocer el id real.
+- `MovimientoRepository` reescrito: tras CRUD recalcula morosidad (MovimientoMorosidad), replica el documento y publica el resumen en `clientes/{id}` (`moroso`, `fechaEntradaMorosidad`, `deuda`, `fechaInicioActual`, `fechaFinActual`); pendientes en `periodosPendientes`/`errorSincronizacion` (banner perfil).
+- `ClienteRemotoRepository.actualizarResumenEconomicoRemoto` (sustituyó a `actualizarPeriodoActualRemoto`).
+- `firestore.rules`: sección `movimientos` con hasOnly/tipos/`estado in [PENDIENTE,PAGADO]` y `clientes update` ADMIN con `moroso`/`fechaEntradaMorosidad`/`deuda`.
+- Tests: `MovimientoFirestoreTest` (14) en `:app`; PRUEBA 121–125 en Rules. Unit `:app` pasaba (59 total).
+- **ESTADO ACTUAL dudoso:** el ruleset local ahora NO contiene esas claves ni PRUEBA 121–129 (posible revert del desarrollador). VERIFICAR antes de seguir.
+
+## 2) CORRECCIÓN alta de clientes / identificadores / vías
+- Campos obligatorios en alta (ADMIN y CLIENTE): nombre, apellidos, teléfono, foto y DNI; en `clientes/create` (Rules) no vacíos. PRUEBA 126–127 (campos vacíos → DENY). Fecha de nacimiento pasó a opcional (PRUEBA 128–129) pero ESO QUEDÓ REVERTIDO (hoy vuelve a ser obligatoria en los formularios).
+- `util/IdCliente.kt`: ids altos `[1e9, Int.MAX)` en el alta del ADMIN (Room deja de dar la identidad global).
+- Adopción si el DNI ya existe en la nube (`buscarClienteEnNubePorDni`) y reconciliación Firestore→Room (`obtenerClientesRemotosDelNegocio` + `incorporarClientesRemotos` en ClientesScreen).
+- VÍA 2 reactivada en appCliente `VinculacionRepository` (índice NoExiste → crear ficha si perfil completo); borra `perfiles_pendientes` solo al completarse. **Revisar si sobrevivió al revert.**
+- Rules llegaron a **144/144** en esta conversación; hoy la suite local muestra **135 tests** (PRUEBA 121–129 ausentes).
+
+## 3) DIAGNÓSTICO "Cliente 2: No tienes permisos para sincronizar esta ficha" + DEPLOY
+- Causa: el update del resumen económico escribe `moroso`/`fechaEntradaMorosidad`/`deuda`, no permitidos en el ruleset DESPLEGADO (01/09). Rules locales sí (por eso el emulador pasa).
+- SOLUCIÓN (autorizada): `deploy --only firestore:rules` del `firestore.rules` local → `released rules ... Deploy complete!`. No se desplegó nada más.
+
+## 4) POLÍTICA DE PRIVACIDAD (ambas apps) — implementada
+- `PoliticaPrivacidadScreen.kt` en `:app/ui/configuracion` y `:appCliente/ui/configuracion` (scroll, 12 secciones, responsable Roberto Carlos Salvador Martin / NIF 48910659D / Pollinox@hotmail.com).
+- Accesos: Cliente (Configuración + enlaces Login/Registro); Admin (Ajustes → INFORMACIÓN → Política). Ruta `POLITICA_PRIVACIDAD` nueva en `:app`.
+- Términos y condiciones quedan placeholder (no tocar). Sin checkbox de aceptación.
+
+## 5) UNIFICACIÓN VISUAL DE BOTONES (App*Button)
+- `Botones.kt` (en `:app` y `:appCliente`) fue RE-CREADO tras desaparecer del working tree (contenido idéntico al previo; no se inventaron variantes).
+- `:app` `AppPrimaryButton` y `AppDialogConfirmButton` → azul corporativo `#1E88E5` (constante `AzulPrimarioGestPro`), porque el tema usa Material You (primary dinámico/verde). `:appCliente` mantiene AppPrimary con color del tema (no re-teñido).
+- Re-unificadas (0 botones M3 directos al verificar): `:app` ClientesScreen, EditarServicioScreen, DetalleServicioScreen, EditarSesionScreen, AñadirClienteScreen (principales), PerfilClienteAdministradorScreen (botones principales + diálogos; excepciones: WhatsApp/drawable, DatePickers internos, Archivar/Restaurar semántico, selector de método). `:appCliente` CompletarPerfilScreen, EditarPerfilScreen, InicioScreen, MiPerfilScreen, ConfiguracionScreen, HomeScreen.
+- Auditoría: quedan pantallas activas con Material 3 directo (auth de `:app`, PerfilCliente parcial, EconomiaScreen+diálogos, ProgramarSesiones, MiNegocio/CrearNegocio/Cuenta/Datos/Preferencias, notificaciones, solicitudes, appCliente Cuenta/ListaNotificaciones…). NO tocar `ui/clases/*` (legacy transitorio).
+- `DetalleVisuales.kt` (kit de detalle, creado en una tanda) ya NO existe en el árbol → decidir recuperar/eliminar.
+- Importante: varias tandas visuales (y la opcionalidad de fecha de nacimiento) fueron REVERTIDAS por commits del desarrollador y re-hechas parcialmente; verificar qué sobrevive antes de continuar.
+
+## VERIFICACIÓN REALIZADA (últimos builds)
+- Compilaciones `:app`/`:appCliente` BUILD SUCCESSFUL; unit tests OK; assemble OK. NO commit, NO deploy (salvo el deploy de firestore:rules arriba).
+
+## PARA REANUDAR (resumen)
+1. Conciliar ruleset local vs desplegado (movimientos + claves resumen + PRUEBA 121–129).
+2. Revisar VÍA 2 (appCliente) y fecha de nacimiento opcional tras el revert.
+3. Terminar unificación de botones en pantallas activas restantes.
+4. Decidir futuro de `DetalleVisuales.kt` y limpieza (`firestore-debug.log`, basura).
+5. Commits agrupados del working tree.
+

@@ -15,23 +15,18 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TimePickerState
 import androidx.compose.material3.rememberDatePickerState
@@ -49,6 +44,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import com.roberto.gestorpro.ui.components.AppDialogTextButton
+import com.roberto.gestorpro.ui.components.AppNavigationBackButton
+import com.roberto.gestorpro.ui.components.AppPrimaryButton
 import com.roberto.gestorpro.ui.viewmodel.SesionViewModel
 import java.time.Instant
 import java.time.ZoneId
@@ -129,13 +127,7 @@ fun EditarSesionScreen(
                     .padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
-                        modifier = Modifier.size(30.dp)
-                    )
-                }
+                AppNavigationBackButton(onClick = { navController.popBackStack() })
                 Spacer(modifier = Modifier.width(16.dp))
                 Text(
                     text = "Ver / editar sesión",
@@ -293,7 +285,8 @@ fun EditarSesionScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Button(
+                AppPrimaryButton(
+                    text = "Guardar cambios",
                     onClick = {
                         errorFecha = fecha == null
                         errorHora = !hora.matches(Regex("^([01]\\d|2[0-3]):[0-5]\\d$"))
@@ -315,15 +308,8 @@ fun EditarSesionScreen(
                             )
                             navController.popBackStack()
                         }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF1E88E5),
-                        contentColor = Color.White
-                    )
-                ) {
-                    Text("Guardar cambios")
-                }
+                    }
+                )
             }
         }
     }
@@ -343,7 +329,8 @@ fun EditarSesionScreen(
         DatePickerDialog(
             onDismissRequest = { mostrarDatePicker = false },
             confirmButton = {
-                TextButton(
+                AppDialogTextButton(
+                    text = "Aceptar",
                     enabled = state.selectedDateMillis != null,
                     onClick = {
                         val utc = state.selectedDateMillis
@@ -353,10 +340,13 @@ fun EditarSesionScreen(
                         }
                         mostrarDatePicker = false
                     }
-                ) { Text("Aceptar") }
+                )
             },
             dismissButton = {
-                TextButton(onClick = { mostrarDatePicker = false }) { Text("Cancelar") }
+                AppDialogTextButton(
+                    text = "Cancelar",
+                    onClick = { mostrarDatePicker = false }
+                )
             }
         ) {
             DatePicker(state = state)
@@ -376,18 +366,22 @@ fun EditarSesionScreen(
         AlertDialog(
             onDismissRequest = { mostrarTimePicker = false },
             confirmButton = {
-                TextButton(onClick = {
-                    val h = timePickerState.hour.toString().padStart(2, '0')
-                    val m = timePickerState.minute.toString().padStart(2, '0')
-                    hora = "$h:$m"
-                    errorHora = false
-                    mostrarTimePicker = false
-                }) {
-                    Text("Aceptar")
-                }
+                AppDialogTextButton(
+                    text = "Aceptar",
+                    onClick = {
+                        val h = timePickerState.hour.toString().padStart(2, '0')
+                        val m = timePickerState.minute.toString().padStart(2, '0')
+                        hora = "$h:$m"
+                        errorHora = false
+                        mostrarTimePicker = false
+                    }
+                )
             },
             dismissButton = {
-                TextButton(onClick = { mostrarTimePicker = false }) { Text("Cancelar") }
+                AppDialogTextButton(
+                    text = "Cancelar",
+                    onClick = { mostrarTimePicker = false }
+                )
             },
             text = {
                 Column(
@@ -419,17 +413,21 @@ fun EditarSesionScreen(
         AlertDialog(
             onDismissRequest = { mostrarTimePickerApertura = false },
             confirmButton = {
-                TextButton(onClick = {
-                    val h = timePickerState.hour.toString().padStart(2, '0')
-                    val m = timePickerState.minute.toString().padStart(2, '0')
-                    aperturaReserva = "$h:$m"
-                    mostrarTimePickerApertura = false
-                }) {
-                    Text("Aceptar")
-                }
+                AppDialogTextButton(
+                    text = "Aceptar",
+                    onClick = {
+                        val h = timePickerState.hour.toString().padStart(2, '0')
+                        val m = timePickerState.minute.toString().padStart(2, '0')
+                        aperturaReserva = "$h:$m"
+                        mostrarTimePickerApertura = false
+                    }
+                )
             },
             dismissButton = {
-                TextButton(onClick = { mostrarTimePickerApertura = false }) { Text("Cancelar") }
+                AppDialogTextButton(
+                    text = "Cancelar",
+                    onClick = { mostrarTimePickerApertura = false }
+                )
             },
             title = {
                 Text(
@@ -449,13 +447,14 @@ fun EditarSesionScreen(
                     )
                     TimePicker(state = timePickerState)
                     Spacer(modifier = Modifier.height(8.dp))
-                    TextButton(onClick = {
-                        // Abrir desde el inicio del día (null).
-                        aperturaReserva = null
-                        mostrarTimePickerApertura = false
-                    }) {
-                        Text("Abrir desde el inicio")
-                    }
+                    AppDialogTextButton(
+                        text = "Abrir desde el inicio",
+                        onClick = {
+                            // Abrir desde el inicio del día (null).
+                            aperturaReserva = null
+                            mostrarTimePickerApertura = false
+                        }
+                    )
                 }
             }
         )

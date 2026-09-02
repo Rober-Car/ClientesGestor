@@ -17,7 +17,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Description
@@ -29,19 +28,15 @@ import androidx.compose.material.icons.filled.SettingsBrightness
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -56,6 +51,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.roberto.gestorpro.cliente.data.repository.PreferencesRepository
 import com.roberto.gestorpro.cliente.navigation.Routes
+import com.roberto.gestorpro.cliente.ui.components.AppDialogConfirmButton
+import com.roberto.gestorpro.cliente.ui.components.AppDialogTextButton
+import com.roberto.gestorpro.cliente.ui.components.AppNavigationBackButton
 import com.roberto.gestorpro.cliente.ui.viewmodel.MainViewModel
 
 /**
@@ -93,14 +91,7 @@ fun ConfiguracionScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Volver",
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(26.dp)
-                        )
-                    }
+                    AppNavigationBackButton(onClick = { navController.popBackStack() })
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
                         text = "Ajustes",
@@ -339,23 +330,22 @@ fun ConfiguracionScreen(
                 Text("¿Seguro que quieres cerrar sesión?")
             },
             confirmButton = {
-                Button(
+                AppDialogConfirmButton(
+                    text = "Cerrar sesión",
                     onClick = {
                         mostrarDialogoCerrarSesion = false
                         mainViewModel.cerrarSesion()
                         navController.navigate(Routes.LOGIN) {
                             popUpTo(0) { inclusive = true }
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
-                ) {
-                    Text("Cerrar sesión", color = Color.White)
-                }
+                    }
+                )
             },
             dismissButton = {
-                TextButton(onClick = { mostrarDialogoCerrarSesion = false }) {
-                    Text("Cancelar")
-                }
+                AppDialogTextButton(
+                    text = "Cancelar",
+                    onClick = { mostrarDialogoCerrarSesion = false }
+                )
             }
         )
     }

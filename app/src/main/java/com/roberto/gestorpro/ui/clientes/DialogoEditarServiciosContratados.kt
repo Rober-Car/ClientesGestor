@@ -10,12 +10,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,6 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.roberto.gestorpro.data.entity.ServicioEntity
+import com.roberto.gestorpro.ui.components.AppDialogConfirmButton
+import com.roberto.gestorpro.ui.components.AppDialogTextButton
 
 /**
  * DialogoEditarServiciosContratados
@@ -99,22 +98,18 @@ fun DialogoEditarServiciosContratados(
             }
         },
         confirmButton = {
-            Button(
+            AppDialogConfirmButton(
+                text = "Guardar",
                 onClick = {
                     onGuardar((preservados + seleccionados).distinct())
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF1E88E5),
-                    contentColor = Color.White
-                )
-            ) {
-                Text("Guardar")
-            }
+                }
+            )
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancelar")
-            }
+            AppDialogTextButton(
+                text = "Cancelar",
+                onClick = onDismiss
+            )
         }
     )
 }

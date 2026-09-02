@@ -14,13 +14,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -42,6 +39,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.roberto.gestorpro.model.ConfiguracionNotificaciones
+import com.roberto.gestorpro.ui.components.AppNavigationBackButton
+import com.roberto.gestorpro.ui.components.AppPrimaryButton
 import com.roberto.gestorpro.ui.viewmodel.NotificacionesViewModel
 
 /**
@@ -108,13 +107,7 @@ fun ConfigNotificacionesScreen(
                     .padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
-                        modifier = Modifier.size(30.dp)
-                    )
-                }
+                AppNavigationBackButton(onClick = { navController.popBackStack() })
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
                     Text(
@@ -192,7 +185,12 @@ fun ConfigNotificacionesScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    Button(
+                    AppPrimaryButton(
+                        text = if (guardandoConfiguracion) {
+                            "Guardando..."
+                        } else {
+                            "Guardar configuración"
+                        },
                         onClick = {
                             viewModel.guardarConfiguracion(
                                 ConfiguracionNotificaciones(
@@ -202,22 +200,8 @@ fun ConfigNotificacionesScreen(
                                 )
                             )
                         },
-                        enabled = !guardandoConfiguracion,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF1E88E5),
-                            contentColor = Color.White,
-                            disabledContainerColor = Color(0xFFBDBDBD)
-                        )
-                    ) {
-                        Text(
-                            if (guardandoConfiguracion) {
-                                "Guardando..."
-                            } else {
-                                "Guardar configuración"
-                            }
-                        )
-                    }
+                        enabled = !guardandoConfiguracion
+                    )
                 }
             }
 

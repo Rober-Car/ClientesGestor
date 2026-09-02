@@ -12,15 +12,9 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.background
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.background
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -40,6 +34,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.roberto.gestorpro.cliente.navigation.Routes
+import com.roberto.gestorpro.cliente.ui.components.AppNavigationBackButton
+import com.roberto.gestorpro.cliente.ui.components.AppPrimaryButton
+import com.roberto.gestorpro.cliente.ui.components.AppSecondaryButton
 import com.roberto.gestorpro.cliente.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
 
@@ -84,14 +81,7 @@ fun InicioScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Volver",
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(26.dp)
-                        )
-                    }
+                    AppNavigationBackButton(onClick = { navController.popBackStack() })
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
                         text = "Vincularme a un gimnasio",
@@ -148,7 +138,8 @@ fun InicioScreen(
                 )
             }
 
-            Button(
+            AppPrimaryButton(
+                text = "Continuar",
                 onClick = {
                     mensajeError = ""
                     scope.launch {
@@ -163,22 +154,16 @@ fun InicioScreen(
                         }
                     }
                 },
-                enabled = !operandoRemoto && codigo.isNotBlank() && dni.isNotBlank(),
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E88E5))
-            ) {
-                Text("Continuar", color = Color.White)
-            }
+                enabled = !operandoRemoto && codigo.isNotBlank() && dni.isNotBlank()
+            )
 
-            OutlinedButton(
+            AppSecondaryButton(
+                text = "No tengo vinculación",
                 onClick = {
                     navController.navigate(Routes.COMPLETAR_PERFIL)
                 },
-                enabled = !operandoRemoto,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("No tengo vinculación")
-            }
+                enabled = !operandoRemoto
+            )
 
             if (operandoRemoto) {
                 CircularProgressIndicator(modifier = Modifier.size(24.dp))

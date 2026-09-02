@@ -19,6 +19,7 @@ import com.roberto.gestorpro.cliente.ui.auth.CuentaScreen
 import com.roberto.gestorpro.cliente.ui.auth.CompletarPerfilScreen
 import com.roberto.gestorpro.cliente.ui.configuracion.ConfiguracionScreen
 import com.roberto.gestorpro.cliente.ui.configuracion.InformacionLegalScreen
+import com.roberto.gestorpro.cliente.ui.configuracion.PoliticaPrivacidadScreen
 import com.roberto.gestorpro.cliente.ui.configuracion.NotificacionesScreen
 import com.roberto.gestorpro.cliente.ui.auth.EditarPerfilScreen
 import com.roberto.gestorpro.cliente.ui.auth.InicioScreen
@@ -123,9 +124,8 @@ fun AppNavigation() {
         }
 
         composable(Routes.POLITICA_PRIVACIDAD) {
-            InformacionLegalScreen(
-                navController = navController,
-                titulo = "Política de privacidad"
+            PoliticaPrivacidadScreen(
+                navController = navController
             )
         }
 

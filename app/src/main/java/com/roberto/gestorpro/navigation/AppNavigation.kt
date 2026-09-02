@@ -31,6 +31,7 @@ import com.roberto.gestorpro.ui.configuracion.CuentaScreen
 import com.roberto.gestorpro.ui.configuracion.DatosScreen
 import com.roberto.gestorpro.ui.configuracion.MiNegocioScreen
 import com.roberto.gestorpro.ui.configuracion.PreferenciasScreen
+import com.roberto.gestorpro.ui.configuracion.PoliticaPrivacidadScreen
 import com.roberto.gestorpro.ui.economia.EconomiaScreen
 import com.roberto.gestorpro.ui.home.HomeScreen
 import com.roberto.gestorpro.ui.notificaciones.ConfigNotificacionesScreen
@@ -180,6 +181,10 @@ fun AppNavigation() {
 
         composable(Routes.CUENTA) {
             CuentaScreen(navController)
+        }
+
+        composable(Routes.POLITICA_PRIVACIDAD) {
+            PoliticaPrivacidadScreen(navController)
         }
 
         composable(Routes.CLASES) {

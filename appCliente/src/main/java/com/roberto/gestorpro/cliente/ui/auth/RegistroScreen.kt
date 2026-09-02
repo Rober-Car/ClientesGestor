@@ -200,6 +200,16 @@ fun RegistroScreen(
                 ) {
                     Text("Ya tengo cuenta")
                 }
+
+                TextButton(
+                    onClick = { navController.navigate(Routes.POLITICA_PRIVACIDAD) }
+                ) {
+                    Text(
+                        text = "Política de privacidad",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

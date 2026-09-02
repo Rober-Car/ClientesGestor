@@ -28,21 +28,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SelectableDates
@@ -79,6 +74,12 @@ import coil3.compose.AsyncImage
 import com.roberto.gestorpro.data.entity.ClienteEntity
 import com.roberto.gestorpro.model.EstadoCliente
 import com.roberto.gestorpro.navigation.Routes
+import com.roberto.gestorpro.ui.components.AppDialogDangerConfirmButton
+import com.roberto.gestorpro.ui.components.AppDialogTextButton
+import com.roberto.gestorpro.ui.components.AppNavigationBackButton
+import com.roberto.gestorpro.ui.components.AppPrimaryButton
+import com.roberto.gestorpro.ui.components.AppSecondaryButton
+import com.roberto.gestorpro.ui.components.AppTextLinkButton
 import com.roberto.gestorpro.ui.components.BotonSelectorFoto
 import com.roberto.gestorpro.ui.utils.crearFotoTemporal
 import com.roberto.gestorpro.ui.utils.guardaFotoEnInterna
@@ -663,25 +664,11 @@ fun AñadirClienteScreen(
               * Es el botón con forma de icono que permite retroceder.
               * Sirve para volver a la pantalla anterior pulsando la flecha.
               */
-            IconButton(
+            AppNavigationBackButton(
                 onClick = {
                     navController.popBackStack()
                 }
-            ) {
-
-                /**
-                  * Icon de flecha
-                  * --------------
-                  * ✔ TIPO: función @Composable (androidx.compose.material3.Icon)
-                  * Es el icono de flecha hacia atrás del botón.
-                  * Sirve para indicar visualmente la acción de volver.
-                  */
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Volver",
-                    modifier = Modifier.size(30.dp)
-                )
-            }
+            )
 
             Spacer(modifier = Modifier.width(12.dp))
 
@@ -1046,7 +1033,7 @@ fun AñadirClienteScreen(
          * Sirve para comprobar todos los campos obligatorios a la vez, marcar los incorrectos
          * y, si no hay errores, crear el ClienteEntity y volver a la lista de clientes.
          */
-        Button(
+        AppPrimaryButton(
             onClick = {
                 viewModel.limpiarError()
 
@@ -1059,7 +1046,7 @@ fun AñadirClienteScreen(
                             "No puedes crear clientes todavía. Primero debes crear tu negocio."
                         )
                     }
-                    return@Button
+                    return@AppPrimaryButton
                 }
 
                 errorNombre = nombre.isBlank()
@@ -1166,19 +1153,12 @@ fun AñadirClienteScreen(
                     }
                 }
             },
+            text = if (idCliente != null) "Guardar cambios" else "Guardar cliente",
             modifier = Modifier
                 .fillMaxWidth(0.7f)
                 .align(Alignment.CenterHorizontally)
-                .padding(top = 8.dp, bottom = 16.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF1E88E5),
-                contentColor = Color.White
-            )
-        ) {
-            Text(
-                if (idCliente != null) "Guardar cambios" else "Guardar cliente"
-            )
-        }
+                .padding(top = 8.dp, bottom = 16.dp)
+        )
 
         /**
          * Aviso de sincronización con la nube
@@ -1213,12 +1193,11 @@ fun AñadirClienteScreen(
                     style = MaterialTheme.typography.bodySmall
                 )
 
-                OutlinedButton(
+                AppSecondaryButton(
+                    text = "Reintentar sincronización",
                     onClick = { viewModel.reintentarSincronizacion() },
                     enabled = clienteSinSincronizar != null
-                ) {
-                    Text("Reintentar sincronización")
-                }
+                )
             }
         }
 
@@ -1314,21 +1293,20 @@ fun AñadirClienteScreen(
                 )
             },
             confirmButton = {
-                Button(
+                AppDialogDangerConfirmButton(
+                    text = "Dar de baja",
                     onClick = {
                         esActivo = false
                         viewModel.limpiarError()
                         mostrarConfirmarBaja = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
-                ) {
-                    Text("Dar de baja", color = Color.White)
-                }
+                    }
+                )
             },
             dismissButton = {
-                TextButton(onClick = { mostrarConfirmarBaja = false }) {
-                    Text("Cancelar")
-                }
+                AppDialogTextButton(
+                    text = "Cancelar",
+                    onClick = { mostrarConfirmarBaja = false }
+                )
             }
         )
     }
@@ -1442,18 +1420,15 @@ private fun SinNegocioContenido(
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
         Spacer(modifier = Modifier.size(24.dp))
-        Button(
+        AppPrimaryButton(
+            text = "Crear negocio",
             onClick = onCrearNegocio,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF1E88E5),
-                contentColor = Color.White
-            )
-        ) {
-            Text("Crear negocio")
-        }
+            fullWidth = false
+        )
         Spacer(modifier = Modifier.size(8.dp))
-        TextButton(onClick = onConfigurarNegocio) {
-            Text("Ir a la configuración del negocio")
-        }
+        AppTextLinkButton(
+            text = "Ir a la configuración del negocio",
+            onClick = onConfigurarNegocio
+        )
     }
 }

@@ -11,18 +11,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EventSeat
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -43,6 +39,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.roberto.gestorpro.data.entity.SesionEntity
 import com.roberto.gestorpro.navigation.Routes
+import com.roberto.gestorpro.ui.components.AppIconPrimaryButton
+import com.roberto.gestorpro.ui.components.AppNavigationBackButton
+import com.roberto.gestorpro.ui.components.AppPrimaryButton
 import com.roberto.gestorpro.ui.viewmodel.ServicioViewModel
 import com.roberto.gestorpro.ui.viewmodel.SesionViewModel
 import java.time.Instant
@@ -102,28 +101,18 @@ fun DetalleServicioScreen(
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
-                        modifier = Modifier.size(30.dp)
-                    )
-                }
+                AppNavigationBackButton(onClick = { navController.popBackStack() })
                 Spacer(modifier = Modifier.width(16.dp))
                 Text(
                     text = servicio?.nombre ?: "Servicio",
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.weight(1f)
                 )
-                IconButton(
-                    onClick = { navController.navigate(Routes.editarServicio(idServicio)) }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Editar servicio",
-                        tint = Color(0xFF1E88E5)
-                    )
-                }
+                AppIconPrimaryButton(
+                    icon = Icons.Default.Edit,
+                    onClick = { navController.navigate(Routes.editarServicio(idServicio)) },
+                    contentDescription = "Editar servicio"
+                )
             }
 
             if (servicio == null) {
@@ -210,27 +199,18 @@ fun DetalleServicioScreen(
 
                 Spacer(modifier = Modifier.size(16.dp))
 
-                Button(
+                AppPrimaryButton(
+                    text = "Gestionar sesiones",
+                    icon = Icons.Default.CalendarMonth,
                     onClick = {
                         navController.navigate(Routes.programarSesiones(idServicio))
                     },
+                    fullWidth = false,
                     modifier = Modifier
                         .fillMaxWidth(0.9f)
                         .align(Alignment.CenterHorizontally)
-                        .padding(vertical = 8.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF1E88E5),
-                        contentColor = Color.White
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CalendarMonth,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Gestionar sesiones")
-                }
+                        .padding(vertical = 8.dp)
+                )
 
                 if (!s.activo) {
                     Text(

@@ -94,6 +94,13 @@ import com.roberto.gestorpro.ui.utils.guardaFotoEnInterna
 import com.roberto.gestorpro.ui.utils.crearFotoTemporal
 import com.roberto.gestorpro.ui.utils.guardarFotoDeCamara
 import com.roberto.gestorpro.ui.utils.uriDeFotoTemporal
+import com.roberto.gestorpro.ui.components.AppDangerOutlinedButton
+import com.roberto.gestorpro.ui.components.AppDialogDangerConfirmButton
+import com.roberto.gestorpro.ui.components.AppDialogTextButton
+import com.roberto.gestorpro.ui.components.AppNavigationBackButton
+import com.roberto.gestorpro.ui.components.AppPrimaryButton
+import com.roberto.gestorpro.ui.components.AppSecondaryButton
+import com.roberto.gestorpro.ui.components.AppTextLinkButton
 import com.roberto.gestorpro.ui.components.BotonSelectorFoto
 import com.roberto.gestorpro.ui.viewmodel.ClienteViewModel
 import com.roberto.gestorpro.ui.viewmodel.MovimientoViewModel
@@ -713,17 +720,11 @@ fun PerfilClienteScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
 
-                    IconButton(
+                    AppNavigationBackButton(
                         onClick = {
                             navController.popBackStack()
                         }
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Volver",
-                            modifier = Modifier.size(30.dp)
-                        )
-                    }
+                    )
 
                     Spacer(modifier = Modifier.width(12.dp))
 
@@ -767,7 +768,8 @@ fun PerfilClienteScreen(
                         style = MaterialTheme.typography.bodySmall
                     )
 
-                    OutlinedButton(
+                    AppSecondaryButton(
+                        text = "Reintentar sincronización",
                         onClick = {
                             if (clienteSinSincronizar != null) {
                                 viewModel.reintentarSincronizacion()
@@ -776,9 +778,7 @@ fun PerfilClienteScreen(
                             }
                         },
                         enabled = clienteSinSincronizar != null || periodoPendiente
-                    ) {
-                        Text("Reintentar sincronización")
-                    }
+                    )
                 }
             }
 
@@ -1103,9 +1103,10 @@ fun PerfilClienteScreen(
                                 )
                             },
                             confirmButton = {
-                                TextButton(onClick = { mostrarDialogObservaciones = false }) {
-                                    Text("Cerrar")
-                                }
+                                AppDialogTextButton(
+                                    text = "Cerrar",
+                                    onClick = { mostrarDialogObservaciones = false }
+                                )
                             }
                         )
                     }
@@ -1173,16 +1174,10 @@ fun PerfilClienteScreen(
                  * Abre el diálogo para seleccionar los servicios activos que
                  * tiene contratados este cliente.
                  */
-                Button(
-                    onClick = { mostrarDialogoServicios = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF1E88E5),
-                        contentColor = Color.White
-                    )
-                ) {
-                    Text("Editar servicios")
-                }
+                AppSecondaryButton(
+                    text = "Editar servicios",
+                    onClick = { mostrarDialogoServicios = true }
+                )
 
                     }
                 }
@@ -1197,21 +1192,15 @@ fun PerfilClienteScreen(
                  * Sirve para navegar a la pantalla de modificar con los datos precargados,
                  * con el mismo estilo azul que el botón de guardar del formulario.
                  */
-                Button(
+                AppSecondaryButton(
+                    text = "Modificar cliente",
                     onClick = {
                         navController.navigate(Routes.modificarCliente(idCliente))
                     },
                     modifier = Modifier
-                        .fillMaxWidth(0.7f)
                         .align(Alignment.CenterHorizontally)
-                        .padding(top = 16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF2196F3),
-                        contentColor = Color.White
-                    )
-                ) {
-                    Text("Modificar cliente")
-                }
+                        .padding(top = 16.dp)
+                )
 
                 val esArchivado = cliente?.estado == EstadoCliente.ARCHIVADO
 
@@ -1243,18 +1232,12 @@ fun PerfilClienteScreen(
                  * Es el botón que abre el formulario para añadir un nuevo movimiento.
                  * Sirve para registrar un nuevo servicio contratado por el cliente.
                  */
-                Button(
+                AppPrimaryButton(
+                    text = "Nuevo movimiento",
                     onClick = {
                         abrirFormularioNuevoMovimiento()
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF1E88E5),
-                        contentColor = Color.White
-                    )
-                ) {
-                    Text("Nuevo movimiento")
-                }
+                    }
+                )
 
                 /**
                  * Button de Renovar último movimiento
@@ -1265,7 +1248,8 @@ fun PerfilClienteScreen(
                  * con fecha de fin más reciente, eligiendo si empieza hoy o al terminar aquel.
                  * Se desactiva cuando el cliente no tiene movimientos registrados.
                  */
-                Button(
+                AppSecondaryButton(
+                    text = "Renovar",
                     onClick = {
                         val ultimo = movimientos.maxByOrNull { it.fechaFin }
                         if (ultimo != null) {
@@ -1274,16 +1258,8 @@ fun PerfilClienteScreen(
                             mostrarDialogoRenovar = true
                         }
                     },
-                    enabled = movimientos.isNotEmpty(),
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF43A047),
-                        contentColor = Color.White,
-                        disabledContainerColor = Color(0xFFBDBDBD)
-                    )
-                ) {
-                    Text("Renovar")
-                }
+                    enabled = movimientos.isNotEmpty()
+                )
 
                 /**
                  * Contenido de movimientos
@@ -1472,29 +1448,23 @@ fun PerfilClienteScreen(
                                     horizontalArrangement = Arrangement.End,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    TextButton(
+                                    AppDialogTextButton(
+                                        text = "Cancelar",
                                         onClick = {
                                             mostrarDialogoRenovar = false
                                         }
-                                    ) {
-                                        Text("Cancelar")
-                                    }
+                                    )
 
                                     Spacer(modifier = Modifier.width(8.dp))
 
-                                    Button(
+                                    AppDialogTextButton(
+                                        text = "Aceptar",
+                                        enabled = duracionRenovacion > 0,
                                         onClick = {
                                             movimientoViewModel.renovarMovimiento(aRenovar, renovarDesdeHoy)
                                             mostrarDialogoRenovar = false
-                                        },
-                                        enabled = duracionRenovacion > 0,
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = Color(0xFF43A047),
-                                            contentColor = Color.White
-                                        )
-                                    ) {
-                                        Text("Aceptar")
-                                    }
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -1616,7 +1586,8 @@ fun PerfilClienteScreen(
                                     modifier = Modifier.fillMaxWidth()
                                 )
                                 if (precioMovimientoManual) {
-                                    TextButton(
+                                    AppTextLinkButton(
+                                        text = "Usar precio calculado",
                                         onClick = {
                                             precioMovimiento = MovimientoPrecio.precioCampo(
                                                 MovimientoPrecio.precioSugerido(
@@ -1629,9 +1600,7 @@ fun PerfilClienteScreen(
                                             errorPrecioMovimiento = false
                                         },
                                         modifier = Modifier.align(Alignment.End)
-                                    ) {
-                                        Text("Usar precio calculado")
-                                    }
+                                    )
                                 }
 
                                 OutlinedTextField(
@@ -1770,7 +1739,8 @@ fun PerfilClienteScreen(
 
                                 )
 
-                                Button(
+                                AppPrimaryButton(
+                                    text = "Guardar movimiento",
                                     onClick = {
 
                                         errorServicioMovimiento = idsServiciosMovimiento.isEmpty()
@@ -1846,15 +1816,8 @@ fun PerfilClienteScreen(
                                             metodoPagoMovimientoNombre = null
                                             observacionesMovimiento = ""
                                         }
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF1E88E5),
-                                        contentColor = Color.White
-                                    )
-                                ) {
-                                    Text("Guardar movimiento")
-                                }
+                                    }
+                                )
                             }
                         }
                     }
@@ -2297,7 +2260,7 @@ fun PerfilClienteScreen(
                                     modifier = Modifier.fillMaxWidth()
                                 )
 
-                                Button(
+                                AppPrimaryButton(
                                     onClick = {
 
                                         val precioValido = precioEditado
@@ -2366,26 +2329,15 @@ fun PerfilClienteScreen(
                                             movimientoSeleccionado = null
                                         }
                                     },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF1E88E5),
-                                        contentColor = Color.White
-                                    )
-                                ) {
-                                    Text("Guardar cambios")
-                                }
+                                    text = "Guardar cambios"
+                                )
 
-                                OutlinedButton(
+                                AppDangerOutlinedButton(
+                                    text = "Eliminar movimiento",
                                     onClick = {
                                         mostrarConfirmarEliminar = true
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        contentColor = Color.Red
-                                    )
-                                ) {
-                                    Text("Eliminar movimiento")
-                                }
+                                    }
+                                )
                             }
                         }
                     }
@@ -2405,30 +2357,24 @@ fun PerfilClienteScreen(
                                 Text("¿Seguro que quieres eliminar este movimiento? Esta acción no se puede deshacer.")
                             },
                             confirmButton = {
-                                Button(
+                                AppDialogDangerConfirmButton(
+                                    text = "Eliminar",
                                     onClick = {
                                         movimientoViewModel.eliminarMovimiento(
                                             movimientoSeleccionado!!
                                         )
                                         mostrarConfirmarEliminar = false
                                         movimientoSeleccionado = null
-                                    },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color.Red,
-                                        contentColor = Color.White
-                                    )
-                                ) {
-                                    Text("Eliminar")
-                                }
+                                    }
+                                )
                             },
                             dismissButton = {
-                                TextButton(
+                                AppDialogTextButton(
+                                    text = "Cancelar",
                                     onClick = {
                                         mostrarConfirmarEliminar = false
                                     }
-                                ) {
-                                    Text("Cancelar")
-                                }
+                                )
                             }
                         )
                     }

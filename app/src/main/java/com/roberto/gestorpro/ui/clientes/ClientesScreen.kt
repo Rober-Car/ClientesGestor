@@ -17,11 +17,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -48,6 +45,8 @@ import androidx.navigation.NavHostController
 import com.roberto.gestorpro.model.EstadoCliente
 import com.roberto.gestorpro.model.FiltroClientes
 import com.roberto.gestorpro.navigation.Routes
+import com.roberto.gestorpro.ui.components.AppNavigationBackButton
+import com.roberto.gestorpro.ui.components.AppPrimaryButton
 import com.roberto.gestorpro.ui.components.ClienteItem
 import com.roberto.gestorpro.ui.viewmodel.ClienteViewModel
 
@@ -112,13 +111,7 @@ fun ClientesScreen(
                     .padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
-                        modifier = Modifier.size(30.dp)
-                    )
-                }
+                AppNavigationBackButton(onClick = { navController.popBackStack() })
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = "Clientes",
@@ -127,15 +120,11 @@ fun ClientesScreen(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.weight(1f))
-                Button(
+                AppPrimaryButton(
+                    text = "Añadir cliente",
                     onClick = { navController.navigate(Routes.AÑADIRCLIENTE) },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF1E88E5),
-                        contentColor = Color.White
-                    )
-                ) {
-                    Text("Añadir cliente")
-                }
+                    fullWidth = false
+                )
             }
 
             OutlinedTextField(

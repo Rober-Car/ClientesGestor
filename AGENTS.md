@@ -367,6 +367,58 @@ node firestore-tests/auditoria_backfill_indices.cjs
 
 ## Estado actual y pendientes (2026-09-02)
 
+> ACTUALIZACIÓN (2026-09-0X — CONTINUACIÓN DESDE AUDITORÍA FINAL DE BOTONES). HEAD actual del
+> desarrollador: `3b94164 "mejoras y correciones"` (hay cambios del desarrollador posteriores a la
+> anterior ACTUALIZACIÓN de 2026-09-02). Working tree con 29 cambios SIN commit. Esta actualización
+> es un CHECKPOINT: documenta lo realizado en esta conversación y las inconsistencias detectadas en
+> el árbol para retomar con precisión.
+>
+> **VERIFICADO EN EL ÁRBOL ACTUAL (al cierre):**
+> - Rules de Firestore: la colección de tests sigue con **135 tests** (`npm --prefix firestore-tests test`);
+>   las PRUEBA 121–129 (economía/resumen, campos vacíos, fecha opcional) **NO están presentes** en el
+>   ruleset local (parece revertido por commits del desarrollador). `firestore.rules` mantiene
+>   `match /movimientos/...` pero NO contiene las claves `moroso`/`fechaEntradaMorosidad`/`deuda` en el
+>   update ADMIN de `clientes`.
+> - Economía FASE 6 (Room→Firestore): presente: `util/MovimientoFirestore.kt`,
+>   `data/firebase/MovimientoRemotoRepository.kt`, DAO insert→Long, `MovimientoRepository` con
+>   sincronización de movimiento+resumen, `ClienteRemotoRepository.actualizarResumenEconomicoRemoto`,
+>   `AppModule`. **OJO:** si el ruleset desplegado/actual no autoriza las claves del resumen, reaparece
+>   el aviso "Cliente X: No tienes permisos para sincronizar esta ficha" (en esta conversación se
+>   DESPLEGARON las Rules una vez autorizado `deploy --only firestore:rules`; verificar estado desplegado
+>   vs. local antes de continuar).
+> - Alta/identidad: presente `util/IdCliente.kt` (ids altos en el alta del ADMIN) y la reconciliación
+>   Firestore→Room (`buscarClienteEnNubePorDni`, `obtenerClientesRemotosDelNegocio`,
+>   `incorporarClientesRemotos` en ClientesScreen). La reactivación de la VÍA 2 en appCliente
+>   (`VinculacionRepository`) puede haber quedado afectada por el revert: revisar `ResultadoIndice.NoExiste`.
+> - `fechaNacimiento` OPCIONAL: **NO está vigente** en el árbol actual: `AñadirClienteScreen` vuelve a
+>   exigirla (`errorFechaNacimiento = fechaNacimiento == null`) y `CompletarPerfilScreen` la pide. Decidir
+>   si se reintroduce (fue un cambio de esta conversación posteriormente revertido).
+> - Botones App*: `Botones.kt` existe en `:app` y `:appCliente`. En `:app` se fijó `AppPrimaryButton` y
+>   `AppDialogConfirmButton` al azul corporativo `#1E88E5` (`AzulPrimarioGestPro`) porque el tema usa
+>   Material You (primary dinámico/verde). `:appCliente` mantiene `AppPrimaryButton` con color del tema
+>   (no modificado por nosotros). `ui/components/DetalleVisuales.kt` NO existe actualmente (eliminado/revert).
+> - Se re-unificaron a App* estas pantallas (última verificación: 0 botones Material 3 directos):
+>   `:app` ClientesScreen, EditarServicioScreen, DetalleServicioScreen, EditarSesionScreen,
+>   AñadirClienteScreen (principales), PerfilClienteAdministradorScreen (botones principales/diálogos;
+>   quedan excepciones justificadas: WhatsApp, DatePickers, Archivar/Restaurar semántico, selector método).
+>   `:appCliente` CompletarPerfilScreen, EditarPerfilScreen, InicioScreen, MiPerfilScreen,
+>   ConfiguracionScreen, HomeScreen.
+> - Política de privacidad implementada y accesible en ambas apps
+>   (`PoliticaPrivacidadScreen.kt` en `:app` y `:appCliente`; rutas/enlaces OK).
+>
+> **PARA REANUDAR (próximos pasos sugeridos):**
+> 1. Verificar/conciliar el ruleset: local (135 tests, sin PRUEBA 121–129 ni claves del resumen) frente al
+>    desplegado en producción; decidir si se reintroduce la sección movimientos completa + `moroso`/`deuda`/
+>    `fechaEntradaMorosidad` y sus tests (esta conversación llegó a 144 tests antes del revert).
+> 2. Revisar si la VÍA 2 de appCliente sigue reactivada y el flujo de fecha de nacimiento opcional.
+> 3. Completar la unificación de botones en las pantallas activas que aún usan Material 3 directo
+>    (inventario previo: auth de `:app`, Perfil de cliente restante, EconomiaScreen y sus diálogos,
+>    ProgramarSesionesScreen, MiNegocio/CrearNegocio/Cuenta/Datos/Preferencias, notificaciones, solicitudes,
+>    y varias de `:appCliente` Cuenta/ListaNotificaciones/etc.). NO tocar `ui/clases/*` (legacy).
+> 4. Decidir si `DetalleVisuales.kt` (kit de detalle) se recupera o se elimina definitivamente.
+> 5. Commits agrupados del working tree y limpieza (`firestore-debug.log`, basura versionada).
+
+
 > ACTUALIZACIÓN 2026-09-02 (ECONOMÍA FASES 1–5 + AJUSTES LLAVE/CARDS + SELECTOR NOTIFICACIÓN):
 > HEAD = `3b113e6 "impplementando codigo para cuando contrate balze2"` (SIN commits nuevos; todo lo
 > de esta tanda está en el working tree). Detalle cronológico en `CONVERSACION_EXPORTADA.md`
