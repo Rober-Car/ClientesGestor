@@ -12,13 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -38,6 +32,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import com.roberto.gestorpro.ui.components.AppNavigationBackButton
+import com.roberto.gestorpro.ui.components.AppPrimaryButton
 import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
 
@@ -124,14 +120,7 @@ fun CrearNegocioScreen(
                     .padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
-                        modifier = Modifier.size(30.dp)
-                    )
-                }
-
+                AppNavigationBackButton(onClick = { navController.popBackStack() })
                 Spacer(modifier = Modifier.width(12.dp))
 
                 Text(
@@ -173,7 +162,8 @@ fun CrearNegocioScreen(
                 )
             }
 
-            Button(
+            AppPrimaryButton(
+                text = "Crear negocio",
                 onClick = {
                     alcance.launch {
                         val error = mainViewModel.crearNegocio(nombre, codigoMaestro)
@@ -186,19 +176,21 @@ fun CrearNegocioScreen(
                 },
                 enabled = !operandoRemoto &&
                     nombre.isNotBlank() && codigoMaestro.isNotBlank(),
+                fullWidth = false,
                 modifier = Modifier
                     .fillMaxWidth(0.7f)
                     .align(Alignment.CenterHorizontally)
-                    .padding(top = 8.dp, bottom = 16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF1E88E5),
-                    contentColor = Color.White
-                )
-            ) {
-                if (operandoRemoto) {
+                    .padding(top = 8.dp, bottom = 16.dp)
+            )
+
+            if (operandoRemoto) {
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp))
-                } else {
-                    Text("Crear negocio")
                 }
             }
         }

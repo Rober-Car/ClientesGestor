@@ -39,13 +39,14 @@ service cloud.firestore {
         && get(p).data.estado != "ARCHIVADO";
     }
 
-    // Un CLIENTE en BAJA no puede acceder a sesiones ni crear reservas: el
-    // estado BAJA es la puerta de acceso operativo y debe rechazarse en Rules.
+    // Un CLIENTE accede a sesiones/reservas SOLO si su estado administrativo es
+    // ACTIVO (independientemente de su morosidad: moroso=true no deja de ser
+    // ACTIVO). BAJA, REGISTRADO u otro estado no activo quedan excluidos.
     function clientePuedeAcceder(clienteId) {
       let c = get(
         /databases/$(database)/documents/clientes/$(clienteId)
       ).data;
-      return c != null && c.estado != "BAJA";
+      return c != null && c.estado == "ACTIVO";
     }
 
     // Una sola lectura de la ficha del cliente del usuario autenticado.
@@ -168,8 +169,8 @@ service cloud.firestore {
     }
 
     // CREAR RESERVA (Transaction CLIENTE): la reserva debe nacer en la misma
-    // operación que decrementa plazasDisponibles de la sesión. El cliente no
-    // puede reservar si está dado de baja (estado BAJA).
+    // operación que decrementa plazasDisponibles de la sesión. El cliente solo
+    // puede reservar si su estado administrativo es ACTIVO.
     function reservaCreaValida(sesionId, clienteId, negocioId) {
       let sesionRef = /databases/$(database)/documents/sesiones/$(sesionId);
       let clienteRef = /databases/$(database)/documents/clientes/$(clienteId);
@@ -184,7 +185,7 @@ service cloud.firestore {
         && sesion.idServicio in cliente.serviciosContratados
         && cliente.negocioId == negocioId
         && cliente.firebaseUid == request.auth.uid
-        && cliente.estado != "BAJA"
+        && cliente.estado == "ACTIVO"
         && reservaAbierta(sesion)
         && getAfter(sesionRef).data.plazasDisponibles == sesion.plazasDisponibles - 1
         && getAfter(sesionRef).data.plazasDisponibles >= 0;
@@ -1146,6 +1147,39 @@ service cloud.firestore {
             || request.resource.data.fechaEnvio is timestamp)
         && (!("fechaProgramada" in request.resource.data.keys())
             || request.resource.data.fechaProgramada is timestamp);
+
+      // El CLIENTE crea una ÚNICA notificación de aviso al ADMIN cuando acaba
+      // de vincularse (tipo VINCULACION). Se limita a su propia ficha y negocio,
+      // con campos controlados y documentId determinista; si el documento ya
+      // existe (reintento) se comporta como update y queda denegado (no se
+      // duplica). No abre escritura genérica de notificaciones al cliente.
+      allow create: if esCliente()
+        && usuarioActual().clienteId is int
+        && usuarioActual().negocioId is string
+        && request.resource.data.keys().hasOnly([
+             "negocioId",
+             "titulo",
+             "mensaje",
+             "tipo",
+             "origen",
+             "modoDestino",
+             "clienteId",
+             "fechaCreacion",
+             "estado"
+           ])
+        && request.resource.data.negocioId == usuarioActual().negocioId
+        && request.resource.data.clienteId == usuarioActual().clienteId
+        && string(request.resource.data.clienteId) == string(usuarioActual().clienteId)
+        && request.resource.data.tipo == "VINCULACION"
+        && request.resource.data.origen == "AUTOMATICA"
+        && request.resource.data.modoDestino == "INDIVIDUAL"
+        && request.resource.data.titulo is string
+        && request.resource.data.mensaje is string
+        && request.resource.data.estado == "PENDIENTE"
+        && request.resource.data.fechaCreacion is timestamp
+        && !exists(
+             /databases/$(database)/documents/notificaciones/$(notificacionId)
+           );
 
       allow update: if esAdmin()
         && resource.data.negocioId == usuarioActual().negocioId

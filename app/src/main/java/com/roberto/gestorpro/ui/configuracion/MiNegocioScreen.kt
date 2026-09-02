@@ -23,12 +23,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBox
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -55,6 +51,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
 import com.roberto.gestorpro.navigation.Routes
+import com.roberto.gestorpro.ui.components.AppNavigationBackButton
+import com.roberto.gestorpro.ui.components.AppPrimaryButton
+import com.roberto.gestorpro.ui.components.AppSecondaryButton
 import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
 import java.io.File
@@ -234,18 +233,11 @@ fun MiNegocioScreen(
                     .padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(
+                AppNavigationBackButton(
                     onClick = {
                         navController.popBackStack()
                     }
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
-                        modifier = Modifier.size(30.dp)
-                    )
-                }
-
+                )
                 Spacer(modifier = Modifier.width(12.dp))
 
                 Text(
@@ -409,12 +401,10 @@ fun MiNegocioScreen(
                             "Créalo para poder vincular clientes.",
                         style = MaterialTheme.typography.bodySmall
                     )
-                    Button(
-                        onClick = { navController.navigate(Routes.CREAR_NEGOCIO) },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Crear negocio en la nube")
-                    }
+                    AppPrimaryButton(
+                        text = "Crear negocio en la nube",
+                        onClick = { navController.navigate(Routes.CREAR_NEGOCIO) }
+                    )
                 }
                 else -> {
                     OutlinedTextField(
@@ -436,7 +426,8 @@ fun MiNegocioScreen(
                         )
                     }
 
-                    OutlinedButton(
+                    AppSecondaryButton(
+                        text = "Guardar código maestro",
                         onClick = {
                             alcance.launch {
                                 mensajeRemoto =
@@ -444,11 +435,8 @@ fun MiNegocioScreen(
                                         ?: ""
                             }
                         },
-                        enabled = codigoMaestro.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Guardar código maestro")
-                    }
+                        enabled = codigoMaestro.isNotBlank()
+                    )
                 }
             }
 
@@ -463,7 +451,8 @@ fun MiNegocioScreen(
              * su URL remota en Firestore + DataStore; si ya es una URL (sin cambios)
              * solo se conserva en DataStore.
              */
-            Button(
+            AppPrimaryButton(
+                text = "Guardar cambios",
                 onClick = {
                     alcance.launch {
                         mensajeRemoto = ""
@@ -492,17 +481,12 @@ fun MiNegocioScreen(
                         }
                     }
                 },
+                fullWidth = false,
                 modifier = Modifier
                     .fillMaxWidth(0.7f)
                     .align(Alignment.CenterHorizontally)
-                    .padding(top = 8.dp, bottom = 16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF1E88E5),
-                    contentColor = Color.White
-                )
-            ) {
-                Text("Guardar cambios")
-            }
+                    .padding(top = 8.dp, bottom = 16.dp)
+            )
         }
     }
 }

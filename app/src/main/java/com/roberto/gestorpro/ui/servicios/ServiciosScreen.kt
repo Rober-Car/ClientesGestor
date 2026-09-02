@@ -19,24 +19,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -56,6 +50,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.roberto.gestorpro.data.entity.ServicioEntity
 import com.roberto.gestorpro.navigation.Routes
+import com.roberto.gestorpro.ui.components.AppDialogDangerConfirmButton
+import com.roberto.gestorpro.ui.components.AppDialogTextButton
+import com.roberto.gestorpro.ui.components.AppNavigationBackButton
+import com.roberto.gestorpro.ui.components.AppSecondaryButton
+import com.roberto.gestorpro.ui.components.AppSemanticButton
 import com.roberto.gestorpro.ui.viewmodel.ServicioViewModel
 
 /**
@@ -108,13 +107,7 @@ fun ServiciosScreen(
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
-                        modifier = Modifier.size(30.dp)
-                    )
-                }
+                AppNavigationBackButton(onClick = { navController.popBackStack() })
                 Spacer(modifier = Modifier.width(16.dp))
                 Text(
                     text = "Servicios",
@@ -153,12 +146,12 @@ fun ServiciosScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error
                         )
-                        OutlinedButton(
+                        AppSecondaryButton(
+                            text = "Reintentar sincronización",
                             onClick = { viewModel.reintentarSincronizacion() },
-                            enabled = servicioSinSincronizar != null
-                        ) {
-                            Text("Reintentar sincronización")
-                        }
+                            enabled = servicioSinSincronizar != null,
+                            fullWidth = false
+                        )
                     }
                 }
             }
@@ -254,18 +247,19 @@ fun ServiciosScreen(
                 )
             },
             confirmButton = {
-                Button(
+                AppDialogDangerConfirmButton(
+                    text = "Dar de baja",
                     onClick = {
                         viewModel.darDeBaja(servicioDarDeBaja!!)
                         servicioDarDeBaja = null
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800))
-                ) {
-                    Text("Dar de baja")
-                }
+                    }
+                )
             },
             dismissButton = {
-                TextButton(onClick = { servicioDarDeBaja = null }) { Text("Cancelar") }
+                AppDialogTextButton(
+                    text = "Cancelar",
+                    onClick = { servicioDarDeBaja = null }
+                )
             }
         )
     }
@@ -281,18 +275,19 @@ fun ServiciosScreen(
                 )
             },
             confirmButton = {
-                Button(
+                AppDialogDangerConfirmButton(
+                    text = "Eliminar",
                     onClick = {
                         viewModel.eliminar(servicioEliminar!!)
                         servicioEliminar = null
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-                ) {
-                    Text("Eliminar")
-                }
+                    }
+                )
             },
             dismissButton = {
-                TextButton(onClick = { servicioEliminar = null }) { Text("Cancelar") }
+                AppDialogTextButton(
+                    text = "Cancelar",
+                    onClick = { servicioEliminar = null }
+                )
             }
         )
     }
@@ -427,48 +422,33 @@ private fun ServicioCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (servicio.activo) {
-                    TextButton(
+                    AppSemanticButton(
+                        text = "Editar",
+                        color = MaterialTheme.colorScheme.primary,
                         onClick = onEditar,
                         modifier = Modifier.height(32.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "Editar",
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Editar")
-                    }
-                    TextButton(
+                        icon = Icons.Default.Edit
+                    )
+                    AppSemanticButton(
+                        text = "Dar de baja",
+                        color = Color(0xFFFF9800),
                         onClick = onDarDeBaja,
-                        modifier = Modifier.height(32.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp)
-                    ) {
-                        Text("Dar de baja", color = Color(0xFFFF9800))
-                    }
+                        modifier = Modifier.height(32.dp)
+                    )
                 } else {
-                    TextButton(
+                    AppSemanticButton(
+                        text = "Reactivar",
+                        color = Color(0xFF4CAF50),
                         onClick = onReactivar,
-                        modifier = Modifier.height(32.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp)
-                    ) {
-                        Text("Reactivar", color = Color(0xFF4CAF50))
-                    }
-                    TextButton(
+                        modifier = Modifier.height(32.dp)
+                    )
+                    AppSemanticButton(
+                        text = "Eliminar",
+                        color = Color.Red,
                         onClick = onEliminar,
                         modifier = Modifier.height(32.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Eliminar",
-                            modifier = Modifier.size(16.dp),
-                            tint = Color.Red
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Eliminar", color = Color.Red)
-                    }
+                        icon = Icons.Default.Delete
+                    )
                 }
             }
         }

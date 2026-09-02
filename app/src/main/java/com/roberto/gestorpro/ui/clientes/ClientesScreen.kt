@@ -29,6 +29,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.Saver
@@ -67,6 +68,12 @@ fun ClientesScreen(
     var textoBusqueda by rememberSaveable { mutableStateOf("") }
 
     val viewModel: ClienteViewModel = hiltViewModel()
+
+    // Recupera clientes de Firestore a Room cuando la lista se abre (p. ej. un
+    // PC nuevo con Room vacía). Solo inserta los que no existan localmente.
+    LaunchedEffect(Unit) {
+        viewModel.incorporarClientesRemotos()
+    }
 
     val clientes by viewModel.clientes.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()

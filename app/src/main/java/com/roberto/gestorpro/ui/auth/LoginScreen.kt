@@ -14,8 +14,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -24,7 +22,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -47,6 +44,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
 import com.roberto.gestorpro.navigation.Routes
+import com.roberto.gestorpro.ui.components.AppPrimaryButton
+import com.roberto.gestorpro.ui.components.AppTextLinkButton
 import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 import java.io.File
 import kotlinx.coroutines.launch
@@ -235,18 +234,9 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                Button(
+                AppPrimaryButton(
+                    text = "Entrar",
                     onClick = {
-
-                        /**
-                         * Inicio de sesión real con Firebase
-                         * ----------------------------------
-                         * ✔ TIPO: bloque de corrutina (scope.launch)
-                         * Llama al MainViewModel para autenticar contra Firebase
-                         * Authentication y comprobar el perfil usuarios/{uid}.
-                         * Si hay error se muestra en pantalla; si no, navega al
-                         * Home correcto según el tipo de usuario guardado.
-                         */
                         scope.launch {
                             val error = mainViewModel.iniciarSesion(email.trim(), password)
                             if (error == null) {
@@ -260,31 +250,16 @@ fun LoginScreen(
                             }
                         }
                     },
-                    enabled = formularioValido && !autenticando,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = azulPrincipal,
-                        contentColor = Color.White,
-                        disabledContainerColor = azulPrincipal.copy(alpha = 0.5f),
-                        disabledContentColor = Color.White.copy(alpha = 0.7f)
+                    enabled = formularioValido && !autenticando
+                )
+
+                if (autenticando) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.dp,
+                        color = azulPrincipal
                     )
-                ) {
-                    if (autenticando) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(22.dp),
-                            strokeWidth = 2.dp,
-                            color = Color.White
-                        )
-                    } else {
-                        Text(
-                            text = "Entrar",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
                 }
 
                 if (mensajeError.isNotBlank()) {
@@ -299,27 +274,19 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                TextButton(
-                    onClick = { navController.navigate(Routes.REGISTRO) },
-                    enabled = !autenticando
-                ) {
-                    Text(
-                        text = "¿No tienes cuenta? Crear una",
-                        color = azulPrincipal,
-                        fontSize = 14.sp
-                    )
-                }
+                AppTextLinkButton(
+                    text = "¿No tienes cuenta? Crear una",
+                    onClick = {
+                        if (!autenticando) navController.navigate(Routes.REGISTRO)
+                    }
+                )
 
-                TextButton(
-                    onClick = { navController.navigate(Routes.RECUPERAR_PASSWORD) },
-                    enabled = !autenticando
-                ) {
-                    Text(
-                        text = "¿Has olvidado tu contraseña?",
-                        color = azulPrincipal,
-                        fontSize = 14.sp
-                    )
-                }
+                AppTextLinkButton(
+                    text = "¿Has olvidado tu contraseña?",
+                    onClick = {
+                        if (!autenticando) navController.navigate(Routes.RECUPERAR_PASSWORD)
+                    }
+                )
             }
         }
 

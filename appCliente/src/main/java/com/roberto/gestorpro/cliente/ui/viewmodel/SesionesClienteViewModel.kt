@@ -61,6 +61,9 @@ class SesionesClienteViewModel @Inject constructor(
     private val _dadoDeBaja = MutableStateFlow(false)
     val dadoDeBaja = _dadoDeBaja.asStateFlow()
 
+    private val _estadoNoActivo = MutableStateFlow(false)
+    val estadoNoActivo = _estadoNoActivo.asStateFlow()
+
     private val _sesiones = MutableStateFlow<List<SesionVisible>>(emptyList())
     val sesiones = _sesiones.asStateFlow()
 
@@ -77,6 +80,7 @@ class SesionesClienteViewModel @Inject constructor(
             _sinServicios.value = false
             _sinSesionesHoy.value = false
             _dadoDeBaja.value = false
+            _estadoNoActivo.value = false
             _sesiones.value = emptyList()
             try {
                 val idCliente = preferencesRepository.idCliente.first()
@@ -92,9 +96,16 @@ class SesionesClienteViewModel @Inject constructor(
                     return@launch
                 }
 
-                // Un cliente en BAJA no accede a sesiones/clases (ni reservas).
-                if (ficha.estado == EstadoCliente.BAJA) {
-                    _dadoDeBaja.value = true
+                // SOLO un cliente ACTIVO accede a las clases (y puede reservar).
+                // Un cliente de BAJA, REGISTRADO u otro estado administrativo no
+                // activo no puede ver ni reservar sesiones. La morosidad es
+                // independiente: un ACTIVO con deuda (moroso) sigue siendo ACTIVO.
+                if (ficha.estado != EstadoCliente.ACTIVO) {
+                    if (ficha.estado == EstadoCliente.BAJA) {
+                        _dadoDeBaja.value = true
+                    } else {
+                        _estadoNoActivo.value = true
+                    }
                     return@launch
                 }
 

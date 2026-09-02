@@ -11,8 +11,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -21,7 +19,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,6 +34,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.roberto.gestorpro.cliente.navigation.Routes
+import com.roberto.gestorpro.cliente.ui.components.AppPrimaryButton
+import com.roberto.gestorpro.cliente.ui.components.AppTextLinkButton
 import com.roberto.gestorpro.cliente.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
 
@@ -138,7 +137,8 @@ fun LoginScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
-                Button(
+                AppPrimaryButton(
+                    text = "Entrar",
                     onClick = {
                         mensajeError = ""
                         scope.launch {
@@ -153,12 +153,8 @@ fun LoginScreen(
                             }
                         }
                     },
-                    enabled = !autenticando && email.isNotBlank() && contrasena.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = azul)
-                ) {
-                    Text("Entrar", color = Color.White)
-                }
+                    enabled = !autenticando && email.isNotBlank() && contrasena.isNotBlank()
+                )
 
                 if (autenticando) {
                     Spacer(modifier = Modifier.height(12.dp))
@@ -167,31 +163,24 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                TextButton(
+                AppTextLinkButton(
+                    text = "¿Has olvidado tu contraseña?",
                     onClick = { navController.navigate(Routes.RECUPERAR_PASSWORD) }
-                ) {
-                    Text("¿Has olvidado tu contraseña?")
-                }
+                )
 
-                TextButton(
+                AppTextLinkButton(
+                    text = "¿No tienes cuenta? Crear una",
                     onClick = {
                         navController.navigate(Routes.REGISTRO) {
                             popUpTo(Routes.LOGIN) { inclusive = true }
                         }
                     }
-                ) {
-                    Text("¿No tienes cuenta? Crear una")
-                }
+                )
 
-                TextButton(
+                AppTextLinkButton(
+                    text = "Política de privacidad",
                     onClick = { navController.navigate(Routes.POLITICA_PRIVACIDAD) }
-                ) {
-                    Text(
-                        text = "Política de privacidad",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                )
             }
         }
     }

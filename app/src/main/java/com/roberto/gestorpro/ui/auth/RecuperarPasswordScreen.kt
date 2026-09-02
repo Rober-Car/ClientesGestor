@@ -14,21 +14,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,6 +41,9 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import com.roberto.gestorpro.ui.components.AppNavigationBackButton
+import com.roberto.gestorpro.ui.components.AppPrimaryButton
+import com.roberto.gestorpro.ui.components.AppTextLinkButton
 import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
 
@@ -124,17 +122,12 @@ fun RecuperarPasswordScreen(
                 .padding(top = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(
-                onClick = { navController.popBackStack() },
-                enabled = !autenticando
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Volver",
-                    tint = azulPrincipal,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
+            AppNavigationBackButton(
+                onClick = {
+                    if (!autenticando) navController.popBackStack()
+                },
+                tint = azulPrincipal
+            )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "Recuperar contraseña",
@@ -208,16 +201,12 @@ fun RecuperarPasswordScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    TextButton(
-                        onClick = { navController.popBackStack() },
-                        enabled = !autenticando
-                    ) {
-                        Text(
-                            text = "Volver a iniciar sesión",
-                            color = azulPrincipal,
-                            fontSize = 14.sp
-                        )
-                    }
+                    AppTextLinkButton(
+                        text = "Volver a iniciar sesión",
+                        onClick = {
+                            if (!autenticando) navController.popBackStack()
+                        }
+                    )
                 } else {
                     OutlinedTextField(
                         value = email,
@@ -243,7 +232,8 @@ fun RecuperarPasswordScreen(
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    Button(
+                    AppPrimaryButton(
+                        text = "Enviar correo",
                         onClick = {
                             scope.launch {
                                 val error = mainViewModel.enviarCorreoRecuperacion(email.trim())
@@ -255,31 +245,16 @@ fun RecuperarPasswordScreen(
                                 }
                             }
                         },
-                        enabled = formularioValido && !autenticando,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = azulPrincipal,
-                            contentColor = Color.White,
-                            disabledContainerColor = azulPrincipal.copy(alpha = 0.5f),
-                            disabledContentColor = Color.White.copy(alpha = 0.7f)
+                        enabled = formularioValido && !autenticando
+                    )
+
+                    if (autenticando) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(22.dp),
+                            strokeWidth = 2.dp,
+                            color = azulPrincipal
                         )
-                    ) {
-                        if (autenticando) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(22.dp),
-                                strokeWidth = 2.dp,
-                                color = Color.White
-                            )
-                        } else {
-                            Text(
-                                text = "Enviar correo",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
                     }
 
                     if (mensajeError.isNotBlank()) {
@@ -294,16 +269,12 @@ fun RecuperarPasswordScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    TextButton(
-                        onClick = { navController.popBackStack() },
-                        enabled = !autenticando
-                    ) {
-                        Text(
-                            text = "Volver a iniciar sesión",
-                            color = azulPrincipal,
-                            fontSize = 14.sp
-                        )
-                    }
+                    AppTextLinkButton(
+                        text = "Volver a iniciar sesión",
+                        onClick = {
+                            if (!autenticando) navController.popBackStack()
+                        }
+                    )
                 }
             }
         }

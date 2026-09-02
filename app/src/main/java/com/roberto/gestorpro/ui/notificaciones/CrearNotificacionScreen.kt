@@ -18,21 +18,16 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -64,6 +59,9 @@ import androidx.navigation.NavHostController
 import com.roberto.gestorpro.model.ModoDestino
 import com.roberto.gestorpro.model.ResolucionDestinatarios
 import com.roberto.gestorpro.navigation.Routes
+import com.roberto.gestorpro.ui.components.AppNavigationBackButton
+import com.roberto.gestorpro.ui.components.AppPrimaryButton
+import com.roberto.gestorpro.ui.components.AppSecondaryButton
 import com.roberto.gestorpro.ui.viewmodel.ClienteViewModel
 import com.roberto.gestorpro.ui.viewmodel.NotificacionesViewModel
 import java.time.Instant
@@ -153,13 +151,7 @@ fun CrearNotificacionScreen(
                     .padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
-                        modifier = Modifier.size(30.dp)
-                    )
-                }
+                AppNavigationBackButton(onClick = { navController.popBackStack() })
                 Spacer(modifier = Modifier.width(16.dp))
                 Text(
                     text = "Nueva notificación",
@@ -240,22 +232,18 @@ fun CrearNotificacionScreen(
 
                 ModoDestino.GRUPO.valor -> {
                     Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedButton(
+                    AppSecondaryButton(
+                        text = if (seleccionGrupo.isEmpty()) {
+                            "Seleccionar clientes"
+                        } else {
+                            "Seleccionar clientes (${seleccionGrupo.size})"
+                        },
                         onClick = {
                             viewModel.iniciarSeleccionGrupo(seleccionGrupo)
                             navController.navigate(Routes.seleccionarClientes("grupo"))
                             viewModel.limpiarErrorCreacion()
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            if (seleccionGrupo.isEmpty()) {
-                                "Seleccionar clientes"
-                            } else {
-                                "Seleccionar clientes (${seleccionGrupo.size})"
-                            }
-                        )
-                    }
+                        }
+                    )
                 }
 
                 else -> {
@@ -389,7 +377,14 @@ fun CrearNotificacionScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Button(
+            AppPrimaryButton(
+                text = if (creando) {
+                    "Guardando..."
+                } else if (programar) {
+                    "Programar notificación"
+                } else {
+                    "Enviar notificación"
+                },
                 onClick = {
                     viewModel.crearNotificacion(
                         titulo = titulo.trim(),
@@ -402,24 +397,8 @@ fun CrearNotificacionScreen(
                         onExito = { navController.popBackStack() }
                     )
                 },
-                enabled = puedeEnviar,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF1E88E5),
-                    contentColor = Color.White,
-                    disabledContainerColor = Color(0xFFBDBDBD)
-                )
-            ) {
-                Text(
-                    if (creando) {
-                        "Guardando..."
-                    } else if (programar) {
-                        "Programar notificación"
-                    } else {
-                        "Enviar notificación"
-                    }
-                )
-            }
+                enabled = puedeEnviar
+            )
 
             if (errorSincronizacion != null || creacionPendiente) {
                 Card(
@@ -441,14 +420,14 @@ fun CrearNotificacionScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error
                         )
-                        OutlinedButton(
+                        AppSecondaryButton(
+                            text = "Reintentar",
                             onClick = {
                                 viewModel.reintentarCreacion(onExito = { navController.popBackStack() })
                             },
-                            enabled = creacionPendiente && !creando
-                        ) {
-                            Text("Reintentar")
-                        }
+                            enabled = creacionPendiente && !creando,
+                            fullWidth = false
+                        )
                     }
                 }
             }

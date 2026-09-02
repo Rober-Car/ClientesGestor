@@ -11,8 +11,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -21,7 +19,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,6 +34,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.roberto.gestorpro.cliente.navigation.Routes
+import com.roberto.gestorpro.cliente.ui.components.AppPrimaryButton
+import com.roberto.gestorpro.cliente.ui.components.AppTextLinkButton
 import com.roberto.gestorpro.cliente.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
 
@@ -160,7 +159,8 @@ fun RegistroScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
-                Button(
+                AppPrimaryButton(
+                    text = "Crear cuenta",
                     onClick = {
                         mensajeError = ""
                         scope.launch {
@@ -177,12 +177,8 @@ fun RegistroScreen(
                             }
                         }
                     },
-                    enabled = !autenticando && formularioValido,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = azul)
-                ) {
-                    Text("Crear cuenta", color = Color.White)
-                }
+                    enabled = !autenticando && formularioValido
+                )
 
                 if (autenticando) {
                     Spacer(modifier = Modifier.height(12.dp))
@@ -191,25 +187,19 @@ fun RegistroScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                TextButton(
+                AppTextLinkButton(
+                    text = "Ya tengo cuenta",
                     onClick = {
                         navController.navigate(Routes.LOGIN) {
                             popUpTo(Routes.REGISTRO) { inclusive = true }
                         }
                     }
-                ) {
-                    Text("Ya tengo cuenta")
-                }
+                )
 
-                TextButton(
+                AppTextLinkButton(
+                    text = "Política de privacidad",
                     onClick = { navController.navigate(Routes.POLITICA_PRIVACIDAD) }
-                ) {
-                    Text(
-                        text = "Política de privacidad",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                )
             }
         }
     }

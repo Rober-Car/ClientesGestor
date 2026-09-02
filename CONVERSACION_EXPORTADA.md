@@ -2334,3 +2334,110 @@ generar() → lista con idSesion=0
 4. Decidir futuro de `DetalleVisuales.kt` y limpieza (`firestore-debug.log`, basura).
 5. Commits agrupados del working tree.
 
+# ACTUALIZACIÓN 2026-09-03 (CIERRE) — ACCESO SOLO ACTIVO + NOTIFICACIÓN VINCULACIÓN + TEXTO "ACTIVIDADES"
+
+> Estado de CONTINUACIÓN. HEAD del desarrollador: `f32a5c1 "impplementando codigo para cuando
+> contrate balze2"` (2026-09-02 21:53). Working tree con **32 archivos M SIN commit** (todo lo
+> anterior + los cambios de esta sesión; listado abajo). Todo verificado y compilando.
+> **NO commit, NO deploy.** Resumen operativo en AGENTS.md (Estado actual y pendientes, 2026-09-03).
+
+## 1) Acceso del CLIENTE a sesiones/reservas SOLO con estado == "ACTIVO" (regla definitiva)
+Objetivo: un cliente cuyo estado administrativo no es ACTIVO no puede ver ni reservar
+actividades. La morosidad es un flag (`moroso`), NO un estado: un ACTIVO con deuda SÍ accede.
+
+- `firestore.rules`:
+  - `clientePuedeAcceder`: ahora exige `c.estado == "ACTIVO"` (antes `!= "BAJA"`).
+  - `reservaCreaValida`: exige `cliente.estado == "ACTIVO"` (antes `!= "BAJA"`).
+  - Comentarios actualizados.
+- `appCliente/ui/viewmodel/SesionesClienteViewModel.kt`: si `ficha.estado != EstadoCliente.ACTIVO`
+  corta la carga antes de tocar Firestore; BAJA → `dadoDeBaja`; cualquier otro no activo
+  (REGISTRADO/ARCHIVADO…) → nuevo StateFlow `estadoNoActivo`. Reset de ambos en cada `cargar()`.
+- `appCliente/ui/home/ClasesScreen.kt`: nueva rama visual `estadoNoActivo` (mensaje "Tu cuenta aún
+  no está activa… podrás ver y reservar actividades"), además de la existente `dadoDeBaja`.
+- `appCliente/ui/home/HomeScreen.kt`: la card de acceso a clases/actividades solo se muestra si
+  `estadoHome.estado` es ACTIVO o PAGO_VENCIDO (antes: `!= BAJA`).
+- `appCliente/data/firebase/ReservaRepository.kt` (`crearReserva`): si `estado != "ACTIVO"` lanza
+  `ReservaException` (BAJA → "Estás dado de baja y no puedes reservar"; resto → "Tu cuenta no está
+  activa para reservar").
+- Rules tests nuevos **PRUEBA 121–124** (estados 6000/6010/6020/6030):
+  - 121: REGISTRADO no lee una sesión (getDoc → DENY).
+  - 122: ARCHIVADO no lista sesiones (getDocs por negocioId → DENY).
+  - 123: REGISTRADO no crea reserva (Transaction con plazas−1 → DENY).
+  - 124: ACTIVO con `moroso=true` + `fechaEntradaMorosidad` lee sesión y reserva (ALLOW).
+
+## 2) Notificación al ADMIN cuando el CLIENTE se vincula (tipo VINCULACION)
+- `appCliente/data/firebase/VinculacionRepository.kt`:
+  - Tras vincularse con éxito (VÍA 1 en `vincularFichaExistente` y VÍA 2 en `crearFicha`) se llama a
+    `notificarVinculacionAlAdmin(negocioId, clienteId)`.
+  - Crea `notificaciones/vinculacion_{negocioId}_{clienteId}` (documentId determinista) con
+    `{negocioId, titulo: "Cliente vinculado", mensaje: "<Nombre Apellidos> se ha vinculado al
+    negocio.", tipo: "VINCULACION", origen: "AUTOMATICA", modoDestino: "INDIVIDUAL", clienteId,
+    fechaCreacion: Timestamp.now(), estado: "PENDIENTE"}`.
+  - Lee primero la ficha para componer el nombre; comprueba `exists()` y no duplica; todo dentro de
+    try/catch silencioso (nunca bloquea la vinculación).
+  - Nueva constante `COLECCION_NOTIFICACIONES = "notificaciones"`.
+- `firestore.rules` (`notificaciones`): rama `allow create` SOLO para CLIENTE vinculado
+  (`esCliente()` + `clienteId is int` + `negocioId is string`), `hasOnly` de las 9 claves, campos
+  de negocio/cliente iguales a los del usuario, `tipo == "VINCULACION"`, `origen == "AUTOMATICA"`,
+  `modoDestino == "INDIVIDUAL"`, `estado == "PENDIENTE"`, `fechaCreacion is timestamp` y
+  `!exists(notificaciones/{notificacionId})` (si existe, el reintento es un update y se deniega).
+  No abre escritura genérica de notificaciones al CLIENTE.
+- `:app/ui/notificaciones/GestionNotificacionesScreen.kt` (`nombreDeTipo`): `"VINCULACION"` →
+  etiqueta "Vinculación".
+- Rules tests nuevos **PRUEBA 125–128** (clienteId 6050–6080):
+  - 125: CLIENTE vinculado crea el aviso de SU negocio (ALLOW).
+  - 126: no puede crearlo indicando otro negocio (NEGOCIO_B) (DENY).
+  - 127: no puede duplicarlo si el doc ya existe (DENY).
+  - 128: no puede crear una notificación de otro tipo (MOROSIDAD) (DENY).
+
+## 3) Término visible "Actividades" (solo UI/terminología, sin renombrar colecciones)
+- appCliente `ui/home/HomeScreen.kt` (card del Home): título "Clases" → **"Actividades"**;
+  descripción **"Consulta y reserva tus actividades"** (card fija 168.dp; cabe en ~2 líneas sin
+  crecer). Icono/color/navegación (`Routes.CLASES`)/condición ACTIVO-PAGO_VENCIDO intactos.
+- `:app` `ui/home/HomeScreen.kt` (card "Accesos rápidos"): título "Servicios" → **"Actividades"**;
+  descripción final **"Crea tus actividades"** a 1 línea.
+  - Primero se probó "Crea y gestiona tus actividades" con un parámetro nuevo
+    `MenuCard.descripcionMaxLines` (esa card a 2 líneas); luego, por decisión del propietario, se
+    simplificó a "Crea tus actividades" en una sola línea y **se revirtió `MenuCard.kt` a su estado
+    original** (sin parámetro extra, `maxLines = 1`). `MenuCard.kt` NO tiene cambios netos.
+  - Navegación intacta (`Routes.SERVICIOS`). Internamente sigue siendo "Servicios"/`servicios`.
+
+## 4) Identidad remota del negocio (revisada; sin cambios de código)
+- El nombre ya se replica a `negocios_publicos/{id}` y appCliente lo refresca (DataStore/caché).
+- El logo cross-device sigue pendiente del bucket de Firebase Storage (Blaze): si el ADMIN no pudo
+  subir una URL remota, el CLIENTE no puede mostrar ese logo. No se fuerza una URL falsa.
+
+## VERIFICACIÓN REALIZADA (al cierre de esta sesión)
+- Rules: **143/143** (`npm --prefix firestore-tests test`; PRUEBA 121–128 nuevas; las 135 previas
+  siguen pasando).
+- `:app:compileDebugKotlin` + `:app:testDebugUnitTest` + `:app:assembleDebug` → BUILD SUCCESSFUL.
+- `:appCliente:compileDebugKotlin` + `:appCliente:testDebugUnitTest` + `:appCliente:assembleDebug`
+  → BUILD SUCCESSFUL (solo warning preexistente de `ClickableText` deprecado en HomeScreen cliente).
+- **NO commit, NO deploy.** El ruleset DESPLEGADO sigue obsoleto frente al local (sin acceso
+  estricto "ACTIVO" ni rama VINCULACION de `notificaciones`).
+
+## Archivos modificados en esta sesión (paths cortos; todos dentro del working tree de 32 M)
+- `firestore.rules` (clientePuedeAcceder/reservaCreaValida + create VINCULACION en notificaciones).
+- `firestore-tests/firestore.rules.test.cjs` (PRUEBA 121–128).
+- `appCliente/.../ui/viewmodel/SesionesClienteViewModel.kt`
+- `appCliente/.../ui/home/ClasesScreen.kt`
+- `appCliente/.../ui/home/HomeScreen.kt`
+- `appCliente/.../data/firebase/ReservaRepository.kt`
+- `appCliente/.../data/firebase/VinculacionRepository.kt`
+- `app/.../ui/notificaciones/GestionNotificacionesScreen.kt`
+- `app/.../ui/home/HomeScreen.kt`
+- `app/.../ui/components/MenuCard.kt` → **sin cambios netos** (se revirtió).
+- El resto de los 32 archivos M (auth/*, configuracion/*, economia, servicios, solicitudes,
+  ClienteRemotoRepository, ClienteViewModel, Botones.kt, ListaNotificaciones…) proceden de tandas
+  previas SIN commitear (unificación visual de botones y otras correcciones). Ver git status.
+
+## PARA REANUDAR (2026-09-03)
+1. Conciliar `firestore.rules` local (143 tests) frente al DESPLEGADO; desplegar solo con
+   autorización (`deploy --only firestore:rules`). Hasta entonces: en producción un cliente
+   REGISTRADO/ARCHIVADO aún opera como antes y la notificación VINCULACION no se puede crear.
+2. Commit agrupado del working tree (32 archivos M) y limpieza (`firestore-debug.log`, basura).
+3. Pendientes previos sin cerrar: ruleset movimientos/resumen + PRUEBA 121–129 (economía),
+   VÍA 2 y fecha de nacimiento opcional, unificación de botones restante, `DetalleVisuales.kt`,
+   regenerar sesiones/índices, diagnóstico `[DIAG alta]`.
+
+

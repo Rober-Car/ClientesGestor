@@ -19,18 +19,14 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +43,10 @@ import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.roberto.gestorpro.navigation.Routes
+import com.roberto.gestorpro.ui.components.AppDialogConfirmButton
+import com.roberto.gestorpro.ui.components.AppDialogTextButton
+import com.roberto.gestorpro.ui.components.AppNavigationBackButton
+import com.roberto.gestorpro.ui.components.AppPrimaryButton
 import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 
 @Composable
@@ -79,13 +79,7 @@ fun CuentaScreen(
                     .padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
-                        modifier = Modifier.size(30.dp)
-                    )
-                }
+                AppNavigationBackButton(onClick = { navController.popBackStack() })
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = "Cuenta",
@@ -140,25 +134,22 @@ fun CuentaScreen(
                 Text("¿Seguro que quieres cerrar sesión?")
             },
             confirmButton = {
-                Button(
+                AppDialogConfirmButton(
+                    text = "Cerrar sesión",
                     onClick = {
                         mostrarDialogoCerrarSesion = false
                         mainViewModel.cerrarSesion()
                         navController.navigate(Routes.LOGIN) {
                             popUpTo(0) { inclusive = true }
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFF44336)
-                    )
-                ) {
-                    Text("Cerrar sesión", color = Color.White)
-                }
+                    }
+                )
             },
             dismissButton = {
-                TextButton(onClick = { mostrarDialogoCerrarSesion = false }) {
-                    Text("Cancelar")
-                }
+                AppDialogTextButton(
+                    text = "Cancelar",
+                    onClick = { mostrarDialogoCerrarSesion = false }
+                )
             }
         )
     }
@@ -224,21 +215,19 @@ private fun DialogoCambiarContrasena(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Cancelar")
-                    }
+                    AppDialogTextButton(
+                        text = "Cancelar",
+                        onClick = onDismiss
+                    )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(
+                    AppPrimaryButton(
+                        text = "Guardar",
                         onClick = onDismiss,
                         enabled = contrasenaActual.isNotBlank() &&
                                 nuevaContrasena.isNotBlank() &&
                                 nuevaContrasena == repetirContrasena,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF1E88E5)
-                        )
-                    ) {
-                        Text("Guardar")
-                    }
+                        fullWidth = false
+                    )
                 }
             }
         }

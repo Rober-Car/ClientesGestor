@@ -29,8 +29,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
@@ -38,7 +36,6 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -69,6 +66,12 @@ import androidx.navigation.NavHostController
 import com.roberto.gestorpro.data.entity.GastoEntity
 import com.roberto.gestorpro.data.entity.MovimientoEntity
 import com.roberto.gestorpro.model.EstadoMovimiento
+import com.roberto.gestorpro.ui.components.AppDialogConfirmButton
+import com.roberto.gestorpro.ui.components.AppDialogDangerConfirmButton
+import com.roberto.gestorpro.ui.components.AppDialogTextButton
+import com.roberto.gestorpro.ui.components.AppIconDangerButton
+import com.roberto.gestorpro.ui.components.AppIconPrimaryButton
+import com.roberto.gestorpro.ui.components.AppNavigationBackButton
 import com.roberto.gestorpro.ui.viewmodel.EconomiaViewModel
 import java.text.NumberFormat
 import java.time.Instant
@@ -216,13 +219,7 @@ fun EconomiaScreen(
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
-                        modifier = Modifier.size(30.dp)
-                    )
-                }
+                AppNavigationBackButton(onClick = { navController.popBackStack() })
                 Spacer(modifier = Modifier.width(16.dp))
                 Text(
                     text = "Economía",
@@ -418,24 +415,20 @@ fun EconomiaScreen(
                 Text("¿Seguro que quieres eliminar este gasto? Esta acción no se puede deshacer.")
             },
             confirmButton = {
-                Button(
+                AppDialogDangerConfirmButton(
+                    text = "Eliminar",
                     onClick = {
                         viewModel.eliminarGasto(gastoSeleccionado!!)
                         mostrarConfirmarEliminar = false
                         gastoSeleccionado = null
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.Red,
-                        contentColor = Color.White
-                    )
-                ) {
-                    Text("Eliminar")
-                }
+                    }
+                )
             },
             dismissButton = {
-                TextButton(onClick = { mostrarConfirmarEliminar = false }) {
-                    Text("Cancelar")
-                }
+                AppDialogTextButton(
+                    text = "Cancelar",
+                    onClick = { mostrarConfirmarEliminar = false }
+                )
             }
         )
     }
@@ -747,11 +740,13 @@ fun DialogNuevoGasto(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Cancelar")
-                    }
+                    AppDialogTextButton(
+                        text = "Cancelar",
+                        onClick = onDismiss
+                    )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(
+                    AppDialogConfirmButton(
+                        text = "Guardar",
                         onClick = {
                             errorConcepto = concepto.isBlank()
                             errorImporte = importe.toDoubleOrNull() == null
@@ -765,13 +760,8 @@ fun DialogNuevoGasto(
                                     observaciones.trim().ifBlank { null }
                                 )
                             }
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF1E88E5)
-                        )
-                    ) {
-                        Text("Guardar")
-                    }
+                        }
+                    )
                 }
             }
         }
@@ -941,17 +931,19 @@ fun DialogDetalleGasto(
                     horizontalArrangement = Arrangement.End
                 ) {
                     if (editando) {
-                        TextButton(onClick = {
-                            editando = false
-                            conceptoEditado = gasto.concepto
-                            importeEditado = gasto.importe.toString()
-                            fechaEditada = gasto.fecha
-                            observacionesEditadas = gasto.observaciones.orEmpty()
-                        }) {
-                            Text("Cancelar")
-                        }
+                        AppDialogTextButton(
+                            text = "Cancelar",
+                            onClick = {
+                                editando = false
+                                conceptoEditado = gasto.concepto
+                                importeEditado = gasto.importe.toString()
+                                fechaEditada = gasto.fecha
+                                observacionesEditadas = gasto.observaciones.orEmpty()
+                            }
+                        )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Button(
+                        AppDialogConfirmButton(
+                            text = "Guardar",
                             onClick = {
                                 errorConcepto = conceptoEditado.isBlank()
                                 errorImporte = importeEditado.toDoubleOrNull() == null
@@ -967,29 +959,20 @@ fun DialogDetalleGasto(
                                         )
                                     )
                                 }
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF1E88E5)
-                            )
-                        ) {
-                            Text("Guardar")
-                        }
+                            }
+                        )
                     } else {
-                        IconButton(onClick = { editando = true }) {
-                            Icon(
-                                imageVector = Icons.Default.Edit,
-                                contentDescription = "Editar",
-                                tint = Color(0xFF1E88E5)
-                            )
-                        }
+                        AppIconPrimaryButton(
+                            icon = Icons.Default.Edit,
+                            onClick = { editando = true },
+                            contentDescription = "Editar"
+                        )
                         Spacer(modifier = Modifier.width(8.dp))
-                        IconButton(onClick = onEliminar) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Eliminar",
-                                tint = Color.Red
-                            )
-                        }
+                        AppIconDangerButton(
+                            icon = Icons.Default.Delete,
+                            onClick = onEliminar,
+                            contentDescription = "Eliminar"
+                        )
                     }
                 }
             }
@@ -1128,9 +1111,10 @@ fun DialogDetalleMovimiento(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Cerrar")
-                    }
+                    AppDialogTextButton(
+                        text = "Cerrar",
+                        onClick = onDismiss
+                    )
                 }
             }
         }

@@ -351,7 +351,7 @@ node firestore-tests/auditoria_backfill_indices.cjs
 
 ## Tests
 
-- **Rules de Firestore + Storage:** `npm --prefix firestore-tests test` (**123 pruebas** en los emuladores `--only firestore,storage`, incluidas PRUEBA 6B/6C (Vía A), 9B, 33A–33H, 77–81, 82–88 (`horaDesdeReserva`), **99–108 (solicitudes de baja)** y **109–112 (bloqueo de BAJA en sesiones/reservas)**). Deben pasar **antes** de desplegar las Rules.
+- **Rules de Firestore + Storage:** `npm --prefix firestore-tests test` (**143 pruebas** en los emuladores `--only firestore,storage`, incluidas PRUEBA 6B/6C (Vía A), 9B, 33A–33H, 77–81, 82–88 (`horaDesdeReserva`), 99–108 (solicitudes de baja), 109–112 (bloqueo de BAJA), **113–120 (regresión sesiones/borrado solicitudes/aviso baja)** y **121–128 (acceso solo ACTIVO + notificación VINCULACION)**). Deben pasar **antes** de desplegar las Rules.
 - **Test unitario appCliente:** `:appCliente:testDebugUnitTest` cubre el rechazo de Vía A cuando no existe el índice `negocioId_DNI`.
 - **Tests unitarios de helpers de Cloud Functions:** `node --test functions/test/ids.test.js functions/test/tokens.test.js` (**13/13**, sin necesidad de `npm install` en `functions/`; solo cubren los módulos puros `ids.js` y `tokens.js`).
 - **Test de aislamiento del alta (temporal, Sesión XVIII):** `firestore-tests/diagnostico_alta_cliente.test.cjs` (7/7) reproduce el payload real de `crearClienteRemoto()` contra las Rules locales para aislar el PERMISSION_DENIED del alta. Ejecutar con: `cd firestore-tests; Copy-Item ..\firestore.rules firestore.rules.generated -Force; .\node_modules\.bin\firebase.cmd emulators:exec --project gestorpro-rules-test --only firestore "node --test diagnostico_alta_cliente.test.cjs"`. No forma parte del suite oficial.
@@ -365,7 +365,74 @@ node firestore-tests/auditoria_backfill_indices.cjs
 - **Vinculación del CLIENTE:** el flujo de código maestro + DNI vive en `appCliente` (repositorio `VinculacionRepository`, pantalla de vinculación accesible desde el Home). Las operaciones críticas (VÍA 1 y VÍA 2) deben ejecutarse en Transaction. Nunca reintroducir Vía B/deep links.
 - **Logo del negocio:** la subida vive en `NegocioRepository.guardarLogoRemoto()` (`:app`): `putFile` a `negocios/{uid}/logo.jpg` → `downloadUrl` → WriteBatch con `logo` en `negocios` + `negocios_publicos`. El Cliente lee `negocios_publicos/{id}.logo` y lo muestra con Coil. Requiere el bucket habilitado en Firebase Console.
 
-## Estado actual y pendientes (2026-09-02)
+## Estado actual y pendientes (2026-09-03)
+
+> ACTUALIZACIÓN 2026-09-03 (CIERRE — CORRECCIÓN ACCESO SOLO ACTIVO + NOTIFICACIÓN VINCULACIÓN + TEXTO
+> "ACTIVIDADES"). HEAD del desarrollador: `f32a5c1 "impplementando codigo para cuando contrate balze2"`
+> (2026-09-02 21:53). Working tree con **32 archivos modificados SIN commit** (incluye TODO lo anterior
+> sin commitear + los cambios de esta tanda; ver git status). Este CHECKPOINT documenta lo cerrado en
+> esta conversación para retomar con precisión. Detalle completo en `CONVERSACION_EXPORTADA.md`.
+>
+> **1) Acceso del CLIENTE a sesiones/reservas SOLO con estado == "ACTIVO" (regla definitiva, cerrada):**
+> - `firestore.rules`: `clientePuedeAcceder` ahora exige `c.estado == "ACTIVO"` (antes `!= "BAJA"`);
+>   `reservaCreaValida` exige `cliente.estado == "ACTIVO"`. La morosidad es independiente: un ACTIVO
+>   con deuda (`moroso`) SÍ accede (es flag, no estado).
+> - `appCliente` `ui/viewmodel/SesionesClienteViewModel.kt`: si `ficha.estado != ACTIVO` corta la
+>   carga; BAJA → `dadoDeBaja`; cualquier otro no activo (REGISTRADO/ARCHIVADO…) → nuevo flag
+>   `estadoNoActivo`.
+> - `appCliente` `ui/home/ClasesScreen.kt`: rama visual `estadoNoActivo` ("Tu cuenta aún no está
+>   activa… podrás ver y reservar actividades").
+> - `appCliente` `ui/home/HomeScreen.kt`: la card de acceso solo se muestra con estado
+>   ACTIVO/PAGO_VENCIDO (antes: != BAJA).
+> - `appCliente` `data/firebase/ReservaRepository.kt` (`crearReserva`): bloquea si
+>   `estado != "ACTIVO"` (BAJA → mensaje de baja; resto → "Tu cuenta no está activa para reservar").
+> - Rules tests nuevos **PRUEBA 121–124**: REGISTRADO no lee sesiones (DENY), ARCHIVADO no lista
+>   (DENY), REGISTRADO no reserva (DENY), ACTIVO+moroso lee y reserva (ALLOW). **Suite local: 143/143.**
+>
+> **2) Notificación al ADMIN cuando el CLIENTE se vincula (tipo VINCULACION, cerrada):**
+> - `appCliente` `data/firebase/VinculacionRepository.kt`: tras vincularse con éxito (VÍA 1 en
+>   `vincularFichaExistente` y VÍA 2 en `crearFicha`) llama a `notificarVinculacionAlAdmin(negocioId,
+>   clienteId)`, que crea (solo si no existe) `notificaciones/vinculacion_{negocioId}_{clienteId}` con
+>   `{negocioId, titulo, mensaje, tipo: "VINCULACION", origen: "AUTOMATICA", modoDestino: "INDIVIDUAL",
+>   clienteId, fechaCreacion: Timestamp.now(), estado: "PENDIENTE"}`. Falla en silencio (nunca bloquea
+>   la vinculación).
+> - `firestore.rules` (`notificaciones`): rama `allow create` SOLO para CLIENTE vinculado (rol CLIENTE,
+>   `clienteId is int`, `negocioId is string`), con `hasOnly` de esas 9 claves, `negocioId`/`clienteId`
+>   iguales a los del usuario, `tipo == "VINCULACION"`, y `!exists(...)` (si el documento ya existe la
+>   escritura es update y se deniega → sin duplicados). No abre escritura genérica al cliente.
+> - `:app` `ui/notificaciones/GestionNotificacionesScreen.kt`: tipo "VINCULACION" → etiqueta
+>   "Vinculación" en `nombreDeTipo`.
+> - Rules tests nuevos **PRUEBA 125–128**: VINCULACION de su negocio ALLOW; de otro negocio DENY;
+>   duplicado (doc existente) DENY; otro tipo (MOROSIDAD) DENY.
+>
+> **3) Término visible "Actividades" (solo UI/terminología):**
+> - appCliente `ui/home/HomeScreen.kt` (card Home): "Clases" → "Actividades", descripción
+>   "Consulta y reserva tus actividades" (card fija 168.dp, cabe en ~2 líneas; sin cambios de lógica).
+> - `:app` `ui/home/HomeScreen.kt` (card Accesos rápidos): "Servicios" → "Actividades". La descripción
+>   pasó por "Crea y gestiona tus actividades" (probó `MenuCard.descripcionMaxLines`) y quedó en
+>   **"Crea tus actividades"** a 1 línea. `MenuCard.kt` volvió a su estado original (parámetro extra
+>   eliminado, `maxLines = 1`); NO tiene cambios netos.
+> - La sección/colecciones siguen llamándose internamente "Servicios"/`servicios` (sin renombrar); solo
+>   cambió el texto visible de la card. Navegación intacta (`Routes.SERVICIOS`).
+>
+> **4) Identidad remota del negocio (revisada, sin cambios de código):** nombre ya viaja a
+> `negocios_publicos` y appCliente lo refresca; el logo cross-device sigue bloqueado por el bucket de
+> Storage/Blaze (si no hay URL remota el cliente no puede mostrar el logo del admin). No se fuerza URL.
+>
+> **VERIFICACIÓN REALIZADA (al cierre):** `:app` y `:appCliente` compilan (`compileDebugKotlin`) y sus
+> unit tests pasan; `assembleDebug` de ambas OK; Rules **143/143** (PRUEBA 121–128 nuevas). **NO commit,
+> NO deploy** (el ruleset DESPLEGADO sigue obsoleto respecto al local: sin acceso "ACTIVO" estricto ni
+> rama VINCULACION).
+>
+> **PARA REANUDAR:**
+> 1. Reconciliar `firestore.rules` local (143 tests) frente al desplegado; desplegar solo con
+>    autorización (`deploy --only firestore:rules`). Hasta entonces, en producción un cliente
+>    REGISTRADO/ARCHIVADO aún puede operar como antes y la notificación VINCULACION no se podrá crear.
+> 2. Commit agrupado del working tree (32 archivos M; ver listado en `CONVERSACION_EXPORTADA.md`).
+> 3. Seguir pendientes previos: conciliar ruleset movimientos/resumen, revisar VÍA 2 y fecha de
+>    nacimiento opcional, terminar unificación de botones en pantallas activas restantes, decidir
+>    `DetalleVisuales.kt`, regenerar sesiones y confirmar índices, diagnóstico alta `[DIAG alta]`,
+>    limpieza (`firestore-debug.log`, basura versionada).
 
 > ACTUALIZACIÓN (2026-09-0X — CONTINUACIÓN DESDE AUDITORÍA FINAL DE BOTONES). HEAD actual del
 > desarrollador: `3b94164 "mejoras y correciones"` (hay cambios del desarrollador posteriores a la

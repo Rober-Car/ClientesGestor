@@ -91,8 +91,17 @@ class ReservaRepository @Inject constructor(
                 if (cliente.getString("firebaseUid") != uid) {
                     throw ReservaException("El cliente no corresponde a esta cuenta")
                 }
-                if (cliente.getString("estado") == "BAJA") {
-                    throw ReservaException("Estás dado de baja y no puedes reservar")
+                // SOLO un cliente ACTIVO puede reservar. BAJA, REGISTRADO u otro
+                // estado no activo quedan excluidos. La morosidad es
+                // independiente: un ACTIVO con deuda sigue siendo ACTIVO.
+                val estadoCliente = cliente.getString("estado")
+                if (estadoCliente != "ACTIVO") {
+                    val motivo = if (estadoCliente == "BAJA") {
+                        "Estás dado de baja y no puedes reservar"
+                    } else {
+                        "Tu cuenta no está activa para reservar"
+                    }
+                    throw ReservaException(motivo)
                 }
                 if (!sesion.exists()) throw ReservaException("La sesión no existe")
                 if (sesion.getString("negocioId") != negocioId) {

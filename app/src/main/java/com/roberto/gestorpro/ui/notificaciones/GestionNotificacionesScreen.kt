@@ -15,27 +15,21 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,6 +47,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.roberto.gestorpro.model.NotificacionAdmin
 import com.roberto.gestorpro.navigation.Routes
+import com.roberto.gestorpro.ui.components.AppDialogDangerConfirmButton
+import com.roberto.gestorpro.ui.components.AppDialogTextButton
+import com.roberto.gestorpro.ui.components.AppIconPrimaryButton
+import com.roberto.gestorpro.ui.components.AppNavigationBackButton
+import com.roberto.gestorpro.ui.components.AppSecondaryButton
+import com.roberto.gestorpro.ui.components.AppSemanticButton
 import com.roberto.gestorpro.ui.viewmodel.NotificacionesViewModel
 import java.time.Instant
 import java.time.ZoneId
@@ -119,28 +119,18 @@ fun GestionNotificacionesScreen(
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
-                        modifier = Modifier.size(30.dp)
-                    )
-                }
+                AppNavigationBackButton(onClick = { navController.popBackStack() })
                 Spacer(modifier = Modifier.width(16.dp))
                 Text(
                     text = "Notificaciones",
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.weight(1f)
                 )
-                IconButton(
-                    onClick = { navController.navigate(Routes.CONFIG_NOTIFICACIONES) }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Configuración de notificaciones",
-                        tint = Color(0xFF1E88E5)
-                    )
-                }
+                AppIconPrimaryButton(
+                    icon = Icons.Default.Settings,
+                    onClick = { navController.navigate(Routes.CONFIG_NOTIFICACIONES) },
+                    contentDescription = "Configuración de notificaciones"
+                )
             }
 
             error?.let { mensaje ->
@@ -152,12 +142,12 @@ fun GestionNotificacionesScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
                 )
-                OutlinedButton(
+                AppSecondaryButton(
+                    text = "Reintentar",
                     onClick = { viewModel.cargarNotificaciones() },
+                    fullWidth = false,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                ) {
-                    Text("Reintentar")
-                }
+                )
             }
 
             errorSincronizacion?.let { mensaje ->
@@ -250,18 +240,19 @@ fun GestionNotificacionesScreen(
                 )
             },
             confirmButton = {
-                Button(
+                AppDialogDangerConfirmButton(
+                    text = "Cancelar",
                     onClick = {
                         viewModel.cancelarNotificacion(notificacion.id)
                         notificacionACancelar = null
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-                ) {
-                    Text("Cancelar")
-                }
+                    }
+                )
             },
             dismissButton = {
-                TextButton(onClick = { notificacionACancelar = null }) { Text("Atrás") }
+                AppDialogTextButton(
+                    text = "Atrás",
+                    onClick = { notificacionACancelar = null }
+                )
             }
         )
     }
@@ -348,9 +339,11 @@ private fun NotificacionAdminCard(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    TextButton(onClick = onCancelar) {
-                        Text("Cancelar", color = Color.Red)
-                    }
+                    AppSemanticButton(
+                        text = "Cancelar",
+                        color = Color.Red,
+                        onClick = onCancelar
+                    )
                 }
             }
         }
@@ -383,6 +376,7 @@ private fun nombreDeTipo(tipo: String): String {
         "BAJA_CONFIRMADA" -> "Baja confirmada"
         "PROGRAMADA" -> "Programada"
         "SOLICITUD_BAJA" -> "Solicitud de baja"
+        "VINCULACION" -> "Vinculación"
         else -> "Manual"
     }
 }

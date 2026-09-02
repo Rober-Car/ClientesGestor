@@ -61,6 +61,7 @@ class VinculacionRepository @Inject constructor(
         private const val COLECCION_USUARIOS = "usuarios"
         private const val COLECCION_PERFILES_PENDIENTES = "perfiles_pendientes"
         private const val COLECCION_NEGOCIOS_PUBLICOS = "negocios_publicos"
+        private const val COLECCION_NOTIFICACIONES = "notificaciones"
 
         private const val MAX_INTENTOS_ID = 5
         private const val ID_CLIENTE_MINIMO = 1_000_000_000
@@ -224,6 +225,9 @@ class VinculacionRepository @Inject constructor(
                 )
             }.esperar()
 
+            // Aviso idempotente en la bandeja del ADMIN (notificaciones/{id}).
+            notificarVinculacionAlAdmin(negocioId, clienteId)
+
             ResultadoVinculacion(
                 true,
                 "Te has vinculado a la ficha de tu gimnasio",
@@ -236,6 +240,52 @@ class VinculacionRepository @Inject constructor(
             ResultadoVinculacion(false, "La ficha ya no existe. Inténtalo de nuevo")
         } catch (e: Exception) {
             ResultadoVinculacion(false, mensajeDe(e))
+        }
+    }
+
+    /**
+     * notificarVinculacionAlAdmin
+     * ---------------------------
+     * Crea (solo si no existe) una notificación en `notificaciones/{id}` para
+     * la bandeja del ADMIN, con documentId determinista
+     * `vinculacion_{negocioId}_{clienteId}` y tipo VINCULACION. El fallo de la
+     * notificación nunca bloquea el éxito de la vinculación.
+     */
+    private suspend fun notificarVinculacionAlAdmin(
+        negocioId: String,
+        clienteId: Int
+    ) {
+        try {
+            val ficha = db.collection(COLECCION_CLIENTES)
+                .document(clienteId.toString())
+                .get()
+                .esperar()
+            val nombre = listOf(ficha.getString("nombre"), ficha.getString("apellidos"))
+                .filterNotNull()
+                .joinToString(" ")
+                .trim()
+                .ifBlank { "Un cliente" }
+
+            val notificacionId = "vinculacion_${negocioId}_$clienteId"
+            val referencia = db.collection(COLECCION_NOTIFICACIONES)
+                .document(notificacionId)
+            if (referencia.get().esperar().exists()) return
+
+            referencia.set(
+                mapOf(
+                    "negocioId" to negocioId,
+                    "titulo" to "Cliente vinculado",
+                    "mensaje" to "$nombre se ha vinculado al negocio.",
+                    "tipo" to "VINCULACION",
+                    "origen" to "AUTOMATICA",
+                    "modoDestino" to "INDIVIDUAL",
+                    "clienteId" to clienteId,
+                    "fechaCreacion" to com.google.firebase.Timestamp.now(),
+                    "estado" to "PENDIENTE"
+                )
+            ).esperar()
+        } catch (_: Exception) {
+            // No debe impedir que la vinculación se complete.
         }
     }
 
@@ -309,6 +359,9 @@ class VinculacionRepository @Inject constructor(
                             )
                         )
                     }.esperar()
+
+                    // Aviso idempotente en la bandeja del ADMIN.
+                    notificarVinculacionAlAdmin(negocioId, idCliente)
 
                     return ResultadoVinculacion(
                         true,

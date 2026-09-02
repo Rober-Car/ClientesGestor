@@ -18,6 +18,7 @@ import com.roberto.gestorpro.data.repository.ReservaRepository
 import com.roberto.gestorpro.data.repository.ServicioRepository
 import com.roberto.gestorpro.model.Cliente
 import com.roberto.gestorpro.model.EstadoCliente
+import com.roberto.gestorpro.util.IdCliente
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -295,13 +296,71 @@ class ClienteViewModel @Inject constructor(
             }
 
             try {
-                val nuevoId = clienteRepository.insertarClienteRepo(cliente)
-                val entidadCreada = cliente.copy(idCliente = nuevoId.toInt())
-                if (replicar(entidadCreada, esAlta = true)) {
-                    onExito(nuevoId.toInt())
+                // Id ESTABLE de ámbito alto (IdCliente): no depende del
+                // autoincrement de Room (que en cada PC/instalación vuelve a
+                // empezar en 1 y podría colisionar con clientes ya existentes
+                // en Firestore). El MISMO id se guarda en Room y se replica a
+                // Firestore.
+                var entidad = cliente
+                var intentos = 0
+                do {
+                    val idCandidato = IdCliente.nuevo()
+                    val idEnUso = clienteRepository.obtenerClientePorIdRepo(idCandidato) != null
+                    if (!idEnUso) {
+                        entidad = cliente.copy(idCliente = idCandidato)
+                        break
+                    }
+                    intentos++
+                } while (intentos < 5)
+
+                if (entidad.idCliente == 0) {
+                    _error.value = "No se pudo generar un identificador para el cliente"
+                    return@launch
+                }
+
+                clienteRepository.insertarClienteRepo(entidad)
+                if (replicar(entidad, esAlta = true)) {
+                    onExito(entidad.idCliente)
                 }
             } catch (e: SQLiteConstraintException) {
                 _error.value = "El DNI ya está registrado"
+            }
+        }
+    }
+
+    /**
+     * incorporarClientesRemotos
+     * -------------------------
+     * Recupera los clientes del negocio desde Firestore y los añade a Room
+     * SOLO si no existen localmente (por idCliente o por DNI). Se usa al
+     * abrir la lista de clientes para que un PC nuevo con Room vacía recupere
+     * los clientes ya existentes en la nube sin duplicarlos ni modificarlos.
+     * No escribe en Firestore (solo lectura remota + inserción local).
+     */
+    fun incorporarClientesRemotos() {
+        viewModelScope.launch {
+            try {
+                val remotos = clienteRemotoRepository.obtenerClientesRemotosDelNegocio()
+                if (remotos.isEmpty()) return@launch
+
+                var incorporados = 0
+                for (remoto in remotos) {
+                    val existePorId =
+                        clienteRepository.obtenerClientePorIdRepo(remoto.idCliente) != null
+                    val existePorDni =
+                        clienteRepository.obtenerClientePorDniRepo(remoto.dni) != null
+                    if (!existePorId && !existePorDni) {
+                        clienteRepository.insertarClienteRepo(remoto)
+                        incorporados++
+                    }
+                }
+                Log.i(
+                    TAG,
+                    "Clientes remotos incorporados a Room: $incorporados de ${remotos.size}"
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "No se pudieron recuperar los clientes remotos", e)
+                _error.value = "No se pudieron recuperar los clientes de la nube"
             }
         }
     }

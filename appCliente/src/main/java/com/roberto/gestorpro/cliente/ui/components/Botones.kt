@@ -84,6 +84,13 @@ object ButtonPadding {
     val horizontalCompact = 12.dp
 }
 
+/**
+ * Azul corporativo de GestPro (#1E88E5), el mismo que utiliza `:app`.
+ * El colorScheme.primary puede ser dinámico (Material You), por eso el botón
+ * principal usa este azul fijo de la aplicación.
+ */
+private val AzulPrimarioGestPro = Color(0xFF1E88E5)
+
 // ============================================================================
 // 1. PRIMARY BUTTON
 // ============================================================================
@@ -117,8 +124,8 @@ fun AppPrimaryButton(
         enabled = enabled,
         shape = ButtonShapes.standard,
         colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
+            containerColor = AzulPrimarioGestPro,
+            contentColor = Color.White,
             disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
             disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
         ),
@@ -625,8 +632,8 @@ fun AppDialogConfirmButton(
         modifier = modifier,
         shape = ButtonShapes.standard,
         colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary
+            containerColor = AzulPrimarioGestPro,
+            contentColor = Color.White
         )
     ) {
         Text(

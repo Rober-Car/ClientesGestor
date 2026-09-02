@@ -6,6 +6,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.roberto.gestorpro.data.entity.ClienteEntity
+import com.roberto.gestorpro.model.EstadoCliente
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -70,6 +71,100 @@ class ClienteRemotoRepository @Inject constructor(
         } catch (_: Exception) {
             false
         }
+    }
+
+    /**
+     * obtenerClientesRemotosDelNegocio
+     * --------------------------------
+     * Recupera TODOS los clientes del negocio del ADMIN autenticado desde
+     * Firestore y los convierte a ClienteEntity (para incorporarlos a Room).
+     *
+     * La consulta filtra por `negocioId` (la regla de list NO funciona como
+     * post-filtro). Solo lectura: no modifica Firestore.
+     *
+     * Además lee las `observaciones` de cada `clientes_privados/{id}` (dato
+     * exclusivo del ADMIN) para no perderlas al incorporar la ficha.
+     */
+    suspend fun obtenerClientesRemotosDelNegocio(): List<ClienteEntity> {
+        val uid = auth.currentUser?.uid ?: return emptyList()
+        if (uid.isBlank()) return emptyList()
+
+        val negocioId = negocioIdDelAdmin(uid)
+        val snapshots = try {
+            db.collection(COLECCION_CLIENTES)
+                .whereEqualTo("negocioId", negocioId)
+                .get()
+                .esperar()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error listando clientes remotos del negocio $negocioId", e)
+            return emptyList()
+        }
+
+        return snapshots.documents.mapNotNull { documento ->
+            val datos = documento.data ?: return@mapNotNull null
+            val idCliente = documento.id.toIntOrNull()
+                ?: (datos["idCliente"] as? Number)?.toInt()
+                ?: return@mapNotNull null
+            val observaciones = try {
+                db.collection(COLECCION_PRIVADOS)
+                    .document(documento.id)
+                    .get()
+                    .esperar()
+                    .getString("observaciones")
+            } catch (e: Exception) {
+                Log.w(TAG, "No se pudieron leer observaciones de clientes_privados/$idCliente", e)
+                null
+            }
+            entidadDeDocumentoRemoto(idCliente, datos, observaciones)
+        }
+    }
+
+    /**
+     * entidadDeDocumentoRemoto
+     * ------------------------
+     * Convierte un documento de `clientes/{idCliente}` (más sus observaciones
+     * de `clientes_privados`) en una ClienteEntity local. Los campos de
+     * morosidad local no se reconstruyen (quedan en false/null); la lógica
+     * MovimientoMorosidad los recalculará con los movimientos locales.
+     */
+    private fun entidadDeDocumentoRemoto(
+        idCliente: Int,
+        datos: Map<String, Any?>,
+        observaciones: String?
+    ): ClienteEntity = ClienteEntity(
+        idCliente = idCliente,
+        nombre = datos["nombre"] as? String ?: "",
+        apellidos = datos["apellidos"] as? String ?: "",
+        dni = datos["dni"] as? String ?: "",
+        telefono = datos["telefono"] as? String ?: "",
+        email = datos["email"] as? String,
+        foto = datos["foto"] as? String ?: "",
+        fechaNacimiento = fechaEnMilisegundos(datos["fechaNacimiento"]) ?: 0L,
+        fechaRegistro = fechaEnMilisegundos(datos["fechaRegistro"])
+            ?: System.currentTimeMillis(),
+        fechaAlta = fechaEnMilisegundos(datos["fechaAlta"]),
+        fechaBaja = fechaEnMilisegundos(datos["fechaBaja"]),
+        estado = estadoDe(datos["estado"]),
+        observaciones = observaciones,
+        negocioId = datos["negocioId"] as? String,
+        serviciosContratados = (datos["serviciosContratados"] as? List<*>)
+            ?.mapNotNull { (it as? Number)?.toInt() }
+            ?: emptyList(),
+        firebaseUid = datos["firebaseUid"] as? String
+    )
+
+    private fun estadoDe(valor: Any?): EstadoCliente = when (valor) {
+        "ACTIVO" -> EstadoCliente.ACTIVO
+        "BAJA" -> EstadoCliente.BAJA
+        "ARCHIVADO" -> EstadoCliente.ARCHIVADO
+        "REGISTRADO" -> EstadoCliente.REGISTRADO
+        else -> EstadoCliente.REGISTRADO
+    }
+
+    private fun fechaEnMilisegundos(valor: Any?): Long? = when (valor) {
+        is Timestamp -> valor.toDate().time
+        is Number -> valor.toLong()
+        else -> null
     }
 
     /**

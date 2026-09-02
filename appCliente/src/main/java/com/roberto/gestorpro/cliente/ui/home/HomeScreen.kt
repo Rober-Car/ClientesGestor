@@ -198,11 +198,16 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.weight(1f)
             ) {
-                if (estadoHome.estado != EstadoIndicadorCliente.BAJA) {
+                // Solo un cliente ACTIVO accede a las clases/actividades. La
+                // morosidad (PAGO_VENCIDO) es independiente: sigue siendo ACTIVO.
+                val puedeVerClases =
+                    estadoHome.estado == EstadoIndicadorCliente.ACTIVO ||
+                        estadoHome.estado == EstadoIndicadorCliente.PAGO_VENCIDO
+                if (puedeVerClases) {
                     item {
                         HomeClientMenuCard(
-                            titulo = "Clases",
-                            descripcion = "Consulta y reserva",
+                            titulo = "Actividades",
+                            descripcion = "Consulta y reserva tus actividades",
                             icono = Icons.Default.FitnessCenter,
                             color = Color(0xFFFB8C00),
                             onClick = { navController.navigate(Routes.CLASES) }

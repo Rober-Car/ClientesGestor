@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
@@ -24,11 +23,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -40,6 +37,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import com.roberto.gestorpro.ui.components.AppDialogConfirmButton
+import com.roberto.gestorpro.ui.components.AppDialogTextButton
+import com.roberto.gestorpro.ui.components.AppNavigationBackButton
 import com.roberto.gestorpro.ui.viewmodel.DatosViewModel
 
 @Composable
@@ -82,14 +82,16 @@ fun DatosScreen(
                 Text("Los datos actuales serán reemplazados por los datos del archivo.")
             },
             confirmButton = {
-                TextButton(onClick = { viewModel.confirmarRestaurar() }) {
-                    Text("RESTAURAR", color = Color(0xFF1E88E5))
-                }
+                AppDialogConfirmButton(
+                    text = "RESTAURAR",
+                    onClick = { viewModel.confirmarRestaurar() }
+                )
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.cancelarRestaurar() }) {
-                    Text("CANCELAR", color = Color(0xFF1E88E5))
-                }
+                AppDialogTextButton(
+                    text = "CANCELAR",
+                    onClick = { viewModel.cancelarRestaurar() }
+                )
             }
         )
     }
@@ -107,13 +109,7 @@ fun DatosScreen(
                     .padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
-                        modifier = Modifier.size(30.dp)
-                    )
-                }
+                AppNavigationBackButton(onClick = { navController.popBackStack() })
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = "Datos",

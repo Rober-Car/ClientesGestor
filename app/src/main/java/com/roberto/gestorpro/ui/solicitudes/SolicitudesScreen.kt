@@ -19,28 +19,23 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -65,6 +60,12 @@ import com.roberto.gestorpro.model.Cliente
 import com.roberto.gestorpro.model.EstadoSolicitud
 import com.roberto.gestorpro.model.SolicitudBaja
 import com.roberto.gestorpro.navigation.Routes
+import com.roberto.gestorpro.ui.components.AppDialogConfirmButton
+import com.roberto.gestorpro.ui.components.AppDialogDangerConfirmButton
+import com.roberto.gestorpro.ui.components.AppDialogTextButton
+import com.roberto.gestorpro.ui.components.AppNavigationBackButton
+import com.roberto.gestorpro.ui.components.AppSecondaryButton
+import com.roberto.gestorpro.ui.components.AppSemanticButton
 import com.roberto.gestorpro.ui.viewmodel.ClienteViewModel
 import com.roberto.gestorpro.ui.viewmodel.SolicitudesViewModel
 import java.io.File
@@ -147,13 +148,7 @@ fun SolicitudesScreen(
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
-                        modifier = Modifier.size(30.dp)
-                    )
-                }
+                AppNavigationBackButton(onClick = { navController.popBackStack() })
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = "Solicitudes de baja",
@@ -197,12 +192,12 @@ fun SolicitudesScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
                 )
-                OutlinedButton(
+                AppSecondaryButton(
+                    text = "Reintentar",
                     onClick = { viewModel.cargarSolicitudes() },
+                    fullWidth = false,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                ) {
-                    Text("Reintentar")
-                }
+                )
             }
 
             if (errorSincronizacion != null || solicitudSinSincronizar != null) {
@@ -225,12 +220,12 @@ fun SolicitudesScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error
                         )
-                        OutlinedButton(
+                        AppSecondaryButton(
+                            text = "Reintentar",
                             onClick = { viewModel.reintentarSincronizacion() },
-                            enabled = solicitudSinSincronizar != null
-                        ) {
-                            Text("Reintentar")
-                        }
+                            enabled = solicitudSinSincronizar != null,
+                            fullWidth = false
+                        )
                     }
                 }
             }
@@ -335,18 +330,19 @@ fun SolicitudesScreen(
                 )
             },
             confirmButton = {
-                Button(
+                AppDialogConfirmButton(
+                    text = "Aceptar baja",
                     onClick = {
                         viewModel.aceptar(solicitud)
                         solicitudAAceptar = null
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
-                ) {
-                    Text("Aceptar baja", color = Color.White)
-                }
+                    }
+                )
             },
             dismissButton = {
-                TextButton(onClick = { solicitudAAceptar = null }) { Text("Cancelar") }
+                AppDialogTextButton(
+                    text = "Cancelar",
+                    onClick = { solicitudAAceptar = null }
+                )
             }
         )
     }
@@ -363,18 +359,19 @@ fun SolicitudesScreen(
                 )
             },
             confirmButton = {
-                Button(
+                AppDialogConfirmButton(
+                    text = "Rechazar",
                     onClick = {
                         viewModel.rechazar(solicitud)
                         solicitudARechazar = null
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-                ) {
-                    Text("Rechazar", color = Color.White)
-                }
+                    }
+                )
             },
             dismissButton = {
-                TextButton(onClick = { solicitudARechazar = null }) { Text("Cancelar") }
+                AppDialogTextButton(
+                    text = "Cancelar",
+                    onClick = { solicitudARechazar = null }
+                )
             }
         )
     }
@@ -390,18 +387,19 @@ fun SolicitudesScreen(
                 )
             },
             confirmButton = {
-                Button(
+                AppDialogDangerConfirmButton(
+                    text = "Eliminar",
                     onClick = {
                         viewModel.eliminarSolicitud(solicitud)
                         solicitudAEliminar = null
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("Eliminar", color = Color.White)
-                }
+                    }
+                )
             },
             dismissButton = {
-                TextButton(onClick = { solicitudAEliminar = null }) { Text("Cancelar") }
+                AppDialogTextButton(
+                    text = "Cancelar",
+                    onClick = { solicitudAEliminar = null }
+                )
             }
         )
     }
@@ -503,13 +501,17 @@ private fun SolicitudCard(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onRechazar) {
-                        Text("Rechazar", color = Color.Red)
-                    }
+                    AppSemanticButton(
+                        text = "Rechazar",
+                        color = Color.Red,
+                        onClick = onRechazar
+                    )
                     Spacer(modifier = Modifier.width(4.dp))
-                    TextButton(onClick = onAceptar) {
-                        Text("Aceptar baja", color = Color(0xFF4CAF50))
-                    }
+                    AppSemanticButton(
+                        text = "Aceptar baja",
+                        color = Color(0xFF4CAF50),
+                        onClick = onAceptar
+                    )
                 }
             } else {
                 Row(
@@ -517,16 +519,12 @@ private fun SolicitudCard(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onEliminar) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = Color.Gray
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Eliminar del historial", color = Color.Gray)
-                    }
+                    AppSemanticButton(
+                        text = "Eliminar del historial",
+                        color = Color.Gray,
+                        onClick = onEliminar,
+                        icon = Icons.Default.Delete
+                    )
                 }
             }
         }

@@ -3623,3 +3623,229 @@ test("PRUEBA 120: el ADMIN NO puede crear una notificacion SOLICITUD_BAJA de otr
         )
     );
 });
+
+// =========================================================
+// ACCESO SOLO CON ESTADO ACTIVO (PRUEBA 121-124)
+// =========================================================
+// Un CLIENTE lee sesiones y reserva SOLO si su estado administrativo es ACTIVO.
+// BAJA, REGISTRADO, ARCHIVADO u otro estado no activo quedan excluidos en Rules.
+// La morosidad es independiente: un ACTIVO con deuda (campo moroso) sigue ACTIVO.
+
+function sesionActivaDoc(idSesion, negocioId, idServicio) {
+    return sesionDoc(idSesion, negocioId, idServicio, { plazasDisponibles: 5, capacidad: 5 });
+}
+
+test("PRUEBA 121: un CLIENTE en estado REGISTRADO no puede leer sesiones -> DENY", async () => {
+    const clienteUid = "cliente-registrado-sesiones-121";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE", activo: true, clienteId: 6000, negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "servicios", "6001"), servicioDoc(6001, NEGOCIO_A));
+        await setDoc(
+            doc(database, "clientes", "6000"),
+            fichaCliente(6000, NEGOCIO_A, clienteUid, "60000000X", {
+                estado: "REGISTRADO",
+                serviciosContratados: [6001]
+            })
+        );
+        await setDoc(doc(database, "sesiones", "6002"), sesionActivaDoc(6002, NEGOCIO_A, 6001));
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertFails(
+        getDoc(doc(database, "sesiones", "6002"))
+    );
+});
+
+test("PRUEBA 122: un CLIENTE en estado ARCHIVADO no puede listar sesiones -> DENY", async () => {
+    const clienteUid = "cliente-archivado-list-122";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE", activo: true, clienteId: 6010, negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "servicios", "6011"), servicioDoc(6011, NEGOCIO_A));
+        await setDoc(
+            doc(database, "clientes", "6010"),
+            fichaCliente(6010, NEGOCIO_A, clienteUid, "60100000X", {
+                estado: "ARCHIVADO",
+                serviciosContratados: [6011]
+            })
+        );
+        await setDoc(doc(database, "sesiones", "6012"), sesionActivaDoc(6012, NEGOCIO_A, 6011));
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertFails(
+        getDocs(query(collection(database, "sesiones"), where("negocioId", "==", NEGOCIO_A)))
+    );
+});
+
+test("PRUEBA 123: un CLIENTE en estado REGISTRADO no puede crear una reserva -> DENY", async () => {
+    const clienteUid = "cliente-registrado-reserva-123";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE", activo: true, clienteId: 6020, negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "servicios", "6021"), servicioDoc(6021, NEGOCIO_A));
+        await setDoc(
+            doc(database, "clientes", "6020"),
+            fichaCliente(6020, NEGOCIO_A, clienteUid, "60200000X", {
+                estado: "REGISTRADO",
+                serviciosContratados: [6021]
+            })
+        );
+        await setDoc(doc(database, "sesiones", "6022"), sesionActivaDoc(6022, NEGOCIO_A, 6021));
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertFails(
+        runTransaction(database, async (tx) => {
+            await tx.get(doc(database, "clientes", "6020"));
+            await tx.get(doc(database, "sesiones", "6022"));
+            await tx.get(doc(database, "servicios", "6021"));
+            await tx.get(doc(database, "reservas", "6020_6022"));
+            await tx.set(doc(database, "reservas", "6020_6022"), reservaDoc(6020, 6022, NEGOCIO_A));
+            await tx.update(doc(database, "sesiones", "6022"), { plazasDisponibles: 4 });
+        })
+    );
+});
+
+test("PRUEBA 124: un CLIENTE ACTIVO con deuda (moroso=true) lee sesiones y reserva -> ALLOW", async () => {
+    const clienteUid = "cliente-moroso-activo-124";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE", activo: true, clienteId: 6030, negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "servicios", "6031"), servicioDoc(6031, NEGOCIO_A));
+        await setDoc(
+            doc(database, "clientes", "6030"),
+            fichaCliente(6030, NEGOCIO_A, clienteUid, "60300000X", {
+                estado: "ACTIVO",
+                moroso: true,
+                fechaEntradaMorosidad: Timestamp.fromMillis(1700000000000),
+                serviciosContratados: [6031]
+            })
+        );
+        await setDoc(doc(database, "sesiones", "6032"), sesionActivaDoc(6032, NEGOCIO_A, 6031));
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertSucceeds(
+        getDoc(doc(database, "sesiones", "6032"))
+    );
+    await assertSucceeds(
+        runTransaction(database, async (tx) => {
+            await tx.get(doc(database, "clientes", "6030"));
+            await tx.get(doc(database, "sesiones", "6032"));
+            await tx.get(doc(database, "servicios", "6031"));
+            await tx.get(doc(database, "reservas", "6030_6032"));
+            await tx.set(doc(database, "reservas", "6030_6032"), reservaDoc(6030, 6032, NEGOCIO_A));
+            await tx.update(doc(database, "sesiones", "6032"), { plazasDisponibles: 4 });
+        })
+    );
+});
+
+// =========================================================
+// NOTIFICACION DE VINCULACION AL ADMIN (PRUEBA 125-128)
+// =========================================================
+// Al vincularse (ficha propia + negocio propio), el CLIENTE crea UN aviso
+// idempotente `notificaciones/vinculacion_{negocioId}_{clienteId}` con tipo
+// VINCULACION. No puede crear notificaciones de otro negocio, con otro tipo, ni
+// duplicar el aviso (si el documento ya existe, la escritura es un update y se
+// deniega). No se abre escritura genérica de notificaciones al cliente.
+
+function notificacionVinculacionDoc(negocioId, clienteId) {
+    return {
+        negocioId,
+        titulo: "Cliente vinculado",
+        mensaje: "Cliente De Prueba se ha vinculado al negocio.",
+        tipo: "VINCULACION",
+        origen: "AUTOMATICA",
+        modoDestino: "INDIVIDUAL",
+        clienteId,
+        fechaCreacion: Timestamp.now(),
+        estado: "PENDIENTE"
+    };
+}
+
+test("PRUEBA 125: un CLIENTE vinculado crea el aviso VINCULACION de su negocio -> ALLOW", async () => {
+    const clienteUid = "cliente-vinculacion-125";
+    const clienteId = 6050;
+    const notifId = `vinculacion_${NEGOCIO_A}_${clienteId}`;
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE", activo: true, clienteId, negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "clientes", String(clienteId)), fichaCliente(clienteId, NEGOCIO_A, clienteUid, "60500000X"));
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertSucceeds(
+        setDoc(
+            doc(database, "notificaciones", notifId),
+            notificacionVinculacionDoc(NEGOCIO_A, clienteId)
+        )
+    );
+});
+
+test("PRUEBA 126: un CLIENTE NO puede crear el aviso VINCULACION de otro negocio -> DENY", async () => {
+    const clienteUid = "cliente-vinculacion-126";
+    const clienteId = 6060;
+    const notifId = `vinculacion_${NEGOCIO_B}_${clienteId}`;
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE", activo: true, clienteId, negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "clientes", String(clienteId)), fichaCliente(clienteId, NEGOCIO_A, clienteUid, "60600000X"));
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertFails(
+        setDoc(
+            doc(database, "notificaciones", notifId),
+            notificacionVinculacionDoc(NEGOCIO_B, clienteId)
+        )
+    );
+});
+
+test("PRUEBA 127: un CLIENTE NO puede duplicar el aviso VINCULACION si ya existe -> DENY", async () => {
+    const clienteUid = "cliente-vinculacion-127";
+    const clienteId = 6070;
+    const notifId = `vinculacion_${NEGOCIO_A}_${clienteId}`;
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE", activo: true, clienteId, negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "clientes", String(clienteId)), fichaCliente(clienteId, NEGOCIO_A, clienteUid, "60700000X"));
+        await setDoc(doc(database, "notificaciones", notifId), notificacionVinculacionDoc(NEGOCIO_A, clienteId));
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertFails(
+        setDoc(
+            doc(database, "notificaciones", notifId),
+            notificacionVinculacionDoc(NEGOCIO_A, clienteId)
+        )
+    );
+});
+
+test("PRUEBA 128: un CLIENTE NO puede crear una notificacion de otro tipo en notificaciones -> DENY", async () => {
+    const clienteUid = "cliente-vinculacion-128";
+    const clienteId = 6080;
+    const notifId = `otra_${NEGOCIO_A}_${clienteId}`;
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE", activo: true, clienteId, negocioId: NEGOCIO_A
+        });
+        await setDoc(doc(database, "clientes", String(clienteId)), fichaCliente(clienteId, NEGOCIO_A, clienteUid, "60800000X"));
+    });
+    const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+    await assertFails(
+        setDoc(
+            doc(database, "notificaciones", notifId),
+            { ...notificacionVinculacionDoc(NEGOCIO_A, clienteId), tipo: "MOROSIDAD" }
+        )
+    );
+});

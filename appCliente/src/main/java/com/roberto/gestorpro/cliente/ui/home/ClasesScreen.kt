@@ -19,20 +19,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,6 +41,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import com.roberto.gestorpro.cliente.ui.components.AppDangerOutlinedButton
+import com.roberto.gestorpro.cliente.ui.components.AppDialogDangerConfirmButton
+import com.roberto.gestorpro.cliente.ui.components.AppDialogTextButton
+import com.roberto.gestorpro.cliente.ui.components.AppNavigationBackButton
+import com.roberto.gestorpro.cliente.ui.components.AppPrimaryButton
+import com.roberto.gestorpro.cliente.ui.components.AppSecondaryButton
 import com.roberto.gestorpro.cliente.ui.viewmodel.SesionVisible
 import com.roberto.gestorpro.cliente.model.EstadoReserva
 import com.roberto.gestorpro.cliente.ui.viewmodel.ReservasClienteViewModel
@@ -76,6 +75,7 @@ fun ClasesScreen(
     val sinServicios by viewModel.sinServicios.collectAsStateWithLifecycle()
     val sinSesionesHoy by viewModel.sinSesionesHoy.collectAsStateWithLifecycle()
     val dadoDeBaja by viewModel.dadoDeBaja.collectAsStateWithLifecycle()
+    val estadoNoActivo by viewModel.estadoNoActivo.collectAsStateWithLifecycle()
     val sesiones by viewModel.sesiones.collectAsStateWithLifecycle()
     val reservasOperando by reservasViewModel.operando.collectAsStateWithLifecycle()
     val reservasError by reservasViewModel.error.collectAsStateWithLifecycle()
@@ -119,14 +119,7 @@ fun ClasesScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Volver",
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(26.dp)
-                        )
-                    }
+                    AppNavigationBackButton(onClick = { navController.popBackStack() })
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
@@ -172,6 +165,11 @@ fun ClasesScreen(
                     texto = "Has sido dado de baja del gimnasio.\n" +
                         "Ya no puedes reservar clases."
                 )
+                estadoNoActivo -> MensajeClases(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    texto = "Tu cuenta aún no está activa.\n" +
+                        "Cuando el gimnasio la active podrás ver y reservar actividades."
+                )
                 sinServicios -> MensajeClases(
                     modifier = Modifier.fillMaxWidth().weight(1f),
                     texto = "No tienes servicios contratados."
@@ -209,20 +207,21 @@ fun ClasesScreen(
             title = { Text("Cancelar reserva") },
             text = { Text("¿Quieres cancelar esta reserva?") },
             confirmButton = {
-                TextButton(
+                AppDialogDangerConfirmButton(
+                    text = "Cancelar reserva",
                     onClick = {
-                        reservasViewModel.cancelar(sesion.idSesion)
-                        sesionParaCancelar = null
-                    },
-                    enabled = !reservasOperando
-                ) {
-                    Text("Cancelar reserva")
-                }
+                        if (!reservasOperando) {
+                            reservasViewModel.cancelar(sesion.idSesion)
+                            sesionParaCancelar = null
+                        }
+                    }
+                )
             },
             dismissButton = {
-                TextButton(onClick = { sesionParaCancelar = null }) {
-                    Text("Volver")
-                }
+                AppDialogTextButton(
+                    text = "Volver",
+                    onClick = { sesionParaCancelar = null }
+                )
             }
         )
     }
@@ -292,18 +291,21 @@ private fun TarjetaSesion(
             when (estado) {
                 EstadoReserva.RESERVAR -> {
                     if (sesion.reservable) {
-                        Button(
+                        AppPrimaryButton(
+                            text = "Reservar",
                             onClick = onReservar,
-                            enabled = !operando && !noVinculado,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            if (operando) {
+                            enabled = !operando && !noVinculado
+                        )
+                        if (operando) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(18.dp),
                                     strokeWidth = 2.dp
                                 )
-                            } else {
-                                Text("Reservar")
                             }
                         }
                     } else {
@@ -313,13 +315,11 @@ private fun TarjetaSesion(
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Button(
+                        AppPrimaryButton(
+                            text = "Reservar",
                             onClick = onReservar,
-                            enabled = false,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Reservar")
-                        }
+                            enabled = false
+                        )
                     }
                 }
 
@@ -330,18 +330,21 @@ private fun TarjetaSesion(
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    OutlinedButton(
+                    AppDangerOutlinedButton(
+                        text = "Cancelar reserva",
                         onClick = onCancelar,
-                        enabled = !operando,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        if (operando) {
+                        enabled = !operando
+                    )
+                    if (operando) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(18.dp),
                                 strokeWidth = 2.dp
                             )
-                        } else {
-                            Text("Cancelar reserva")
                         }
                     }
                 }
@@ -424,8 +427,10 @@ private fun ErrorClases(
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(12.dp))
-        OutlinedButton(onClick = onReintentar) {
-            Text("Reintentar")
-        }
+        AppSecondaryButton(
+            text = "Reintentar",
+            onClick = onReintentar,
+            fullWidth = false
+        )
     }
 }

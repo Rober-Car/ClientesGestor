@@ -18,21 +18,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -64,10 +59,14 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import com.roberto.gestorpro.data.entity.SesionEntity
 import com.roberto.gestorpro.navigation.Routes
+import com.roberto.gestorpro.ui.components.AppNavigationBackButton
+import com.roberto.gestorpro.ui.components.AppPrimaryButton
+import com.roberto.gestorpro.ui.components.AppSecondaryButton
+import com.roberto.gestorpro.ui.components.AppSemanticButton
 import com.roberto.gestorpro.ui.viewmodel.ServicioViewModel
 import com.roberto.gestorpro.ui.viewmodel.SesionViewModel
-import com.roberto.gestorpro.data.entity.SesionEntity
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -193,13 +192,7 @@ fun ProgramarSesionesScreen(
                     .padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
-                        modifier = Modifier.size(30.dp)
-                    )
-                }
+                AppNavigationBackButton(onClick = { navController.popBackStack() })
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
                     Text(
@@ -342,11 +335,12 @@ fun ProgramarSesionesScreen(
                     )
 
                     if (seleccionado) {
-                        TextButton(onClick = { diaConTimePicker = dia }) {
-                            Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(hora ?: "18:00")
-                        }
+                        AppSemanticButton(
+                            text = hora ?: "18:00",
+                            color = MaterialTheme.colorScheme.primary,
+                            onClick = { diaConTimePicker = dia },
+                            icon = Icons.Default.DateRange
+                        )
                     }
                 }
             }
@@ -430,7 +424,8 @@ fun ProgramarSesionesScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Button(
+            AppPrimaryButton(
+                text = if (operando) "Generando sesiones..." else "Generar sesiones",
                 onClick = {
                     errorDesde = desde == null
                     errorHasta = hasta == null || (desde != null && hasta != null && hasta!! < desde!!)
@@ -439,7 +434,7 @@ fun ProgramarSesionesScreen(
                     errorCapacidad = capacidad.toIntOrNull() == null || capacidad.toInt() <= 0
 
                     if (!errorDesde && !errorHasta && !errorDias && !errorDuracion && !errorCapacidad) {
-                        val servicioActual = servicio ?: return@Button
+                        val servicioActual = servicio ?: return@AppPrimaryButton
                         sesionViewModel.generarSesiones(
                             servicio = servicioActual,
                             desde = desde!!,
@@ -451,16 +446,8 @@ fun ProgramarSesionesScreen(
                         )
                     }
                 },
-                enabled = servicio?.activo == true && !operando,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF1E88E5),
-                    contentColor = Color.White,
-                    disabledContainerColor = Color(0xFFBDBDBD)
-                )
-            ) {
-                Text(if (operando) "Generando sesiones..." else "Generar sesiones")
-            }
+                enabled = servicio?.activo == true && !operando
+            )
 
             if (errorSincronizacion != null || sesionSinSincronizar != null) {
                 Card(
@@ -482,12 +469,12 @@ fun ProgramarSesionesScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error
                         )
-                        OutlinedButton(
+                        AppSecondaryButton(
+                            text = "Reintentar sincronización",
                             onClick = { sesionViewModel.reintentarSincronizacion() },
-                            enabled = sesionSinSincronizar != null
-                        ) {
-                            Text("Reintentar sincronización")
-                        }
+                            enabled = sesionSinSincronizar != null,
+                            fullWidth = false
+                        )
                     }
                 }
             }
@@ -541,13 +528,13 @@ fun ProgramarSesionesScreen(
                                     color = Color.Gray
                                 )
                             }
-                            TextButton(
+                            AppSemanticButton(
+                                text = "Ver / editar",
+                                color = MaterialTheme.colorScheme.primary,
                                 onClick = {
                                     navController.navigate(Routes.editarSesion(sesion.idSesion))
                                 }
-                            ) {
-                                Text("Ver / editar")
-                            }
+                            )
                         }
                     }
                 }

@@ -137,8 +137,8 @@ fun HomeScreen(
                 }
                 item {
                     MenuCard(
-                        titulo = "Servicios",
-                        descripcion = "Servicios y sesiones",
+                        titulo = "Actividades",
+                        descripcion = "Crea actividades",
                         icono = Icons.Default.FitnessCenter,
                         containerColor = Color(0xFF43A047).copy(alpha = 0.12f),
                         iconContainerColor = Color(0xFF43A047),
