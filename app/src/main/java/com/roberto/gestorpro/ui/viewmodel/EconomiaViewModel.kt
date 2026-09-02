@@ -7,6 +7,7 @@ import com.roberto.gestorpro.data.entity.MovimientoEntity
 import com.roberto.gestorpro.data.repository.ClienteRepository
 import com.roberto.gestorpro.data.repository.GastoRepository
 import com.roberto.gestorpro.data.repository.MovimientoRepository
+import com.roberto.gestorpro.data.repository.ServicioRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,7 +18,8 @@ import kotlinx.coroutines.launch
 class EconomiaViewModel @Inject constructor(
     private val movimientoRepository: MovimientoRepository,
     private val gastoRepository: GastoRepository,
-    private val clienteRepository: ClienteRepository
+    private val clienteRepository: ClienteRepository,
+    private val servicioRepository: ServicioRepository
 ) : ViewModel() {
 
     private val _movimientos = MutableStateFlow<List<MovimientoEntity>>(emptyList())
@@ -28,6 +30,9 @@ class EconomiaViewModel @Inject constructor(
 
     private val _clientesMap = MutableStateFlow<Map<Int, String>>(emptyMap())
     val clientesMap = _clientesMap.asStateFlow()
+
+    private val _serviciosMap = MutableStateFlow<Map<Int, String>>(emptyMap())
+    val serviciosMap = _serviciosMap.asStateFlow()
 
     fun cargarDatos() {
         viewModelScope.launch {
@@ -43,6 +48,11 @@ class EconomiaViewModel @Inject constructor(
         viewModelScope.launch {
             gastoRepository.obtenerTodosLosGastos().collect { lista ->
                 _gastos.value = lista
+            }
+        }
+        viewModelScope.launch {
+            servicioRepository.obtenerTodosLosServicios().collect { lista ->
+                _serviciosMap.value = lista.associate { it.idServicio to it.nombre }
             }
         }
     }

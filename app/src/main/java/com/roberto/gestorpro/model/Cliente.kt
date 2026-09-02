@@ -25,7 +25,8 @@ data class Cliente(
     val foto: String,
     val fechaNacimiento: Long,
     val estado: EstadoCliente,
-    val tieneLlave: Boolean,
     val observaciones: String?,
-    val serviciosContratados: List<Int> = emptyList()
+    val serviciosContratados: List<Int> = emptyList(),
+    val moroso: Boolean = false,
+    val fechaEntradaMorosidad: Long? = null
 )

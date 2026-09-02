@@ -243,16 +243,6 @@ fun AñadirClienteScreen(
     }
 
     /**
-     * tieneLlave
-     * ----------
-     * ✔ TIPO: variable con estado (var) → Boolean
-     * Es el interruptor que indica si el cliente tiene llave del centro.
-     * Sirve para guardar la opción "Tiene llave" marcada en el formulario.
-     * Usa rememberSaveable para sobrevivir a la rotación de pantalla.
-     */
-    var tieneLlave by rememberSaveable { mutableStateOf(false) }
-
-    /**
      * esActivo
      * --------
      * ✔ TIPO: variable con estado (var) → Boolean
@@ -581,7 +571,6 @@ fun AñadirClienteScreen(
             email = clienteCargado.email ?: ""
             foto = clienteCargado.foto
             fechaNacimiento = clienteCargado.fechaNacimiento
-            tieneLlave = clienteCargado.tieneLlave
             esActivo = clienteCargado.estado != EstadoCliente.BAJA
             observaciones = clienteCargado.observaciones ?: ""
         }
@@ -999,18 +988,11 @@ fun AñadirClienteScreen(
         /**
          * Sección "Otros datos" (solo administrador)
          * ------------------------------------------
-         * ✔ TIPO: bloque de la UI que agrupa llave, estado y observaciones.
+         * ✔ TIPO: bloque de la UI que agrupa estado y observaciones.
          * Son decisiones del administrador; sus valores se conservan sin cambios
          * al editar (se precargan del cliente original).
          */
 
-            /**
-             * Row de "Tiene llave"
-             * --------------------
-             * ✔ TIPO: función @Composable (androidx.compose.foundation.layout.Row)
-             * Es la fila que junta el texto "Tiene llave" con el interruptor.
-             * Sirve para activar o desactivar la opción de que el cliente tenga llave.
-             */
             Text(
                 text = "Otros datos",
                 style = MaterialTheme.typography.titleMedium,
@@ -1023,18 +1005,6 @@ fun AñadirClienteScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Tiene llave")
-                    Switch(
-                        checked = tieneLlave,
-                        onCheckedChange = {
-                            tieneLlave = it
-                            viewModel.limpiarError()
-                        }
-                    )
-                }
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1120,8 +1090,8 @@ fun AñadirClienteScreen(
                     if (!hayErrores) {
                         if (idCliente != null) {
                             // MODO EDICIÓN: se conservan los datos que no se pueden cambiar
-                            // en este formulario (fecha de registro, llave de alta/baja
-                            // y el uid de Firebase) tomándolos del cliente original.
+                            // en este formulario (fecha de registro y el uid de Firebase)
+                            // tomándolos del cliente original.
                             // El estado se controla desde el switch de la UI.
                             val original = clienteEditando!!
                             val cliente = ClienteEntity(
@@ -1143,7 +1113,6 @@ fun AñadirClienteScreen(
                                     original.fechaBaja ?: System.currentTimeMillis()
                                 },
                                 estado = if (esActivo) EstadoCliente.ACTIVO else EstadoCliente.BAJA,
-                                tieneLlave = tieneLlave,
                                 observaciones = observaciones.ifBlank { null },
                                 // Se conservan los servicios ya contratados al editar;
                                 // PENDIENTE: pantalla para gestionarlos
@@ -1171,8 +1140,7 @@ fun AñadirClienteScreen(
                             // MODO ALTA: el cliente nuevo empieza con el estado elegido
                             // en el switch (ACTIVO o BAJA); si el alta la hace el propio
                             // cliente desde Mi perfil, nace como REGISTRADO a la espera
-                            // de que el administrador lo revise, sin llave ni observaciones
-                            // (campos que son exclusivos del administrador).
+                            // de que el administrador lo revise.
                             val cliente = ClienteEntity(
                                 nombre = nombre,
                                 apellidos = apellidos,
@@ -1185,7 +1153,6 @@ fun AñadirClienteScreen(
                                 fechaAlta = if (esActivo) System.currentTimeMillis() else null,
                                 fechaBaja = if (esActivo) null else System.currentTimeMillis(),
                                 estado = if (esActivo) EstadoCliente.ACTIVO else EstadoCliente.BAJA,
-                                tieneLlave = tieneLlave,
                                 observaciones = observaciones.ifBlank { null },
                                 // Un cliente nuevo empieza sin servicios contratados;
                                 // PENDIENTE: pantalla para gestionarlos

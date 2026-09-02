@@ -7,6 +7,7 @@ import com.roberto.gestorpro.data.converter.EstadoClienteConverter
 import com.roberto.gestorpro.data.converter.EstadoMovimientoConverter
 import com.roberto.gestorpro.data.converter.EstadoSolicitudConverter
 import com.roberto.gestorpro.data.converter.IntListConverter
+import com.roberto.gestorpro.data.converter.MetodoPagoConverter
 import com.roberto.gestorpro.data.converter.StringListConverter
 import com.roberto.gestorpro.data.converter.TipoSolicitudConverter
 import com.roberto.gestorpro.data.dao.ClaseDao
@@ -43,7 +44,7 @@ import com.roberto.gestorpro.data.entity.SolicitudEntity
         ServicioEntity::class,
         SesionEntity::class
     ],
-    version = 12
+    version = 15
 )
 @TypeConverters(
     EstadoClienteConverter::class,
@@ -51,7 +52,8 @@ import com.roberto.gestorpro.data.entity.SolicitudEntity
     TipoSolicitudConverter::class,
     EstadoSolicitudConverter::class,
     StringListConverter::class,
-    IntListConverter::class
+    IntListConverter::class,
+    MetodoPagoConverter::class
 )
 abstract class ClientesDatabase : RoomDatabase() {
 

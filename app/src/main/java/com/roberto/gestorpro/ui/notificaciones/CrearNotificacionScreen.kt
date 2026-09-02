@@ -92,6 +92,7 @@ fun CrearNotificacionScreen(
 ) {
     val clientes by clienteViewModel.clientes.collectAsStateWithLifecycle()
     val seleccionGrupo by viewModel.seleccionGrupo.collectAsStateWithLifecycle()
+    val clienteSeleccionadoId by viewModel.seleccionIndividual.collectAsStateWithLifecycle()
     val resolviendo by viewModel.resolviendo.collectAsStateWithLifecycle()
     val errorResolucion by viewModel.errorResolucion.collectAsStateWithLifecycle()
     val resolucion by viewModel.resolucion.collectAsStateWithLifecycle()
@@ -103,8 +104,6 @@ fun CrearNotificacionScreen(
     var titulo by rememberSaveable { mutableStateOf("") }
     var mensaje by rememberSaveable { mutableStateOf("") }
     var modoDestino by rememberSaveable { mutableStateOf(ModoDestino.TODOS.valor) }
-    var clienteSeleccionadoId by remember { mutableStateOf<Int?>(null) }
-    var mostrarDialogoClientes by rememberSaveable { mutableStateOf(false) }
     var programar by rememberSaveable { mutableStateOf(false) }
     var fechaProgramada by rememberSaveable { mutableStateOf<Long?>(null) }
     var mostrarDatePicker by remember { mutableStateOf(false) }
@@ -231,7 +230,9 @@ fun CrearNotificacionScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                mostrarDialogoClientes = true
+                                navController.navigate(
+                                    Routes.seleccionarClientes("individual")
+                                )
                                 viewModel.limpiarErrorCreacion()
                             }
                     )
@@ -242,7 +243,7 @@ fun CrearNotificacionScreen(
                     OutlinedButton(
                         onClick = {
                             viewModel.iniciarSeleccionGrupo(seleccionGrupo)
-                            navController.navigate(Routes.SELECCIONAR_CLIENTES)
+                            navController.navigate(Routes.seleccionarClientes("grupo"))
                             viewModel.limpiarErrorCreacion()
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -454,19 +455,6 @@ fun CrearNotificacionScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
         }
-    }
-
-    if (mostrarDialogoClientes) {
-        DialogoSeleccionarClientes(
-            clientes = clientes,
-            seleccionadosIniciales = clienteSeleccionadoId?.let { setOf(it) } ?: emptySet(),
-            modoSeleccion = ModoSeleccion.UNO,
-            onDismiss = { mostrarDialogoClientes = false },
-            onConfirmar = { ids ->
-                clienteSeleccionadoId = ids.firstOrNull()
-                mostrarDialogoClientes = false
-            }
-        )
     }
 
     if (mostrarDatePicker) {

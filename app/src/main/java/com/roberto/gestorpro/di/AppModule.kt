@@ -85,6 +85,187 @@ object AppModule {
     }
 
     /**
+     * MIGRACION_12_13
+     * ---------------
+     * Elimina la columna "tieneLlave" de la tabla "cliente": la llave deja de
+     * ser un atributo especial del cliente y pasa a gestionarse como un servicio
+     * normal (nombre/estado) contratado. SQLite anterior a 3.35 no soporta
+     * ALTER TABLE DROP COLUMN, por eso se recrea la tabla sin esa columna,
+     * copiando el resto de datos para no perder la información local.
+     */
+    private val MIGRACION_12_13 = object : Migration(12, 13) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `cliente_nueva` (" +
+                    "`idCliente` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`nombre` TEXT NOT NULL, " +
+                    "`apellidos` TEXT NOT NULL, " +
+                    "`dni` TEXT NOT NULL, " +
+                    "`telefono` TEXT NOT NULL, " +
+                    "`email` TEXT, " +
+                    "`foto` TEXT NOT NULL, " +
+                    "`fechaNacimiento` INTEGER NOT NULL, " +
+                    "`fechaRegistro` INTEGER NOT NULL, " +
+                    "`fechaAlta` INTEGER, " +
+                    "`fechaBaja` INTEGER, " +
+                    "`estado` TEXT NOT NULL, " +
+                    "`observaciones` TEXT, " +
+                    "`negocioId` TEXT, " +
+                    "`serviciosContratados` TEXT NOT NULL, " +
+                    "`firebaseUid` TEXT)"
+            )
+            db.execSQL(
+                "INSERT INTO `cliente_nueva` " +
+                    "(`idCliente`, `nombre`, `apellidos`, `dni`, `telefono`, `email`, " +
+                    "`foto`, `fechaNacimiento`, `fechaRegistro`, `fechaAlta`, `fechaBaja`, " +
+                    "`estado`, `observaciones`, `negocioId`, `serviciosContratados`, `firebaseUid`) " +
+                    "SELECT `idCliente`, `nombre`, `apellidos`, `dni`, `telefono`, `email`, " +
+                    "`foto`, `fechaNacimiento`, `fechaRegistro`, `fechaAlta`, `fechaBaja`, " +
+                    "`estado`, `observaciones`, `negocioId`, `serviciosContratados`, `firebaseUid` " +
+                    "FROM `cliente`"
+            )
+            db.execSQL("DROP TABLE `cliente`")
+            db.execSQL("ALTER TABLE `cliente_nueva` RENAME TO `cliente`")
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_cliente_dni` ON `cliente` (`dni`)"
+            )
+        }
+    }
+
+    /**
+     * MIGRACION_13_14
+     * ---------------
+     * FASE 1 DE ECONOMÍA (modelos Room + migración NO destructiva).
+     *
+     * Tabla "servicio": añade la columna `precio` REAL NOT NULL. Los servicios
+     * existentes NO tienen un precio histórico conocido, por lo que se inicializan
+     * con 0.0 (valor temporal por defecto; la UI para editar precios se hará en
+     * una fase posterior). SQLite < 3.35 no soporta ADD/DROP COLUMN, por eso se
+     * recrea la tabla copiando todas las filas.
+     *
+     * Tabla "movimiento": migra el modelo económico antiguo
+     *   (servicio: String + precio: Double) al nuevo
+     *   (servicios: List<Int> guardado como TEXT separado por comas +
+     *    precioFinal: Double + metodoPago: TEXT nullable).
+     *   - precioFinal = precio antiguo (se conserva el importe histórico);
+     *   - metodoPago = NULL (no se inventan métodos para históricos);
+     *   - servicios: se rellena con el id del servicio cuyo NOMBRE coincide
+     *     EXACTAMENTE con el texto antiguo y SOLO si dicha coincidencia es ÚNICA
+     *     (COUNT(*) = 1). Si no hay una correspondencia segura (0 o varias filas),
+     *     la lista queda vacía (''): NO se inventa ninguna relación. El resto de
+     *     campos (fechas, estado, fechaPago, observaciones) se copia tal cual.
+     */
+    private val MIGRACION_13_14 = object : Migration(13, 14) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // --- Servicio: nueva columna precio = 0.0 para filas existentes ---
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `servicio_nueva` (" +
+                    "`idServicio` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`negocioId` TEXT NOT NULL, " +
+                    "`nombre` TEXT NOT NULL, " +
+                    "`descripcion` TEXT NOT NULL, " +
+                    "`activo` INTEGER NOT NULL, " +
+                    "`precio` REAL NOT NULL)"
+            )
+            db.execSQL(
+                "INSERT INTO `servicio_nueva` " +
+                    "(`idServicio`, `negocioId`, `nombre`, `descripcion`, `activo`, `precio`) " +
+                    "SELECT `idServicio`, `negocioId`, `nombre`, `descripcion`, `activo`, 0.0 " +
+                    "FROM `servicio`"
+            )
+            db.execSQL("DROP TABLE `servicio`")
+            db.execSQL("ALTER TABLE `servicio_nueva` RENAME TO `servicio`")
+
+            // --- Movimiento: servicios(List<Int>) + precioFinal + metodoPago ---
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `movimiento_nueva` (" +
+                    "`idMovimiento` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`idCliente` INTEGER NOT NULL, " +
+                    "`servicios` TEXT NOT NULL, " +
+                    "`fechaInicio` INTEGER NOT NULL, " +
+                    "`fechaFin` INTEGER NOT NULL, " +
+                    "`precioFinal` REAL NOT NULL, " +
+                    "`estado` TEXT NOT NULL, " +
+                    "`fechaPago` INTEGER, " +
+                    "`metodoPago` TEXT, " +
+                    "`observaciones` TEXT)"
+            )
+            db.execSQL(
+                "INSERT INTO `movimiento_nueva` " +
+                    "(`idMovimiento`, `idCliente`, `servicios`, `fechaInicio`, `fechaFin`, " +
+                    "`precioFinal`, `estado`, `fechaPago`, `metodoPago`, `observaciones`) " +
+                    "SELECT `idMovimiento`, `idCliente`, " +
+                    "CASE " +
+                    "  WHEN (SELECT COUNT(*) FROM `servicio` s WHERE s.`nombre` = m.`servicio`) = 1 " +
+                    "  THEN (SELECT CAST(s.`idServicio` AS TEXT) FROM `servicio` s " +
+                    "        WHERE s.`nombre` = m.`servicio` LIMIT 1) " +
+                    "  ELSE '' " +
+                    "END, " +
+                    "`fechaInicio`, `fechaFin`, `precio`, `estado`, `fechaPago`, NULL, `observaciones` " +
+                    "FROM `movimiento` m"
+            )
+            db.execSQL("DROP TABLE `movimiento`")
+            db.execSQL("ALTER TABLE `movimiento_nueva` RENAME TO `movimiento`")
+        }
+    }
+
+    /**
+     * MIGRACION_14_15
+     * ---------------
+     * FASE 5 DE ECONOMÍA: morosidad. Añade a la tabla "cliente" dos columnas
+     * para el indicador independiente de morosidad:
+     *   - `moroso` INTEGER NOT NULL (0 por defecto);
+     *   - `fechaEntradaMorosidad` INTEGER nullable.
+     * Los clientes existentes se inicializan con moroso = false y
+     * fechaEntradaMorosidad = null (NO se reconstruye morosidad histórica).
+     * Se recrea la tabla (SQLite < 3.35 no soporta ADD COLUMN con NOT NULL
+     * sin DEFAULT compatible con el esquema esperado por Room) conservando
+     * todas las filas.
+     */
+    private val MIGRACION_14_15 = object : Migration(14, 15) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `cliente_nueva` (" +
+                    "`idCliente` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`nombre` TEXT NOT NULL, " +
+                    "`apellidos` TEXT NOT NULL, " +
+                    "`dni` TEXT NOT NULL, " +
+                    "`telefono` TEXT NOT NULL, " +
+                    "`email` TEXT, " +
+                    "`foto` TEXT NOT NULL, " +
+                    "`fechaNacimiento` INTEGER NOT NULL, " +
+                    "`fechaRegistro` INTEGER NOT NULL, " +
+                    "`fechaAlta` INTEGER, " +
+                    "`fechaBaja` INTEGER, " +
+                    "`estado` TEXT NOT NULL, " +
+                    "`observaciones` TEXT, " +
+                    "`negocioId` TEXT, " +
+                    "`serviciosContratados` TEXT NOT NULL, " +
+                    "`firebaseUid` TEXT, " +
+                    "`moroso` INTEGER NOT NULL, " +
+                    "`fechaEntradaMorosidad` INTEGER)"
+            )
+            db.execSQL(
+                "INSERT INTO `cliente_nueva` " +
+                    "(`idCliente`, `nombre`, `apellidos`, `dni`, `telefono`, `email`, " +
+                    "`foto`, `fechaNacimiento`, `fechaRegistro`, `fechaAlta`, `fechaBaja`, " +
+                    "`estado`, `observaciones`, `negocioId`, `serviciosContratados`, `firebaseUid`, " +
+                    "`moroso`, `fechaEntradaMorosidad`) " +
+                    "SELECT `idCliente`, `nombre`, `apellidos`, `dni`, `telefono`, `email`, " +
+                    "`foto`, `fechaNacimiento`, `fechaRegistro`, `fechaAlta`, `fechaBaja`, " +
+                    "`estado`, `observaciones`, `negocioId`, `serviciosContratados`, `firebaseUid`, " +
+                    "0, NULL " +
+                    "FROM `cliente`"
+            )
+            db.execSQL("DROP TABLE `cliente`")
+            db.execSQL("ALTER TABLE `cliente_nueva` RENAME TO `cliente`")
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_cliente_dni` ON `cliente` (`dni`)"
+            )
+        }
+    }
+
+    /**
      * provideFirebaseAuth
      * -------------------
      * ✔ TIPO: método (fun) de Hilt con anotación @Provides y @Singleton → FirebaseAuth
@@ -144,7 +325,7 @@ object AppModule {
         )
 
         databaseBuilder = databaseBuilder
-            .addMigrations(MIGRACION_11_12)
+            .addMigrations(MIGRACION_11_12, MIGRACION_12_13, MIGRACION_13_14, MIGRACION_14_15)
             .fallbackToDestructiveMigration()
 
         return databaseBuilder.build()
@@ -230,9 +411,10 @@ object AppModule {
          * Sirve para construir el repositorio de movimientos a partir de él.
          */
         movimientoDao: MovimientoDao,
+        clienteDao: ClienteDao,
         clienteRemotoRepository: ClienteRemotoRepository
     ): MovimientoRepository {
-        return MovimientoRepository(movimientoDao, clienteRemotoRepository)
+        return MovimientoRepository(movimientoDao, clienteDao, clienteRemotoRepository)
     }
 
     @Provides

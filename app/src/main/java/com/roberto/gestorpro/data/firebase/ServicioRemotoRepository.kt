@@ -105,7 +105,7 @@ class ServicioRemotoRepository @Inject constructor(
      * actualizarServicioRemoto
      * ------------------------
      * Actualiza en Firestore solo los campos editables del servicio
-     * (nombre, descripcion, activo). negocioId e idServicio no cambian.
+     * (nombre, descripcion, precio, activo). negocioId e idServicio no cambian.
      */
     suspend fun actualizarServicioRemoto(servicio: ServicioEntity): ResultadoAutenticacion {
         val uid = auth.currentUser?.uid
@@ -117,6 +117,7 @@ class ServicioRemotoRepository @Inject constructor(
                     mapOf(
                         "nombre" to servicio.nombre,
                         "descripcion" to servicio.descripcion,
+                        "precio" to servicio.precio,
                         "activo" to servicio.activo
                     )
                 )
@@ -203,6 +204,7 @@ class ServicioRemotoRepository @Inject constructor(
             "negocioId" to negocioId,
             "nombre" to servicio.nombre,
             "descripcion" to servicio.descripcion,
+            "precio" to servicio.precio,
             "activo" to servicio.activo
         )
     }

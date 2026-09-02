@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -34,7 +35,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -330,6 +330,20 @@ private fun TextoVacio(texto: String) {
 }
 
 /**
+ * formatearPrecioServicio
+ * -----------------------
+ * Precio del servicio legible: "30 €" cuando es entero y "12,50 €" cuando
+ * tiene decimales. No añade redondeo ni cambia el valor almacenado.
+ */
+private fun formatearPrecioServicio(precio: Double): String {
+    return if (precio % 1.0 == 0.0) {
+        "${precio.toInt()} €"
+    } else {
+        "${String.format(java.util.Locale.ROOT, "%.2f", precio).replace('.', ',')} €"
+    }
+}
+
+/**
  * ServicioCard
  * ------------
  * Tarjeta de un servicio.
@@ -362,12 +376,12 @@ private fun ServicioCard(
         ),
         border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.6f))
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(12.dp))
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(10.dp))
                         .background(colorPrimario.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center
                 ) {
@@ -375,10 +389,10 @@ private fun ServicioCard(
                         imageVector = Icons.Default.FitnessCenter,
                         contentDescription = null,
                         tint = colorPrimario,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = servicio.nombre,
@@ -397,24 +411,15 @@ private fun ServicioCard(
                         )
                     }
                 }
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = if (servicio.activo) {
-                        Color(0xFF4CAF50).copy(alpha = 0.1f)
-                    } else {
-                        Color(0xFFFF9800).copy(alpha = 0.1f)
-                    }
-                ) {
-                    Text(
-                        text = if (servicio.activo) "ACTIVO" else "DE BAJA",
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (servicio.activo) Color(0xFF4CAF50) else Color(0xFFFF9800)
-                    )
-                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = formatearPrecioServicio(servicio.precio),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = colorPrimario,
+                    maxLines = 1
+                )
             }
-
-            Spacer(modifier = Modifier.size(4.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -422,7 +427,11 @@ private fun ServicioCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (servicio.activo) {
-                    TextButton(onClick = onEditar) {
+                    TextButton(
+                        onClick = onEditar,
+                        modifier = Modifier.height(32.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Edit,
                             contentDescription = "Editar",
@@ -431,14 +440,26 @@ private fun ServicioCard(
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Editar")
                     }
-                    TextButton(onClick = onDarDeBaja) {
+                    TextButton(
+                        onClick = onDarDeBaja,
+                        modifier = Modifier.height(32.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp)
+                    ) {
                         Text("Dar de baja", color = Color(0xFFFF9800))
                     }
                 } else {
-                    TextButton(onClick = onReactivar) {
+                    TextButton(
+                        onClick = onReactivar,
+                        modifier = Modifier.height(32.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp)
+                    ) {
                         Text("Reactivar", color = Color(0xFF4CAF50))
                     }
-                    TextButton(onClick = onEliminar) {
+                    TextButton(
+                        onClick = onEliminar,
+                        modifier = Modifier.height(32.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "Eliminar",

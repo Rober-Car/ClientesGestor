@@ -113,8 +113,8 @@ class ClienteRepository(
         return clienteDao.obtenerClientePorIdDao(id)
     }
 
-    fun obtenerIdsMorososRepo(ahora: Long): Flow<List<Int>> {
-        return clienteDao.obtenerIdsMorosos(ahora)
+    fun obtenerIdsMorososRepo(): Flow<List<Int>> {
+        return clienteDao.obtenerIdsMorosos()
     }
 
 }

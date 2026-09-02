@@ -57,7 +57,6 @@ function fichaCliente(
         fechaAlta: extra.fechaAlta ?? null,
         fechaBaja: extra.fechaBaja ?? null,
         estado: extra.estado ?? "ACTIVO",
-        tieneLlave: extra.tieneLlave ?? false,
         serviciosContratados: extra.serviciosContratados ?? [],
         fechaInicioActual: extra.fechaInicioActual ?? null,
         fechaFinActual: extra.fechaFinActual ?? null,
@@ -77,6 +76,7 @@ function servicioDoc(idServicio, negocioId, extra = {}) {
         nombre: extra.nombre ?? "Servicio de prueba",
         descripcion: extra.descripcion ?? "Descripción de prueba",
         activo: extra.activo ?? true,
+        precio: extra.precio ?? 30,
         ...extra
     };
 }
@@ -746,7 +746,6 @@ test("PRUEBA 7: un CLIENTE vinculado solo puede editar sus datos personales", as
         { fechaInicioActual: 3 },
         { fechaFinActual: 4 },
         { serviciosContratados: ["No contratado"] },
-        { tieneLlave: true },
         { observaciones: "Intento de ver/editar observaciones" }
     ];
 
@@ -1583,6 +1582,22 @@ test("PRUEBA 21: el ADMIN crea un servicio de su negocio -> ALLOW", async () => 
     );
 });
 
+test("PRUEBA 21B: el ADMIN crea un servicio con precio numérico -> ALLOW", async () => {
+    const adminUid = "admin-servicios-a";
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertSucceeds(
+        setDoc(doc(database, "servicios", "104"), servicioDoc(104, NEGOCIO_A, { precio: 12.5 }))
+    );
+});
+
+test("PRUEBA 21C: el ADMIN no puede crear un servicio con precio no numérico -> DENY", async () => {
+    const adminUid = "admin-servicios-a";
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertFails(
+        setDoc(doc(database, "servicios", "105"), servicioDoc(105, NEGOCIO_A, { precio: "treinta" }))
+    );
+});
+
 test("PRUEBA 22: el ADMIN no puede crear un servicio indicando otro negocio -> DENY", async () => {
     const adminUid = "admin-servicios-a";
     const database = testEnvironment.authenticatedContext(adminUid).firestore();
@@ -1624,6 +1639,22 @@ test("PRUEBA 25: el ADMIN modifica su servicio -> ALLOW", async () => {
     const database = testEnvironment.authenticatedContext(adminUid).firestore();
     await assertSucceeds(
         updateDoc(doc(database, "servicios", "102"), { nombre: "Nuevo nombre" })
+    );
+});
+
+test("PRUEBA 25B: el ADMIN actualiza el precio de su servicio -> ALLOW", async () => {
+    const adminUid = "admin-servicios-a";
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertSucceeds(
+        updateDoc(doc(database, "servicios", "102"), { precio: 35 })
+    );
+});
+
+test("PRUEBA 25C: el ADMIN no puede poner un precio no numérico al actualizar -> DENY", async () => {
+    const adminUid = "admin-servicios-a";
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertFails(
+        updateDoc(doc(database, "servicios", "102"), { precio: "35" })
     );
 });
 

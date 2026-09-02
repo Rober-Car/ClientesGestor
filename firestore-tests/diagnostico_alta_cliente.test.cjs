@@ -59,7 +59,6 @@ function mapaDeAltaReal(idCliente, negocioId, dni) {
         fechaAlta: Timestamp.fromMillis(1600000000000),
         fechaBaja: null,
         estado: "ACTIVO",
-        tieneLlave: false,
         serviciosContratados: [],
         fechaInicioActual: null,
         fechaFinActual: null

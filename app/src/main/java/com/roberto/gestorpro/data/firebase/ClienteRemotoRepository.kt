@@ -369,7 +369,6 @@ class ClienteRemotoRepository @Inject constructor(
             "fechaAlta" to entidad.fechaAlta?.let { timestampDe(it) },
             "fechaBaja" to entidad.fechaBaja?.let { timestampDe(it) },
             "estado" to entidad.estado.name,
-            "tieneLlave" to entidad.tieneLlave,
             "serviciosContratados" to entidad.serviciosContratados,
             "fechaInicioActual" to null,
             "fechaFinActual" to null
@@ -395,8 +394,7 @@ class ClienteRemotoRepository @Inject constructor(
             "serviciosContratados" to entidad.serviciosContratados,
             "estado" to entidad.estado.name,
             "fechaAlta" to entidad.fechaAlta?.let { timestampDe(it) },
-            "fechaBaja" to entidad.fechaBaja?.let { timestampDe(it) },
-            "tieneLlave" to entidad.tieneLlave
+            "fechaBaja" to entidad.fechaBaja?.let { timestampDe(it) }
         )
     }
 

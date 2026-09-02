@@ -1,10 +1,12 @@
 package com.roberto.gestorpro.data.repository
 
 import android.util.Log
+import com.roberto.gestorpro.data.dao.ClienteDao
 import com.roberto.gestorpro.data.dao.MovimientoDao
 import com.roberto.gestorpro.data.firebase.ClienteRemotoRepository
 import com.roberto.gestorpro.data.entity.MovimientoEntity
 import com.roberto.gestorpro.model.EstadoMovimiento
+import com.roberto.gestorpro.util.MovimientoMorosidad
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
@@ -45,6 +47,7 @@ class MovimientoRepository @Inject constructor(
      * Sirve para que el repositorio acceda a la base de datos a través de las operaciones del DAO.
      */
     private val movimientoDao: MovimientoDao,
+    private val clienteDao: ClienteDao,
     private val clienteRemotoRepository: ClienteRemotoRepository
 ){
 
@@ -117,7 +120,49 @@ class MovimientoRepository @Inject constructor(
         // la pantalla que inició la operación.
         withContext(NonCancellable + Dispatchers.IO) {
             persistir()
+            actualizarMorosidadCliente(idCliente)
             sincronizarPeriodoActualInterno(idCliente, operacion)
+        }
+    }
+
+    /**
+     * recalcularMorosidadDeCliente
+     * ----------------------------
+     * Recalcula y persiste el indicador de morosidad (`moroso` y
+     * `fechaEntradaMorosidad`) de un cliente usando la ÚNICA lógica
+     * MovimientoMorosidad. Se invoca tras cambios de movimientos y tras
+     * cambios de estado administrativo (p. ej. al pasar a BAJA).
+     */
+    suspend fun recalcularMorosidadDeCliente(idCliente: Int) {
+        withContext(NonCancellable + Dispatchers.IO) {
+            actualizarMorosidadCliente(idCliente)
+        }
+    }
+
+    private suspend fun actualizarMorosidadCliente(idCliente: Int) {
+        try {
+            val cliente = clienteDao.obtenerClientePorIdDao(idCliente) ?: return
+            val movimientos = movimientoDao
+                .obtenerMovimientosPorCliente(idCliente)
+                .first()
+            val final = MovimientoMorosidad.resultadoFinal(
+                estado = cliente.estado,
+                movimientos = movimientos,
+                morosoPrevio = cliente.moroso,
+                fechaEntradaPrevia = cliente.fechaEntradaMorosidad,
+                ahora = System.currentTimeMillis()
+            )
+            clienteDao.actualizarMorosidadDao(
+                idCliente,
+                final.moroso,
+                final.fechaEntradaMorosidad
+            )
+        } catch (e: Exception) {
+            Log.e(
+                TAG,
+                "No se pudo recalcular la morosidad del cliente $idCliente",
+                e
+            )
         }
     }
 

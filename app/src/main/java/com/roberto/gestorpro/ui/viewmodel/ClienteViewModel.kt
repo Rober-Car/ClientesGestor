@@ -13,6 +13,7 @@ import com.roberto.gestorpro.data.entity.toCliente
 import com.roberto.gestorpro.data.firebase.BajaClienteRemotoRepository
 import com.roberto.gestorpro.data.firebase.ClienteRemotoRepository
 import com.roberto.gestorpro.data.repository.ClienteRepository
+import com.roberto.gestorpro.data.repository.MovimientoRepository
 import com.roberto.gestorpro.data.repository.ReservaRepository
 import com.roberto.gestorpro.data.repository.ServicioRepository
 import com.roberto.gestorpro.model.Cliente
@@ -59,6 +60,7 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class ClienteViewModel @Inject constructor(
     private val clienteRepository: ClienteRepository,
+    private val movimientoRepository: MovimientoRepository,
     private val clienteRemotoRepository: ClienteRemotoRepository,
     private val servicioRepository: ServicioRepository,
     private val reservaRepository: ReservaRepository,
@@ -177,7 +179,7 @@ class ClienteViewModel @Inject constructor(
      * Sirve para que la lista de clientes pueda filtrar y marcar visualmente
      * a los clientes morosos calculando su estado desde los movimientos.
      */
-    val morososIds = clienteRepository.obtenerIdsMorososRepo(System.currentTimeMillis())
+    val morososIds = clienteRepository.obtenerIdsMorososRepo()
         .map { it.toSet() }
         .stateIn(
             scope = viewModelScope,
@@ -405,6 +407,7 @@ class ClienteViewModel @Inject constructor(
 
             try {
                 clienteRepository.actualizarClienteRepo(cliente)
+                movimientoRepository.recalcularMorosidadDeCliente(cliente.idCliente)
                 if (replicar(cliente, esAlta = false, dniAnterior = dniAnterior)) {
                     onExito()
                 }
@@ -474,6 +477,7 @@ class ClienteViewModel @Inject constructor(
                 fechaBaja = null
             )
             clienteRepository.actualizarClienteRepo(actualizado)
+            movimientoRepository.recalcularMorosidadDeCliente(actualizado.idCliente)
             replicar(actualizado, esAlta = false)
         }
     }
@@ -486,6 +490,7 @@ class ClienteViewModel @Inject constructor(
                 fechaBaja = null
             )
             clienteRepository.actualizarClienteRepo(actualizado)
+            movimientoRepository.recalcularMorosidadDeCliente(actualizado.idCliente)
             replicar(actualizado, esAlta = false)
         }
     }
@@ -510,6 +515,7 @@ class ClienteViewModel @Inject constructor(
 
             try {
                 clienteRepository.actualizarClienteRepo(entidad)
+                movimientoRepository.recalcularMorosidadDeCliente(entidad.idCliente)
             } catch (e: Exception) {
                 _error.value = "No se pudo guardar el cliente"
                 return@launch

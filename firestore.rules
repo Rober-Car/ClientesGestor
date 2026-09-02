@@ -459,7 +459,6 @@ service cloud.firestore {
            "fechaAlta",
            "fechaBaja",
            "estado",
-           "tieneLlave",
            "serviciosContratados",
            "fechaInicioActual",
            "fechaFinActual"
@@ -496,7 +495,6 @@ service cloud.firestore {
            "fechaAlta",
            "fechaBaja",
            "estado",
-           "tieneLlave",
            "serviciosContratados",
            "fechaInicioActual",
            "fechaFinActual"
@@ -551,7 +549,6 @@ service cloud.firestore {
         && request.resource.data.fechaBaja == resource.data.fechaBaja
         && request.resource.data.fechaInicioActual == resource.data.fechaInicioActual
         && request.resource.data.fechaFinActual == resource.data.fechaFinActual
-        && request.resource.data.tieneLlave == resource.data.tieneLlave
         && request.resource.data.serviciosContratados == resource.data.serviciosContratados
         && request.resource.data.diff(resource.data)
             .affectedKeys()
@@ -588,8 +585,7 @@ service cloud.firestore {
               "fechaAlta",
               "fechaBaja",
               "fechaInicioActual",
-              "fechaFinActual",
-              "tieneLlave"
+              "fechaFinActual"
             ])
         && (request.resource.data.dni == resource.data.dni
             || (existsAfter(
@@ -758,17 +754,21 @@ service cloud.firestore {
              "negocioId",
              "nombre",
              "descripcion",
-             "activo"
+             "activo",
+             "precio"
            ])
         && request.resource.data.idServicio is int
         && string(request.resource.data.idServicio) == servicioId
         && request.resource.data.negocioId == usuarioActual().negocioId
         && request.resource.data.nombre is string
         && request.resource.data.descripcion is string
-        && request.resource.data.activo is bool;
+        && request.resource.data.activo is bool
+        && request.resource.data.precio is number;
 
-      // El ADMIN modifica nombre, descripcion y activo de SUS servicios.
+      // El ADMIN modifica nombre, descripcion, precio y activo de SUS servicios.
       // No puede mover el servicio a otro negocio ni cambiar su id.
+      // `precio` solo se exige numérico si el update lo toca (los documentos
+      // creados antes de la Fase 2 pueden no tener todavía el campo).
       allow update: if esAdmin()
         && resource.data.negocioId == usuarioActual().negocioId
         && request.resource.data.negocioId == resource.data.negocioId
@@ -776,9 +776,11 @@ service cloud.firestore {
         && request.resource.data.nombre is string
         && request.resource.data.descripcion is string
         && request.resource.data.activo is bool
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["precio"])
+            || request.resource.data.precio is number)
         && request.resource.data.diff(resource.data)
             .affectedKeys()
-            .hasOnly(["nombre", "descripcion", "activo"]);
+            .hasOnly(["nombre", "descripcion", "precio", "activo"]);
 
       allow delete: if esAdmin()
         && resource.data.negocioId == usuarioActual().negocioId;

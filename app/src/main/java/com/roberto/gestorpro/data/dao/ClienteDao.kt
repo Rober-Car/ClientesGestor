@@ -120,21 +120,28 @@ interface ClienteDao {
     /**
      * obtenerIdsMorosos
      * -----------------
-     * ✔ TIPO: método (fun) de Room con anotación @Query → Flow<List<Int>>
-     * Es la operación que consulta los IDs de clientes que son morosos.
-     * Un cliente es moroso si:
-     *   - Está ACTIVO y tiene algún movimiento con fechaFin < ahora, o
-     *   - Está de BAJA y tiene algún movimiento con estado PENDIENTE (impago).
-     * Devuelve la lista de IDs de forma reactiva con Flow para que se actualice
-     * automáticamente cuando cambien los movimientos o los estados de los clientes.
+     * IDs de clientes con el indicador `moroso = true` persistido (única
+     * fuente: la lógica MovimientoMorosidad recalcula y guarda el flag).
      */
-    @Query("""
-        SELECT DISTINCT m.idCliente FROM movimiento m
-        INNER JOIN cliente c ON m.idCliente = c.idCliente
-        WHERE (c.estado = 'ACTIVO' AND m.fechaFin < :ahora)
-        OR (c.estado = 'BAJA' AND m.estado = 'PENDIENTE')
-    """)
-    fun obtenerIdsMorosos(ahora: Long): Flow<List<Int>>
+    @Query("SELECT idCliente FROM cliente WHERE moroso = 1")
+    fun obtenerIdsMorosos(): Flow<List<Int>>
+
+    /**
+     * actualizarMorosidadDao
+     * ----------------------
+     * Persiste el resultado del recálculo de morosidad (flag + fecha de
+     * entrada) sin tocar el resto de la ficha del cliente.
+     */
+    @Query(
+        "UPDATE cliente SET moroso = :moroso, " +
+            "fechaEntradaMorosidad = :fechaEntradaMorosidad " +
+            "WHERE idCliente = :idCliente"
+    )
+    suspend fun actualizarMorosidadDao(
+        idCliente: Int,
+        moroso: Boolean,
+        fechaEntradaMorosidad: Long?
+    )
 
     @Query("DELETE FROM cliente")
     suspend fun borrarTodosLosClientes()

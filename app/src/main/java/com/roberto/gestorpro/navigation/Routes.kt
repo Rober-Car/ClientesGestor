@@ -243,6 +243,15 @@ object Routes {
     const val SELECCIONAR_CLIENTES = "seleccionar_clientes"
 
     /**
+     * seleccionarClientes
+     * -------------------
+     * Ruta con parámetro de modo: "individual" o "grupo". La pantalla de
+     * selección es la misma; solo cambia el máximo de selección.
+     */
+    fun seleccionarClientes(modo: String): String =
+        "$SELECCIONAR_CLIENTES?modo=$modo"
+
+    /**
      * SOLICITUDES
      * -----------
      * Ruta de la pantalla de gestión de solicitudes de baja del ADMIN.

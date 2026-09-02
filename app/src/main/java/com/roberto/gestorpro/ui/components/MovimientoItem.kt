@@ -49,6 +49,16 @@ fun MovimientoItem(
     movimiento: MovimientoEntity,
 
     /**
+     * nombreServicios
+     * ---------------
+     * ✔ TIPO: parámetro (param) → String
+     * Es el nombre legible de los servicios del movimiento (resuelto fuera del
+     * componente contra el catálogo de ServicioEntity). Como el componente está
+     * sin consumidores, se muestra vacío por defecto.
+     */
+    nombreServicios: String = "",
+
+    /**
      * onClick
      * -------
      * ✔ TIPO: parámetro (param) → () -> Unit (lambda)
@@ -179,12 +189,12 @@ fun MovimientoItem(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = movimiento.servicio,
+                        text = nombreServicios,
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.weight(1f)
                     )
                     Text(
-                        text = "${movimiento.precio} €",
+                        text = "${movimiento.precioFinal} €",
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }

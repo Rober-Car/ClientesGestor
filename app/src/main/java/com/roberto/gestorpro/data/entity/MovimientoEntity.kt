@@ -3,112 +3,79 @@ package com.roberto.gestorpro.data.entity
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.roberto.gestorpro.model.EstadoMovimiento
-
-/**
- * MovimientoEntity.kt
- * -------------------
- * ✔ TIPO: archivo de código fuente Kotlin (entidad Room)
- * Es el archivo que define la entidad de la tabla de movimientos (servicios) en la base de datos.
- * Sirve para que Room pueda almacenar y recuperar los servicios contratados por cada cliente.
- */
-
-/**
- * @Entity(tableName = "movimiento")
- * ---------------------------------
- * ✔ TIPO: anotación (androidx.room.Entity)
- * Es la anotación que marca esta data class como una tabla de la base de datos Room.
- * Sirve para que Room genere automáticamente la tabla "movimiento" con sus columnas.
- */
+import com.roberto.gestorpro.model.MetodoPago
 
 /**
  * MovimientoEntity
  * ----------------
- * ✔ TIPO: data class (entidad Room)
- * Es la entidad que representa un servicio o movimiento asociado a un cliente.
- * Sirve para almacenar los datos de cada servicio contratado: fechas, precio, estado y observaciones.
+ * Entidad Room de la tabla "movimiento". Es el núcleo económico del negocio:
+ * cada movimiento representa el cargo/cobro de un PERIODO para un cliente.
+ *
+ * A partir de la fase de ECONOMÍA (v14) un movimiento puede contener VARIOS
+ * servicios: se guardan los IDs de ServicioEntity en `servicios`. El importe
+ * que se cobra es ÚNICAMENTE `precioFinal` (lo que el ADMIN decidió cobrar,
+ * ya sea la suma de los precios de los servicios o un importe manual).
+ *
+ * No se guardan nombres de servicios como estructura principal (los nombres
+ * se resuelven contra la tabla "servicio"), ni existe "precioBase".
  */
 @Entity(tableName = "movimiento")
 data class MovimientoEntity(
 
     /**
-     * idMovimiento
-     * ------------
-     * ✔ TIPO: propiedad (val) → Int (clave primaria autogenerada)
-     * Es el identificador único del movimiento en la base de datos.
-     * Sirve para identificar cada servicio de forma unívoca, generándose automáticamente al insertar.
+     * idMovimiento: identificador único del movimiento (PK autogenerada).
      */
     @PrimaryKey(autoGenerate = true)
     val idMovimiento: Int = 0,
 
     /**
-     * idCliente
-     * ---------
-     * ✔ TIPO: propiedad (val) → Int
-     * Es el identificador del cliente al que pertenece este movimiento.
-     * Sirve para relacionar cada servicio con el cliente que lo contrató.
+     * idCliente: cliente al que pertenece el movimiento.
      */
     val idCliente: Int,
 
     /**
-     * servicio
-     * --------
-     * ✔ TIPO: propiedad (val) → String
-     * Es el nombre o descripción del servicio prestado al cliente.
-     * Sirve para identificar qué tipo de servicio se realizó (ej. instalación, mantenimiento, etc.).
+     * servicios: IDs de ServicioEntity incluidos en este movimiento.
+     * Lista de enteros guardada como texto separado por comas (IntListConverter).
+     * Un movimiento antiguo sin correspondencia segura con el catálogo
+     * conserva esta lista vacía (no se inventan relaciones).
      */
-    val servicio: String,
+    val servicios: List<Int> = emptyList(),
 
     /**
-     * fechaInicio
-     * -----------
-     * ✔ TIPO: propiedad (val) → Long
-     * Es la fecha de inicio del servicio en formato de milisegundos (timestamp).
-     * Sirve para registrar cuándo comenzó el servicio prestado al cliente.
+     * fechaInicio: inicio del periodo facturado (milisegundos).
      */
     val fechaInicio: Long,
 
     /**
-     * fechaFin
-     * --------
-     * ✔ TIPO: propiedad (val) → Long
-     * Es la fecha de fin del servicio en formato de milisegundos (timestamp).
-     * Sirve para registrar cuándo finalizó el servicio prestado al cliente.
+     * fechaFin: fin del periodo facturado (milisegundos).
      */
     val fechaFin: Long,
 
     /**
-     * precio
-     * ------
-     * ✔ TIPO: propiedad (val) → Double
-     * Es el precio acordado para el servicio prestado.
-     * Sirve para registrar el coste del servicio que el cliente deberá abonar.
+     * precioFinal: importe final cobrado por el movimiento.
+     * Es el ÚNICO importe persistido; los movimientos históricos conservan
+     * el valor que tenían cuando se crearon y nunca se recalculan.
      */
-    val precio: Double,
+    val precioFinal: Double = 0.0,
 
     /**
-     * estado
-     * ------
-     * ✔ TIPO: propiedad (val) → EstadoMovimiento
-     * Es el estado actual del movimiento (PENDIENTE o PAGADO).
-     * Sirve para saber si el servicio ya ha sido abonado o sigue pendiente de cobro.
+     * estado: PENDIENTE o PAGADO.
      */
     val estado: EstadoMovimiento,
 
     /**
-     * fechaPago
-     * ---------
-     * ✔ TIPO: propiedad (val) → Long? (nullable, por defecto null)
-     * Es la fecha en que se realizó el pago del servicio en formato de milisegundos.
-     * Sirve para registrar cuándo abonó el cliente; es null si el pago aún no se ha realizado.
+     * fechaPago: fecha (milisegundos) en que se cobró; null si sigue pendiente.
      */
     val fechaPago: Long? = null,
 
     /**
-     * observaciones
-     * -------------
-     * ✔ TIPO: propiedad (val) → String? (nullable, por defecto null)
-     * Son las notas o comentarios adicionales sobre el servicio.
-     * Sirve para anotar detalles extra del movimiento que no encajan en los demás campos.
+     * metodoPago: método de pago opcional (EFECTIVO/BIZUM/TRANSFERENCIA).
+     * Los movimientos históricos no tienen método asignado (null).
+     */
+    val metodoPago: MetodoPago? = null,
+
+    /**
+     * observaciones: notas opcionales del movimiento.
      */
     val observaciones: String? = null
 

@@ -36,6 +36,7 @@ import com.roberto.gestorpro.ui.home.HomeScreen
 import com.roberto.gestorpro.ui.notificaciones.ConfigNotificacionesScreen
 import com.roberto.gestorpro.ui.notificaciones.CrearNotificacionScreen
 import com.roberto.gestorpro.ui.notificaciones.GestionNotificacionesScreen
+import com.roberto.gestorpro.ui.notificaciones.ModoSeleccion
 import com.roberto.gestorpro.ui.notificaciones.SeleccionarClientesScreen
 import com.roberto.gestorpro.ui.servicios.DetalleServicioScreen
 import com.roberto.gestorpro.ui.servicios.EditarServicioScreen
@@ -316,10 +317,16 @@ fun AppNavigation() {
             )
         }
 
-        composable(Routes.SELECCIONAR_CLIENTES) {
+        composable(Routes.SELECCIONAR_CLIENTES + "?modo={modo}") { backStackEntry ->
+            val modo = backStackEntry.arguments?.getString("modo") ?: "grupo"
             SeleccionarClientesScreen(
                 navController = navController,
-                viewModel = notificacionesViewModel
+                viewModel = notificacionesViewModel,
+                modoSeleccion = if (modo == "individual") {
+                    ModoSeleccion.UNO
+                } else {
+                    ModoSeleccion.MUCHOS
+                }
             )
         }
 

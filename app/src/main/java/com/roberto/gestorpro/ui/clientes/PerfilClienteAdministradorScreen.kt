@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Person
@@ -78,6 +77,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.activity.result.PickVisualMediaRequest
@@ -97,6 +97,9 @@ import com.roberto.gestorpro.ui.utils.uriDeFotoTemporal
 import com.roberto.gestorpro.ui.components.BotonSelectorFoto
 import com.roberto.gestorpro.ui.viewmodel.ClienteViewModel
 import com.roberto.gestorpro.ui.viewmodel.MovimientoViewModel
+import com.roberto.gestorpro.util.MovimientoPrecio
+import com.roberto.gestorpro.util.MovimientoPago
+import com.roberto.gestorpro.util.MovimientoMorosidad
 import java.io.File
 import java.time.Instant
 import java.time.LocalDate
@@ -107,10 +110,14 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.text.input.KeyboardType
 import com.roberto.gestorpro.data.entity.MovimientoEntity
 import com.roberto.gestorpro.model.EstadoMovimiento
+import com.roberto.gestorpro.model.MetodoPago
 
 
 /**
@@ -251,16 +258,15 @@ fun PerfilClienteScreen(
      * esMoroso
      * --------
      * ✔ TIPO: variable inmutable (val) → Boolean
-     * Indica si el cliente es moroso calculándolo desde sus movimientos.
-     * Un cliente ACTIVO es moroso si tiene algún movimiento con fechaFin < ahora.
-     * Un cliente de BAJA es moroso si tiene algún movimiento con estado PENDIENTE.
-     * Sirve para mostrar el borde rojo en la foto del perfil.
+     * Indica si el cliente es moroso según la ÚNICA lógica MovimientoMorosidad
+     * (flag independiente del estado administrativo). Sirve para mostrar el
+     * borde rojo en la foto del perfil.
      */
-    val esMoroso = when (cliente?.estado) {
-        EstadoCliente.ACTIVO -> movimientos.any { it.fechaFin < System.currentTimeMillis() }
-        EstadoCliente.BAJA -> movimientos.any { it.estado == EstadoMovimiento.PENDIENTE }
-        else -> false
-    }
+    val esMoroso = cliente?.estado?.let { estadoCliente ->
+        MovimientoMorosidad
+            .resultadoDe(estadoCliente, movimientos, System.currentTimeMillis())
+            .moroso
+    } == true
 
     val context = LocalContext.current
 
@@ -347,15 +353,16 @@ fun PerfilClienteScreen(
         mutableStateOf(false)
     }
 
-    var servicioMovimiento by rememberSaveable { mutableStateOf("") }
-    var idServicioMovimiento by rememberSaveable { mutableStateOf<Int?>(null) }
+    var idsServiciosMovimiento by rememberSaveable { mutableStateOf<List<Int>>(emptyList()) }
     var precioMovimiento by rememberSaveable { mutableStateOf("") }
+    var precioMovimientoManual by rememberSaveable { mutableStateOf(false) }
     var observacionesMovimiento by rememberSaveable { mutableStateOf("") }
     var fechaInicioMovimiento by rememberSaveable { mutableStateOf<Long?>(null) }
     var fechaFinMovimiento by rememberSaveable { mutableStateOf<Long?>(null) }
 
     var mostrarDatePickerInicio by rememberSaveable { mutableStateOf(false) }
     var mostrarDatePickerFin by rememberSaveable { mutableStateOf(false) }
+    var mostrarDatePickerPago by rememberSaveable { mutableStateOf(false) }
 
     val fechaInicioFormateada =
         fechaInicioMovimiento?.let { formatearFecha(it) } ?: ""
@@ -367,6 +374,13 @@ fun PerfilClienteScreen(
         mutableStateOf(false)
     }
 
+    // Fecha de pago elegida en el formulario (null hasta que se marque PAGADO).
+    var fechaPagoMovimiento by rememberSaveable { mutableStateOf<Long?>(null) }
+    // Método de pago elegido: nombre o null (= "Sin especificar").
+    var metodoPagoMovimientoNombre by rememberSaveable { mutableStateOf<String?>(null) }
+
+    val fechaPagoFormateada =
+        fechaPagoMovimiento?.let { formatearFecha(it) } ?: ""
 
     var errorServicioMovimiento by rememberSaveable { mutableStateOf(false) }
     var errorPrecioMovimiento by rememberSaveable { mutableStateOf(false) }
@@ -425,22 +439,34 @@ fun PerfilClienteScreen(
     var movimientoSeleccionado by rememberSaveable { mutableStateOf<MovimientoEntity?>(null) }
 
     /**
-     * servicioEditado
-     * ---------------
-     * ✔ TIPO: variable con estado (var) → String
-     * Es el campo "Servicio" editable dentro del diálogo de detalle.
-     * Sirve para que el administrador pueda modificar el nombre del servicio.
+     * idsServiciosEditados
+     * --------------------
+     * IDs de los servicios ACTIVOS marcados en el diálogo de detalle (editables).
      */
-    var servicioEditado by rememberSaveable { mutableStateOf("") }
+    var idsServiciosEditados by rememberSaveable { mutableStateOf<List<Int>>(emptyList()) }
+
+    /**
+     * idsServiciosEditadosFijos
+     * -------------------------
+     * IDs del movimiento histórico que ya NO son servicios activos (de baja o
+     * eliminados). Se conservan: se muestran marcados y no se pueden quitar.
+     */
+    var idsServiciosEditadosFijos by rememberSaveable { mutableStateOf<List<Int>>(emptyList()) }
 
     /**
      * precioEditado
      * -------------
-     * ✔ TIPO: variable con estado (var) → String
-     * Es el campo "Precio" editable dentro del diálogo de detalle.
-     * Sirve para que el administrador pueda modificar el precio del servicio.
+     * Campo "Precio final" editable dentro del diálogo de detalle.
      */
     var precioEditado by rememberSaveable { mutableStateOf("") }
+
+    /**
+     * precioEditadoManual
+     * -------------------
+     * true si el ADMIN ha tecleado el precio en la edición (no se sobrescribe
+     * de forma automática con la suma de servicios).
+     */
+    var precioEditadoManual by rememberSaveable { mutableStateOf(false) }
 
     /**
      * fechaInicioEditada
@@ -469,6 +495,12 @@ fun PerfilClienteScreen(
      */
     var pagadoEditado by rememberSaveable { mutableStateOf(false) }
 
+    // Fecha de pago existente/elegida al editar (null si PENDIENTE).
+    var fechaPagoEditada by rememberSaveable { mutableStateOf<Long?>(null) }
+    // Método de pago existente/elegido al editar (nombre o null).
+    var metodoPagoEditadoNombre by rememberSaveable { mutableStateOf<String?>(null) }
+    var mostrarDatePickerPagoDetalle by rememberSaveable { mutableStateOf(false) }
+
     /**
      * observacionesEditadas
      * ---------------------
@@ -495,15 +527,6 @@ fun PerfilClienteScreen(
      * Sirve para abrir y cerrar el DatePickerDialog de fin dentro del detalle.
      */
     var mostrarDatePickerFinDetalle by rememberSaveable { mutableStateOf(false) }
-
-    /**
-     * errorServicioEditado
-     * --------------------
-     * ✔ TIPO: variable con estado (var) → Boolean
-     * Es el indicador de error del campo Servicio en el diálogo de detalle.
-     * Sirve para resaltar el campo si está vacío al pulsar Guardar cambios.
-     */
-    var errorServicioEditado by rememberSaveable { mutableStateOf(false) }
 
     /**
      * errorPrecioEditado
@@ -544,6 +567,70 @@ fun PerfilClienteScreen(
     var mostrarConfirmarArchivar by rememberSaveable { mutableStateOf(false) }
 
     /**
+     * alternarServicioNuevo
+     * ---------------------
+     * Marca/desmarca un servicio activo en el formulario de nuevo movimiento.
+     * Si el ADMIN aún NO ha tecleado un precio manual, actualiza la propuesta
+     * de "Precio final" con la suma de los precios actuales de la selección;
+     * si el precio es manual, NO lo sobrescribe (el ADMIN puede usar luego el
+     * botón "Usar precio calculado" para recalcular explícitamente).
+     */
+    fun alternarServicioNuevo(idServicio: Int) {
+        idsServiciosMovimiento = if (idServicio in idsServiciosMovimiento) {
+            idsServiciosMovimiento - idServicio
+        } else {
+            (idsServiciosMovimiento + idServicio).distinct()
+        }
+        errorServicioMovimiento = false
+        if (!precioMovimientoManual) {
+            val suma = serviciosActivos
+                .filter { it.idServicio in idsServiciosMovimiento }
+                .sumOf { it.precio }
+            precioMovimiento = MovimientoPrecio.precioCampo(suma)
+        }
+    }
+
+    /**
+     * abrirFormularioNuevoMovimiento
+     * ------------------------------
+     * Abre el diálogo de nuevo movimiento con el formulario en blanco.
+     */
+    fun abrirFormularioNuevoMovimiento() {
+        idsServiciosMovimiento = emptyList()
+        precioMovimiento = ""
+        precioMovimientoManual = false
+        observacionesMovimiento = ""
+        fechaInicioMovimiento = null
+        fechaFinMovimiento = null
+        movimientoPagado = false
+        fechaPagoMovimiento = null
+        metodoPagoMovimientoNombre = null
+        errorServicioMovimiento = false
+        errorPrecioMovimiento = false
+        errorFechaInicioMovimiento = false
+        errorFechaFinMovimiento = false
+        mostrarDatePickerInicio = false
+        mostrarDatePickerFin = false
+        mostrarDatePickerPago = false
+        mostrarFormularioMovimiento = true
+    }
+
+    /**
+     * alternarServicioEditado
+     * -----------------------
+     * Marca/desmarca un servicio ACTIVO en el diálogo de edición. El precio
+     * nunca se recalcula automáticamente en edición (se conserva el valor
+     * histórico/manual); el ADMIN lo ajusta a mano si lo necesita.
+     */
+    fun alternarServicioEditado(idServicio: Int) {
+        idsServiciosEditados = if (idServicio in idsServiciosEditados) {
+            idsServiciosEditados - idServicio
+        } else {
+            (idsServiciosEditados + idServicio).distinct()
+        }
+    }
+
+    /**
      * mostrarDialogoServicios
      * -----------------------
      * Controla si se muestra el diálogo de edición de los servicios
@@ -560,13 +647,20 @@ fun PerfilClienteScreen(
      */
     LaunchedEffect(movimientoSeleccionado) {
         movimientoSeleccionado?.let { mov ->
-            servicioEditado = mov.servicio
-            precioEditado = mov.precio.toString()
+            val activosIds = serviciosActivos.map { it.idServicio }.toSet()
+            idsServiciosEditados = mov.servicios.filter { it in activosIds }
+            idsServiciosEditadosFijos =
+                MovimientoPrecio.idsFijosHistoricos(mov.servicios, activosIds)
+            precioEditado = MovimientoPrecio.precioCampo(mov.precioFinal)
+            // En edición el importe se trata como manual: los cambios de
+            // selección NO sobrescriben el precio histórico por accidente.
+            precioEditadoManual = true
             fechaInicioEditada = mov.fechaInicio
             fechaFinEditada = mov.fechaFin
             pagadoEditado = mov.estado == EstadoMovimiento.PAGADO
+            fechaPagoEditada = mov.fechaPago
+            metodoPagoEditadoNombre = mov.metodoPago?.name
             observacionesEditadas = mov.observaciones ?: ""
-            errorServicioEditado = false
             errorPrecioEditado = false
             errorFechaInicioEditada = false
             errorFechaFinEditada = false
@@ -1043,29 +1137,6 @@ fun PerfilClienteScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Key,
-                        contentDescription = "Icono de llave",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Tiene llave",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                    Text(
-                        text = if (cliente?.tieneLlave == true) "Sí" else "No",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
                 /**
                  * Servicios contratados del cliente
                  * ----------------------------------
@@ -1174,7 +1245,7 @@ fun PerfilClienteScreen(
                  */
                 Button(
                     onClick = {
-                        mostrarFormularioMovimiento = true
+                        abrirFormularioNuevoMovimiento()
                     },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
@@ -1249,6 +1320,10 @@ fun PerfilClienteScreen(
                     movimientos.forEach { movimiento ->
                         ItemMovimientoPerfil(
                             movimiento = movimiento,
+                            nombreServicios = movimiento.servicios
+                                .mapNotNull { serviciosMap[it] }
+                                .joinToString(" + ")
+                                .ifBlank { "Sin servicio asociado" },
                             onClick = {
                                 movimientoSeleccionado = movimiento
                             }
@@ -1276,6 +1351,10 @@ fun PerfilClienteScreen(
                      */
                     val ahoraRenovacion = System.currentTimeMillis()
                     val duracionRenovacion = aRenovar.fechaFin - aRenovar.fechaInicio
+                    val nombreServiciosRenovar = aRenovar.servicios
+                        .mapNotNull { serviciosMap[it] }
+                        .joinToString(" + ")
+                        .ifBlank { "Sin servicio asociado" }
 
                     Dialog(
                         onDismissRequest = {
@@ -1305,7 +1384,7 @@ fun PerfilClienteScreen(
                                 )
 
                                 Text(
-                                    text = "${aRenovar.servicio} · ${"%.2f".format(aRenovar.precio)} €",
+                                    text = "$nombreServiciosRenovar · ${"%.2f".format(aRenovar.precioFinal)} €",
                                     style = MaterialTheme.typography.bodyLarge,
                                     modifier = Modifier.fillMaxWidth(),
                                     textAlign = TextAlign.Center
@@ -1459,74 +1538,76 @@ fun PerfilClienteScreen(
                                     textAlign = TextAlign.Center
                                 )
 
-                                OutlinedTextField(
-                                    value = servicioMovimiento,
-                                    onValueChange = {
-                                        servicioMovimiento = it
-                                        errorServicioMovimiento = false
-                                    },
-                                    label = {
-                                        Text("Servicio")
-                                    },
-                                    isError = errorServicioMovimiento,
-                                    supportingText = {
-                                        if (errorServicioMovimiento) {
-                                            Text("El servicio es obligatorio")
-                                        }
-                                    },
+                                Text(
+                                    text = "Servicios del movimiento",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.fillMaxWidth()
                                 )
-
-                                if (serviciosActivos.isNotEmpty()) {
+                                if (serviciosActivos.isEmpty()) {
                                     Text(
-                                        text = "Servicios",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.fillMaxWidth()
+                                        text = "No hay servicios activos para añadir",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = Color.Gray
                                     )
+                                } else {
                                     serviciosActivos.forEach { servicio ->
+                                        val marcado = servicio.idServicio in idsServiciosMovimiento
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .clip(RoundedCornerShape(12.dp))
                                                 .clickable {
-                                                    servicioMovimiento = servicio.nombre
-                                                    idServicioMovimiento = servicio.idServicio
-                                                    errorServicioMovimiento = false
+                                                    alternarServicioNuevo(servicio.idServicio)
                                                 }
-                                                .padding(vertical = 6.dp, horizontal = 4.dp),
+                                                .padding(vertical = 4.dp, horizontal = 4.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            RadioButton(
-                                                selected = idServicioMovimiento == servicio.idServicio,
-                                                onClick = {
-                                                    servicioMovimiento = servicio.nombre
-                                                    idServicioMovimiento = servicio.idServicio
-                                                    errorServicioMovimiento = false
+                                            Checkbox(
+                                                checked = marcado,
+                                                onCheckedChange = {
+                                                    alternarServicioNuevo(servicio.idServicio)
                                                 }
                                             )
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Text(
                                                 text = servicio.nombre,
-                                                style = MaterialTheme.typography.bodyLarge
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                modifier = Modifier.weight(1f),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = MovimientoPrecio.importeLegible(servicio.precio),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
                                     }
+                                }
+                                if (errorServicioMovimiento) {
+                                    Text(
+                                        text = "Selecciona al menos un servicio",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
                                 }
 
                                 OutlinedTextField(
                                     value = precioMovimiento,
                                     onValueChange = {
                                         precioMovimiento = it
+                                        precioMovimientoManual = true
                                         errorPrecioMovimiento = false
                                     },
                                     label = {
-                                        Text("Precio")
+                                        Text("Precio final (€)")
                                     },
+                                    placeholder = { Text("Ej: 50") },
                                     isError = errorPrecioMovimiento,
                                     supportingText = {
                                         if (errorPrecioMovimiento) {
-                                            Text("Introduce un precio válido")
+                                            Text("Introduce un precio válido (0 o mayor)")
                                         }
                                     },
                                     keyboardOptions = KeyboardOptions(
@@ -1534,6 +1615,24 @@ fun PerfilClienteScreen(
                                     ),
                                     modifier = Modifier.fillMaxWidth()
                                 )
+                                if (precioMovimientoManual) {
+                                    TextButton(
+                                        onClick = {
+                                            precioMovimiento = MovimientoPrecio.precioCampo(
+                                                MovimientoPrecio.precioSugerido(
+                                                    serviciosActivos.filter {
+                                                        it.idServicio in idsServiciosMovimiento
+                                                    }
+                                                )
+                                            )
+                                            precioMovimientoManual = false
+                                            errorPrecioMovimiento = false
+                                        },
+                                        modifier = Modifier.align(Alignment.End)
+                                    ) {
+                                        Text("Usar precio calculado")
+                                    }
+                                }
 
                                 OutlinedTextField(
                                     value = fechaInicioFormateada,
@@ -1615,9 +1714,47 @@ fun PerfilClienteScreen(
 
                                     Switch(
                                         checked = movimientoPagado,
-                                        onCheckedChange = {
-                                            movimientoPagado = it
+                                        onCheckedChange = { activar ->
+                                            movimientoPagado = activar
+                                            if (activar && fechaPagoMovimiento == null) {
+                                                fechaPagoMovimiento = System.currentTimeMillis()
+                                            }
                                         }
+                                    )
+                                }
+
+                                if (movimientoPagado) {
+                                    OutlinedTextField(
+                                        value = fechaPagoFormateada,
+                                        onValueChange = { },
+                                        readOnly = true,
+                                        enabled = false,
+                                        label = { Text("Fecha de pago") },
+                                        placeholder = { Text("dd/MM/aaaa") },
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                            disabledContainerColor = Color.Transparent,
+                                            disabledBorderColor = MaterialTheme.colorScheme.outline,
+                                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                        ),
+                                        trailingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.DateRange,
+                                                contentDescription = "Seleccionar fecha de pago"
+                                            )
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                mostrarDatePickerPago = true
+                                            }
+                                    )
+
+                                    SelectorMetodoPago(
+                                        nombre = metodoPagoMovimientoNombre,
+                                        onCambio = { metodoPagoMovimientoNombre = it }
                                     )
                                 }
 
@@ -1636,7 +1773,7 @@ fun PerfilClienteScreen(
                                 Button(
                                     onClick = {
 
-                                        errorServicioMovimiento = servicioMovimiento.isBlank()
+                                        errorServicioMovimiento = idsServiciosMovimiento.isEmpty()
 
                                         val precioValido = precioMovimiento
                                             .replace(",", ".")
@@ -1668,47 +1805,45 @@ fun PerfilClienteScreen(
                                             fechasValidas
                                         ) {
 
+                                            val pagoNuevo = MovimientoPago.resolver(
+                                                nuevoPagado = movimientoPagado,
+                                                eraPagado = false,
+                                                fechaPagoElegida = fechaPagoMovimiento,
+                                                metodoPago = MovimientoPago.metodoPagoDe(
+                                                    metodoPagoMovimientoNombre
+                                                ),
+                                                ahora = System.currentTimeMillis()
+                                            )
+
                                             val movimiento = MovimientoEntity(
                                                 idCliente = idCliente,
-                                                servicio = servicioMovimiento,
+                                                servicios = idsServiciosMovimiento.distinct(),
                                                 fechaInicio = fechaInicioMovimiento!!,
                                                 fechaFin = fechaFinMovimiento!!,
-                                                precio = precioValido!!,
-                                                estado = if (movimientoPagado) {
-                                                    EstadoMovimiento.PAGADO
-                                                } else {
-                                                    EstadoMovimiento.PENDIENTE
-                                                },
+                                                precioFinal = precioValido!!,
+                                                estado = pagoNuevo.estado,
+                                                fechaPago = pagoNuevo.fechaPago,
+                                                metodoPago = pagoNuevo.metodoPago,
                                                 observaciones = observacionesMovimiento.ifBlank {
                                                     null
                                                 }
                                             )
 
+                                            // NOTA (Fase 3): crear un movimiento NO modifica
+                                            // los serviciosContratados del cliente (son
+                                            // conceptos independientes).
                                             movimientoViewModel.insertarMovimiento(movimiento)
-
-                                            // Si el movimiento representa la contratación de un
-                                            // servicio del catálogo, se activa como contratado
-                                            // para que el CLIENTE pueda ver/reservar sus sesiones.
-                                            val idServicioNuevo = idServicioMovimiento
-                                            if (idServicioNuevo != null) {
-                                                val actuales = cliente?.serviciosContratados.orEmpty()
-                                                if (idServicioNuevo !in actuales) {
-                                                    viewModel.guardarServiciosContratados(
-                                                        idCliente,
-                                                        (actuales + idServicioNuevo).distinct()
-                                                    )
-                                                    viewModel.obtenerClientePorId(idCliente)
-                                                }
-                                            }
 
                                             mostrarFormularioMovimiento = false
 
-                                            servicioMovimiento = ""
-                                            idServicioMovimiento = null
+                                            idsServiciosMovimiento = emptyList()
                                             precioMovimiento = ""
+                                            precioMovimientoManual = false
                                             fechaInicioMovimiento = null
                                             fechaFinMovimiento = null
                                             movimientoPagado = false
+                                            fechaPagoMovimiento = null
+                                            metodoPagoMovimientoNombre = null
                                             observacionesMovimiento = ""
                                         }
                                     },
@@ -1828,6 +1963,57 @@ fun PerfilClienteScreen(
                     }
                 }
 
+                if (mostrarDatePickerPago) {
+
+                    val selectableDatesPago = remember {
+                        val hoy = LocalDate.now()
+                        val fechaMinimaUtc = hoy.minusYears(120).atStartOfDay(ZoneOffset.UTC)
+                            .toInstant().toEpochMilli()
+                        object : SelectableDates {
+                            override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+                                utcTimeMillis >= fechaMinimaUtc
+
+                            override fun isSelectableYear(year: Int): Boolean =
+                                year >= hoy.minusYears(120).year
+                        }
+                    }
+
+                    val datePickerStatePago = rememberDatePickerState(
+                        selectableDates = selectableDatesPago
+                    )
+
+                    DatePickerDialog(
+                        onDismissRequest = {
+                            mostrarDatePickerPago = false
+                        },
+                        confirmButton = {
+                            TextButton(
+                                enabled = datePickerStatePago.selectedDateMillis != null,
+                                onClick = {
+                                    fechaPagoMovimiento =
+                                        datePickerStatePago.selectedDateMillis
+                                    mostrarDatePickerPago = false
+                                }
+                            ) {
+                                Text("Aceptar")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(
+                                onClick = {
+                                    mostrarDatePickerPago = false
+                                }
+                            ) {
+                                Text("Cancelar")
+                            }
+                        }
+                    ) {
+                        DatePicker(
+                            state = datePickerStatePago
+                        )
+                    }
+                }
+
                 /* ============================================================
                  * ============ DIÁLOGO DETALLE DEL MOVIMIENTO ================
                  * ============================================================ */
@@ -1872,77 +2058,90 @@ fun PerfilClienteScreen(
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Text(
-                                        text = "Servicio",
+                                        text = "Servicios del movimiento",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
+                                    val nombresMovimientoDetalle = movimientoSeleccionado?.servicios
+                                        ?.mapNotNull { serviciosMap[it] }
+                                        ?.joinToString(" + ")
+                                        .orEmpty()
                                     Text(
-                                        text = movimientoSeleccionado?.servicio?.takeIf { it.isNotBlank() } ?: "Sin servicio",
+                                        text = if (nombresMovimientoDetalle.isBlank()) {
+                                            "Sin servicio asociado"
+                                        } else {
+                                            nombresMovimientoDetalle
+                                        },
                                         style = MaterialTheme.typography.bodyLarge
                                     )
                                 }
 
-                                OutlinedTextField(
-                                    value = servicioEditado,
-                                    onValueChange = {
-                                        servicioEditado = it
-                                        errorServicioEditado = false
-                                    },
-                                    label = { Text("Servicio") },
-                                    isError = errorServicioEditado,
-                                    supportingText = {
-                                        if (errorServicioEditado) {
-                                            Text("El servicio es obligatorio")
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-
-                                // Selector de servicios ACTIVOS del negocio (mismo patrón
-                                // que el formulario de nuevo movimiento). Al pulsar uno se
-                                // rellena el campo de texto. Si el servicio actual del
-                                // movimiento coincide con un servicio activo, queda
-                                // preseleccionado; si no, no se fuerza selección y el texto
-                                // se conserva (servicios ya no activos). El campo de texto
-                                // sigue siendo editable como respaldo.
-                                val idServicioSeleccionadoEditado = remember(
-                                    servicioEditado,
-                                    serviciosActivos
-                                ) {
-                                    serviciosActivos
-                                        .firstOrNull { it.nombre == servicioEditado }
-                                        ?.idServicio
-                                }
-                                if (serviciosActivos.isNotEmpty()) {
+                                if (serviciosActivos.isEmpty() && idsServiciosEditadosFijos.isEmpty()) {
                                     Text(
-                                        text = "Servicios",
+                                        text = "No hay servicios activos para añadir",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = Color.Gray
+                                    )
+                                }
+                                serviciosActivos.forEach { servicio ->
+                                    val marcado = servicio.idServicio in idsServiciosEditados
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable {
+                                                alternarServicioEditado(servicio.idServicio)
+                                            }
+                                            .padding(vertical = 4.dp, horizontal = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Checkbox(
+                                            checked = marcado,
+                                            onCheckedChange = {
+                                                alternarServicioEditado(servicio.idServicio)
+                                            }
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = servicio.nombre,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            modifier = Modifier.weight(1f),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = MovimientoPrecio.importeLegible(servicio.precio),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                                if (idsServiciosEditadosFijos.isNotEmpty()) {
+                                    Text(
+                                        text = "Servicios dados de baja (se conservan)",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.fillMaxWidth()
+                                        modifier = Modifier.padding(top = 8.dp)
                                     )
-                                    serviciosActivos.forEach { servicio ->
+                                    idsServiciosEditadosFijos.forEach { idServicio ->
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .clickable {
-                                                    servicioEditado = servicio.nombre
-                                                    errorServicioEditado = false
-                                                }
-                                                .padding(vertical = 6.dp, horizontal = 4.dp),
+                                                .padding(vertical = 4.dp, horizontal = 4.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            RadioButton(
-                                                selected = idServicioSeleccionadoEditado == servicio.idServicio,
-                                                onClick = {
-                                                    servicioEditado = servicio.nombre
-                                                    errorServicioEditado = false
-                                                }
+                                            Checkbox(
+                                                checked = true,
+                                                onCheckedChange = null
                                             )
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Text(
-                                                text = servicio.nombre,
-                                                style = MaterialTheme.typography.bodyLarge
+                                                text = serviciosMap[idServicio]
+                                                    ?: "Servicio $idServicio",
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                color = Color.Gray,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                         }
                                     }
@@ -1954,11 +2153,11 @@ fun PerfilClienteScreen(
                                         precioEditado = it
                                         errorPrecioEditado = false
                                     },
-                                    label = { Text("Precio") },
+                                    label = { Text("Precio final (€)") },
                                     isError = errorPrecioEditado,
                                     supportingText = {
                                         if (errorPrecioEditado) {
-                                            Text("Introduce un precio válido")
+                                            Text("Introduce un precio válido (0 o mayor)")
                                         }
                                     },
                                     keyboardOptions = KeyboardOptions(
@@ -2043,9 +2242,49 @@ fun PerfilClienteScreen(
                                     Spacer(modifier = Modifier.weight(1f))
                                     Switch(
                                         checked = pagadoEditado,
-                                        onCheckedChange = {
-                                            pagadoEditado = it
+                                        onCheckedChange = { activar ->
+                                            pagadoEditado = activar
+                                            // Al pasar a PAGADO se propone hoy como fecha de
+                                            // pago (el ADMIN puede modificarla después).
+                                            if (activar) {
+                                                fechaPagoEditada = System.currentTimeMillis()
+                                            }
                                         }
+                                    )
+                                }
+
+                                if (pagadoEditado) {
+                                    OutlinedTextField(
+                                        value = fechaPagoEditada?.let { formatearFecha(it) } ?: "",
+                                        onValueChange = { },
+                                        readOnly = true,
+                                        enabled = false,
+                                        label = { Text("Fecha de pago") },
+                                        placeholder = { Text("dd/MM/aaaa") },
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                            disabledContainerColor = Color.Transparent,
+                                            disabledBorderColor = MaterialTheme.colorScheme.outline,
+                                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                        ),
+                                        trailingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.DateRange,
+                                                contentDescription = "Seleccionar fecha de pago"
+                                            )
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                mostrarDatePickerPagoDetalle = true
+                                            }
+                                    )
+
+                                    SelectorMetodoPago(
+                                        nombre = metodoPagoEditadoNombre,
+                                        onCambio = { metodoPagoEditadoNombre = it }
                                     )
                                 }
 
@@ -2060,7 +2299,6 @@ fun PerfilClienteScreen(
 
                                 Button(
                                     onClick = {
-                                        errorServicioEditado = servicioEditado.isBlank()
 
                                         val precioValido = precioEditado
                                             .replace(",", ".")
@@ -2085,24 +2323,37 @@ fun PerfilClienteScreen(
                                         }
 
                                         if (
-                                            !errorServicioEditado &&
                                             !errorPrecioEditado &&
                                             !errorFechaInicioEditada &&
                                             !errorFechaFinEditada &&
                                             fechasValidas
                                         ) {
+                                            val pagoEditadoResuelto = MovimientoPago.resolver(
+                                                nuevoPagado = pagadoEditado,
+                                                eraPagado = movimientoSeleccionado!!.estado ==
+                                                    EstadoMovimiento.PAGADO,
+                                                fechaPagoElegida = fechaPagoEditada,
+                                                metodoPago = MovimientoPago.metodoPagoDe(
+                                                    metodoPagoEditadoNombre
+                                                ),
+                                                ahora = System.currentTimeMillis()
+                                            )
+
                                             val movimientoActualizado = MovimientoEntity(
                                                 idMovimiento = movimientoSeleccionado!!.idMovimiento,
                                                 idCliente = movimientoSeleccionado!!.idCliente,
-                                                servicio = servicioEditado,
+                                                // Servicios: activos marcados + fijos históricos
+                                                // (de baja/eliminados) que se conservan. Si el
+                                                // movimiento histórico no tenía servicios, se
+                                                // mantiene la lista vacía.
+                                                servicios = (idsServiciosEditados +
+                                                        idsServiciosEditadosFijos).distinct(),
                                                 fechaInicio = fechaInicioEditada!!,
                                                 fechaFin = fechaFinEditada!!,
-                                                precio = precioValido!!,
-                                                estado = if (pagadoEditado) {
-                                                    EstadoMovimiento.PAGADO
-                                                } else {
-                                                    EstadoMovimiento.PENDIENTE
-                                                },
+                                                precioFinal = precioValido!!,
+                                                estado = pagoEditadoResuelto.estado,
+                                                fechaPago = pagoEditadoResuelto.fechaPago,
+                                                metodoPago = pagoEditadoResuelto.metodoPago,
                                                 observaciones = observacionesEditadas.ifBlank {
                                                     null
                                                 }
@@ -2287,6 +2538,57 @@ fun PerfilClienteScreen(
                             )
                         }
                     }
+
+                    if (mostrarDatePickerPagoDetalle) {
+
+                        val selectableDatesPagoDetalle = remember {
+                            val hoy = LocalDate.now()
+                            val fechaMinimaUtc = hoy.minusYears(120).atStartOfDay(ZoneOffset.UTC)
+                                .toInstant().toEpochMilli()
+                            object : SelectableDates {
+                                override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+                                    utcTimeMillis >= fechaMinimaUtc
+
+                                override fun isSelectableYear(year: Int): Boolean =
+                                    year >= hoy.minusYears(120).year
+                            }
+                        }
+
+                        val datePickerStatePagoDetalle = rememberDatePickerState(
+                            selectableDates = selectableDatesPagoDetalle
+                        )
+
+                        DatePickerDialog(
+                            onDismissRequest = {
+                                mostrarDatePickerPagoDetalle = false
+                            },
+                            confirmButton = {
+                                TextButton(
+                                    enabled = datePickerStatePagoDetalle.selectedDateMillis != null,
+                                    onClick = {
+                                        fechaPagoEditada =
+                                            datePickerStatePagoDetalle.selectedDateMillis
+                                        mostrarDatePickerPagoDetalle = false
+                                    }
+                                ) {
+                                    Text("Aceptar")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(
+                                    onClick = {
+                                        mostrarDatePickerPagoDetalle = false
+                                    }
+                                ) {
+                                    Text("Cancelar")
+                                }
+                            }
+                        ) {
+                            DatePicker(
+                                state = datePickerStatePagoDetalle
+                            )
+                        }
+                    }
                 }
 
             }
@@ -2361,6 +2663,7 @@ fun PerfilClienteScreen(
 @Composable
 private fun ItemMovimientoPerfil(
     movimiento: MovimientoEntity,
+    nombreServicios: String,
     onClick: () -> Unit
 ) {
     val formatter = java.text.NumberFormat.getCurrencyInstance(java.util.Locale("es", "ES"))
@@ -2391,7 +2694,7 @@ private fun ItemMovimientoPerfil(
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = movimiento.servicio,
+                    text = nombreServicios,
                     style = MaterialTheme.typography.bodyLarge,
                     maxLines = 1
                 )
@@ -2402,7 +2705,7 @@ private fun ItemMovimientoPerfil(
                 )
             }
             Text(
-                text = "+${formatter.format(movimiento.precio)}",
+                text = "+${formatter.format(movimiento.precioFinal)}",
                 style = MaterialTheme.typography.bodyLarge,
                 color = Color(0xFF4CAF50)
             )
@@ -2422,4 +2725,63 @@ private fun formatearFecha(millis: Long): String {
         .atZone(ZoneId.systemDefault())
         .toLocalDate()
         .format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+}
+
+/**
+ * SelectorMetodoPago
+ * ------------------
+ * Selector sencillo de método de pago opcional (FASE 4). Muestra un botón con
+ * el valor actual y un menú desplegable con:
+ *   - Sin especificar (null)
+ *   - EFECTIVO / BIZUM / TRANSFERENCIA
+ * No obliga a seleccionar nada (el método es opcional).
+ */
+@Composable
+private fun SelectorMetodoPago(
+    nombre: String?,
+    onCambio: (String?) -> Unit
+) {
+    var desplegado by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "Método de pago",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Box(modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                onClick = { desplegado = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = MovimientoPago.metodoPagoLabel(
+                        MovimientoPago.metodoPagoDe(nombre)
+                    ),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            DropdownMenu(
+                expanded = desplegado,
+                onDismissRequest = { desplegado = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Sin especificar") },
+                    onClick = {
+                        onCambio(null)
+                        desplegado = false
+                    }
+                )
+                MetodoPago.entries.forEach { metodo ->
+                    DropdownMenuItem(
+                        text = { Text(metodo.name) },
+                        onClick = {
+                            onCambio(metodo.name)
+                            desplegado = false
+                        }
+                    )
+                }
+            }
+        }
+    }
 }

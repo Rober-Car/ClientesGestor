@@ -7,6 +7,7 @@ import com.roberto.gestorpro.data.firebase.BajaClienteRemotoRepository
 import com.roberto.gestorpro.data.firebase.NotificacionRemotoRepository
 import com.roberto.gestorpro.data.firebase.SolicitudRemotoRepository
 import com.roberto.gestorpro.data.repository.ClienteRepository
+import com.roberto.gestorpro.data.repository.MovimientoRepository
 import com.roberto.gestorpro.data.repository.ReservaRepository
 import com.roberto.gestorpro.model.EstadoCliente
 import com.roberto.gestorpro.model.EstadoSolicitud
@@ -34,6 +35,7 @@ import kotlinx.coroutines.launch
 class SolicitudesViewModel @Inject constructor(
     private val solicitudRemotoRepository: SolicitudRemotoRepository,
     private val clienteRepository: ClienteRepository,
+    private val movimientoRepository: MovimientoRepository,
     private val reservaRepository: ReservaRepository,
     private val bajaClienteRemotoRepository: BajaClienteRemotoRepository,
     private val notificacionRemotoRepository: NotificacionRemotoRepository
@@ -239,6 +241,8 @@ class SolicitudesViewModel @Inject constructor(
                         fechaBaja = fechaBaja
                     )
                 )
+                // Recalcula morosidad con la lógica única (BAJA solo por deuda).
+                movimientoRepository.recalcularMorosidadDeCliente(entidad.idCliente)
             }
         } catch (e: Exception) {
             Log.e(TAG, "No se pudo actualizar la ficha local del cliente ${solicitud.idCliente}", e)

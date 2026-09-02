@@ -58,11 +58,23 @@ data class ClienteEntity(
     val fechaAlta: Long? = null,
     val fechaBaja: Long? = null,
     val estado: EstadoCliente,
-    val tieneLlave: Boolean,
     val observaciones: String? = null,
     val negocioId: String? = null,
     val serviciosContratados: List<Int>,
-    val firebaseUid: String? = null
+    val firebaseUid: String? = null,
+
+    /**
+     * moroso: indicador INDEPENDIENTE del estado administrativo (ACTIVO/BAJA).
+     * false por defecto; la lógica pura de MovimientoMorosidad lo recalcula.
+     */
+    val moroso: Boolean = false,
+
+    /**
+     * fechaEntradaMorosidad: fechaFin del periodo que provocó la entrada en
+     * morosidad (null si el cliente no es moroso). NO se reinicia en cada
+     * recálculo mientras siga moroso.
+     */
+    val fechaEntradaMorosidad: Long? = null
 )
 
 
@@ -80,8 +92,9 @@ fun ClienteEntity.toCliente(): Cliente {
         foto = foto,
         fechaNacimiento = fechaNacimiento,
         estado = estado,
-        tieneLlave = tieneLlave,
         observaciones = observaciones,
-        serviciosContratados = serviciosContratados
+        serviciosContratados = serviciosContratados,
+        moroso = moroso,
+        fechaEntradaMorosidad = fechaEntradaMorosidad
     )
 }

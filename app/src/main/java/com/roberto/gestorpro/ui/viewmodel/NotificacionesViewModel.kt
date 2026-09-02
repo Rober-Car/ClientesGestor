@@ -122,6 +122,27 @@ class NotificacionesViewModel @Inject constructor(
     }
 
     /**
+     * seleccionIndividual
+     * -------------------
+     * Cliente elegido para una notificación INDIVIDUAL (máximo uno). Se guarda
+     * en el ViewModel compartido para que la elección sobreviva al paso por la
+     * pantalla de selección y se refleje en el formulario al volver con
+     * "Continuar".
+     */
+    private val _seleccionIndividual = MutableStateFlow<Int?>(null)
+    val seleccionIndividual = _seleccionIndividual.asStateFlow()
+
+    /**
+     * fijarSeleccionIndividual
+     * ------------------------
+     * Confirma el cliente elegido al pulsar "Continuar" en el selector
+     * individual. Solo se llama en la confirmación (volver atrás no lo altera).
+     */
+    fun fijarSeleccionIndividual(idCliente: Int?) {
+        _seleccionIndividual.value = idCliente
+    }
+
+    /**
      * cargarNotificaciones
      * --------------------
      * Carga la lista de notificaciones del negocio del ADMIN autenticado.

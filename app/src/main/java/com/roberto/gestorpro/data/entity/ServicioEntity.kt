@@ -18,5 +18,6 @@ data class ServicioEntity(
     val negocioId: String,
     val nombre: String,
     val descripcion: String,
-    val activo: Boolean = true
+    val activo: Boolean = true,
+    val precio: Double = 0.0
 )

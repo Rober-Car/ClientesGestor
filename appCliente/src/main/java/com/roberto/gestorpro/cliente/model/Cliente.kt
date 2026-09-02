@@ -22,7 +22,6 @@ data class Cliente(
     val fechaAlta: Long?,
     val fechaBaja: Long?,
     val estado: EstadoCliente,
-    val tieneLlave: Boolean,
     val serviciosContratados: List<Int>,
     val fechaInicioActual: Long?,
     val fechaFinActual: Long?

@@ -100,7 +100,7 @@ sealed class ItemEconomia {
     }
 
     fun importe(): Double = when (this) {
-        is Ingreso -> movimiento.precio
+        is Ingreso -> movimiento.precioFinal
         is Gasto -> -gasto.importe
     }
 }
@@ -121,6 +121,7 @@ fun EconomiaScreen(
     val movimientos by viewModel.movimientos.collectAsStateWithLifecycle()
     val gastos by viewModel.gastos.collectAsStateWithLifecycle()
     val clientesMap by viewModel.clientesMap.collectAsStateWithLifecycle()
+    val serviciosMap by viewModel.serviciosMap.collectAsStateWithLifecycle()
 
     var filtroSeleccionado by rememberSaveable(
         stateSaver = Saver<FiltroEconomia, String>(
@@ -134,7 +135,7 @@ fun EconomiaScreen(
     var textoBusqueda by rememberSaveable { mutableStateOf("") }
     var ordenarDescendente by rememberSaveable { mutableStateOf(true) }
 
-    val totalIngresos = movimientos.sumOf { it.precio }
+    val totalIngresos = movimientos.sumOf { it.precioFinal }
     val totalGastos = gastos.sumOf { it.importe }
     val balance = totalIngresos - totalGastos
 
@@ -147,7 +148,7 @@ fun EconomiaScreen(
         lista
     }
 
-    val itemsFiltrados = remember(items, filtroSeleccionado, textoBusqueda, ordenarDescendente, clientesMap) {
+    val itemsFiltrados = remember(items, filtroSeleccionado, textoBusqueda, ordenarDescendente, clientesMap, serviciosMap) {
         val filtrados = when (filtroSeleccionado) {
             FiltroEconomia.TODOS -> items
             FiltroEconomia.INGRESOS -> items.filterIsInstance<ItemEconomia.Ingreso>()
@@ -162,8 +163,13 @@ fun EconomiaScreen(
                 when (item) {
                     is ItemEconomia.Ingreso -> {
                         val nombreCliente = clientesMap[item.movimiento.idCliente].orEmpty().lowercase()
+                        val nombreServicios = item.movimiento.servicios
+                            .mapNotNull { serviciosMap[it] }
+                            .joinToString(" ")
+                            .lowercase()
                         nombreCliente.contains(busqueda) ||
-                                item.movimiento.servicio.lowercase().contains(busqueda)
+                                nombreServicios.contains(busqueda) ||
+                                item.movimiento.servicios.joinToString(" ").contains(busqueda)
                     }
                     is ItemEconomia.Gasto -> {
                         item.gasto.concepto.lowercase().contains(busqueda) ||
@@ -339,6 +345,10 @@ fun EconomiaScreen(
                         is ItemEconomia.Ingreso -> ItemMovimiento(
                             movimiento = item.movimiento,
                             nombreCliente = clientesMap[item.movimiento.idCliente].orEmpty(),
+                            nombreServicios = item.movimiento.servicios
+                                .mapNotNull { serviciosMap[it] }
+                                .joinToString(" + ")
+                                .ifBlank { "Sin servicio asociado" },
                             onClick = { movimientoSeleccionado = item.movimiento }
                         )
                         is ItemEconomia.Gasto -> ItemGasto(
@@ -387,6 +397,10 @@ fun EconomiaScreen(
     if (movimientoSeleccionado != null) {
         DialogDetalleMovimiento(
             movimiento = movimientoSeleccionado!!,
+            nombreServicios = movimientoSeleccionado!!.servicios
+                .mapNotNull { serviciosMap[it] }
+                .joinToString(" + ")
+                .ifBlank { "Sin servicio asociado" },
             onDismiss = { movimientoSeleccionado = null }
         )
     }
@@ -500,6 +514,7 @@ fun FilterChipEconomia(
 fun ItemMovimiento(
     movimiento: MovimientoEntity,
     nombreCliente: String,
+    nombreServicios: String,
     onClick: () -> Unit = {}
 ) {
     val formatter = remember { NumberFormat.getCurrencyInstance(Locale("es", "ES")) }
@@ -538,7 +553,7 @@ fun ItemMovimiento(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "${movimiento.servicio} · $fechaFinFormateada",
+                    text = "$nombreServicios · $fechaFinFormateada",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.Gray,
                     maxLines = 1,
@@ -546,7 +561,7 @@ fun ItemMovimiento(
                 )
             }
             Text(
-                text = "+${formatter.format(movimiento.precio)}",
+                text = "+${formatter.format(movimiento.precioFinal)}",
                 style = MaterialTheme.typography.bodyLarge,
                 color = Color(0xFF4CAF50)
             )
@@ -1040,6 +1055,7 @@ fun DetalleCampo(etiqueta: String, valor: String) {
 @Composable
 fun DialogDetalleMovimiento(
     movimiento: MovimientoEntity,
+    nombreServicios: String,
     onDismiss: () -> Unit
 ) {
     val formatter = remember { NumberFormat.getCurrencyInstance(Locale("es", "ES")) }
@@ -1088,13 +1104,21 @@ fun DialogDetalleMovimiento(
                     textAlign = TextAlign.Center
                 )
 
-                DetalleCampo("Servicio", movimiento.servicio)
-                DetalleCampo("Precio", formatter.format(movimiento.precio))
+                DetalleCampo("Servicio", nombreServicios)
+                DetalleCampo("Precio", formatter.format(movimiento.precioFinal))
                 DetalleCampo("Fecha inicio", fechaInicioFormateada)
                 DetalleCampo("Fecha fin", fechaFinFormateada)
                 DetalleCampo("Estado", movimiento.estado.name)
-                if (fechaPagoFormateada != null) {
-                    DetalleCampo("Fecha pago", fechaPagoFormateada)
+                if (movimiento.estado == EstadoMovimiento.PAGADO) {
+                    if (fechaPagoFormateada != null) {
+                        DetalleCampo("Fecha de pago", fechaPagoFormateada)
+                    }
+                    DetalleCampo(
+                        "Método de pago",
+                        com.roberto.gestorpro.util.MovimientoPago.metodoPagoLabel(
+                            movimiento.metodoPago
+                        )
+                    )
                 }
                 if (!movimiento.observaciones.isNullOrBlank()) {
                     DetalleCampo("Observaciones", movimiento.observaciones)

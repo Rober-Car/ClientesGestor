@@ -54,21 +54,24 @@ import com.roberto.gestorpro.ui.viewmodel.NotificacionesViewModel
 /**
  * SeleccionarClientesScreen
  * -------------------------
- * Pantalla de selección de clientes para una notificación GRUPAL.
+ * Pantalla de selección de clientes para una notificación.
+ *
+ * - MUCHOS (GRUPO): selección múltiple (comportamiento histórico).
+ * - UNO (INDIVIDUAL): selección única; elegir un cliente sustituye al anterior
+ *   y "Continuar" confirma únicamente ese cliente.
  *
  * Reutiliza la lista de clientes del ADMIN (ClienteViewModel), la tarjeta
  * ClienteItem y los filtros de ClientesScreen (buscador + chips por estado).
- * La tarjeta completa es pulsable para seleccionar/deseleccionar y muestra un
- * checkbox a la derecha que refleja el estado visualmente.
  *
- * La selección vive en el ViewModel compartido (seleccionGrupo), por lo que se
- * conserva al cambiar de filtro o búsqueda y al volver al formulario con
- * "Continuar". Esta pantalla NO envía la notificación: solo elige destinatarios.
+ * Para GRUPO la selección vive en el ViewModel compartido (seleccionGrupo);
+ * para INDIVIDUAL solo se confirma al pulsar "Continuar" (volver atrás no
+ * modifica la selección previa del formulario).
  */
 @Composable
 fun SeleccionarClientesScreen(
     navController: NavHostController,
     viewModel: NotificacionesViewModel,
+    modoSeleccion: ModoSeleccion = ModoSeleccion.MUCHOS,
     clienteViewModel: ClienteViewModel = hiltViewModel()
 ) {
     val clientes by clienteViewModel.clientes.collectAsStateWithLifecycle()
@@ -84,17 +87,34 @@ fun SeleccionarClientesScreen(
     }
     var textoBusqueda by rememberSaveable { mutableStateOf("") }
 
-    // La selección se inicializa con lo que ya hubiera (persistida en el
-    // ViewModel compartido) y se sincroniza con cada cambio.
-    var seleccionados by remember { mutableStateOf(viewModel.seleccionGrupo.value) }
+    val esIndividual = modoSeleccion == ModoSeleccion.UNO
+
+    // La selección se inicializa con lo que ya hubiera. En GRUPO vive en el
+    // ViewModel (seleccionGrupo); en INDIVIDUAL solo se confirma en "Continuar".
+    var seleccionados by remember {
+        mutableStateOf(
+            if (esIndividual) {
+                viewModel.seleccionIndividual.value?.let { setOf(it) } ?: emptySet()
+            } else {
+                viewModel.seleccionGrupo.value
+            }
+        )
+    }
 
     fun alternarSeleccion(idCliente: Int) {
-        seleccionados = if (idCliente in seleccionados) {
-            seleccionados - idCliente
+        seleccionados = if (esIndividual) {
+            // Selección única: sustituye cualquier selección anterior.
+            setOf(idCliente)
         } else {
-            seleccionados + idCliente
+            if (idCliente in seleccionados) {
+                seleccionados - idCliente
+            } else {
+                seleccionados + idCliente
+            }
         }
-        viewModel.actualizarSeleccionGrupo(seleccionados)
+        if (!esIndividual) {
+            viewModel.actualizarSeleccionGrupo(seleccionados)
+        }
     }
 
     val clientesFiltrados = clientes
@@ -136,14 +156,31 @@ fun SeleccionarClientesScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    val textoSeleccion = if (esIndividual) {
+                        if (seleccionados.size == 1) {
+                            "1 cliente seleccionado"
+                        } else {
+                            "Selecciona un cliente"
+                        }
+                    } else {
+                        "${seleccionados.size} clientes seleccionados"
+                    }
                     Text(
-                        text = "${seleccionados.size} clientes seleccionados",
+                        text = textoSeleccion,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.weight(1f)
                     )
                     Button(
-                        onClick = { navController.popBackStack() },
+                        onClick = {
+                            if (esIndividual) {
+                                // Solo la confirmación fija el cliente individual;
+                                // volver atrás no modifica la selección previa.
+                                viewModel.fijarSeleccionIndividual(seleccionados.firstOrNull())
+                            }
+                            navController.popBackStack()
+                        },
+                        enabled = seleccionados.isNotEmpty(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF1E88E5),
                             contentColor = Color.White

@@ -59,7 +59,6 @@ class ClienteRepository @Inject constructor(
                 "REGISTRADO" -> EstadoCliente.REGISTRADO
                 else -> EstadoCliente.REGISTRADO
             },
-            tieneLlave = datos["tieneLlave"] as? Boolean ?: false,
             serviciosContratados = (datos["serviciosContratados"] as? List<*>)
                 ?.mapNotNull { (it as? Number)?.toInt() }
                 ?: emptyList(),

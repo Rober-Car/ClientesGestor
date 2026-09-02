@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -33,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -57,8 +59,10 @@ fun EditarServicioScreen(
 
     var nombre by remember { mutableStateOf("") }
     var descripcion by remember { mutableStateOf("") }
+    var precio by remember { mutableStateOf("") }
     var activo by remember { mutableStateOf(true) }
     var errorNombre by remember { mutableStateOf(false) }
+    var errorPrecio by remember { mutableStateOf(false) }
     var cargado by remember { mutableStateOf(idServicio == null) }
 
     LaunchedEffect(idServicio) {
@@ -71,6 +75,7 @@ fun EditarServicioScreen(
         if (idServicio != null && servicioSeleccionado != null) {
             nombre = servicioSeleccionado!!.nombre
             descripcion = servicioSeleccionado!!.descripcion
+            precio = precioParaCampo(servicioSeleccionado!!.precio)
             activo = servicioSeleccionado!!.activo
             cargado = true
         }
@@ -138,6 +143,23 @@ fun EditarServicioScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            OutlinedTextField(
+                value = precio,
+                onValueChange = {
+                    precio = it
+                    errorPrecio = false
+                },
+                label = { Text("Precio (€)") },
+                placeholder = { Text("Ej: 30") },
+                isError = errorPrecio,
+                supportingText = {
+                    if (errorPrecio) Text("Introduce un precio válido (0 o mayor)")
+                },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
             if (idServicio != null) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -157,19 +179,27 @@ fun EditarServicioScreen(
 
             Button(
                 onClick = {
-                    if (nombre.isBlank()) {
-                        errorNombre = true
+                    val precioValido = precio
+                        .trim()
+                        .replace(",", ".")
+                        .toDoubleOrNull()
+
+                    errorNombre = nombre.isBlank()
+                    errorPrecio = precioValido == null || precioValido < 0
+
+                    if (errorNombre || errorPrecio) {
                         return@Button
                     }
 
                     if (idServicio == null) {
-                        viewModel.crearServicio(nombre, descripcion)
+                        viewModel.crearServicio(nombre, descripcion, precioValido!!)
                     } else {
                         val original = servicioSeleccionado ?: return@Button
                         viewModel.actualizarServicio(
                             original.copy(
                                 nombre = nombre.trim(),
                                 descripcion = descripcion.trim(),
+                                precio = precioValido!!,
                                 activo = activo
                             )
                         )
@@ -187,4 +217,16 @@ fun EditarServicioScreen(
             }
         }
     }
+}
+
+/**
+ * precioParaCampo
+ * ---------------
+ * Convierte el precio (Double) al texto que se muestra en el campo "Precio":
+ * sin decimales cuando el importe es entero (30.0 → "30") y con decimales
+ * cuando no lo es (12.5 → "12.5").
+ */
+private fun precioParaCampo(valor: Double): String {
+    val texto = valor.toString()
+    return if (texto.endsWith(".0")) texto.dropLast(2) else texto
 }
