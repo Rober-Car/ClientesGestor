@@ -197,8 +197,8 @@ class MovimientoFirestoreTest {
         assertEquals("Cuota de septiembre revisada", mapa["observaciones"])
     }
 
-    // Resumen económico -> clientes/{id}: moroso, fechaEntradaMorosidad, deuda
-    // y periodo actual.
+    // Resumen económico -> clientes/{id}: moroso, fechaEntradaMorosidad, deuda,
+    // periodo actual y exentoMorosidad.
     @Test
     fun resumen_con_morosidad_se_mapea_completo() {
         val mapa = MovimientoFirestore.resumenDeCliente(
@@ -206,14 +206,34 @@ class MovimientoFirestoreTest {
             fechaEntradaMorosidad = fechaFin,
             deuda = 42.5,
             fechaInicioActual = fechaIni,
-            fechaFinActual = fechaFin
+            fechaFinActual = fechaFin,
+            exentoMorosidad = false
         )
 
         assertEquals(true, mapa["moroso"])
         assertEquals(42.5, mapa["deuda"])
+        assertEquals(false, mapa["exentoMorosidad"])
         assertMillis(mapa, "fechaEntradaMorosidad", fechaFin)
         assertMillis(mapa, "fechaInicioActual", fechaIni)
         assertMillis(mapa, "fechaFinActual", fechaFin)
+    }
+
+    // Resumen con exención manual activa: moroso false pero deuda real.
+    @Test
+    fun resumen_con_exencion_mapea_moroso_false_y_deuda_real() {
+        val mapa = MovimientoFirestore.resumenDeCliente(
+            moroso = false,
+            fechaEntradaMorosidad = null,
+            deuda = 90.0,
+            fechaInicioActual = fechaIni,
+            fechaFinActual = fechaFin,
+            exentoMorosidad = true
+        )
+
+        assertEquals(false, mapa["moroso"])
+        assertEquals(90.0, mapa["deuda"])
+        assertEquals(true, mapa["exentoMorosidad"])
+        assertNull(mapa["fechaEntradaMorosidad"])
     }
 
     // Resumen sin morosidad: fechaEntradaMorosidad null y periodo null.
@@ -224,11 +244,13 @@ class MovimientoFirestoreTest {
             fechaEntradaMorosidad = null,
             deuda = 0.0,
             fechaInicioActual = null,
-            fechaFinActual = null
+            fechaFinActual = null,
+            exentoMorosidad = false
         )
 
         assertEquals(false, mapa["moroso"])
         assertEquals(0.0, mapa["deuda"])
+        assertEquals(false, mapa["exentoMorosidad"])
         assertNull(mapa["fechaEntradaMorosidad"])
         assertNull(mapa["fechaInicioActual"])
         assertNull(mapa["fechaFinActual"])

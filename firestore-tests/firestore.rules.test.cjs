@@ -3849,3 +3849,103 @@ test("PRUEBA 128: un CLIENTE NO puede crear una notificacion de otro tipo en not
         )
     );
 });
+
+// =========================================================
+// RESUMEN ECONOMICO REMOTO en clientes/{id} (PRUEBA 129-136)
+// =========================================================
+// F2: el ADMIN publica el resumen economico en la ficha del cliente
+// (moroso, deuda, fechaEntradaMorosidad, fechaInicioActual, fechaFinActual y
+// exentoMorosidad). El CLIENTE NUNCA puede modificar esas claves.
+
+test("PRUEBA 129: el ADMIN de su negocio actualiza el resumen economico -> ALLOW", async () => {
+    const adminUid = "admin-resumen-129";
+    const clienteId = 6090;
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", adminUid), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId: NEGOCIO_A
+        });
+        await setDoc(
+            doc(database, "clientes", String(clienteId)),
+            fichaCliente(clienteId, NEGOCIO_A, null, "60900000X")
+        );
+    });
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertSucceeds(
+        updateDoc(doc(database, "clientes", String(clienteId)), {
+            moroso: true,
+            deuda: 30,
+            fechaEntradaMorosidad: Timestamp.fromMillis(1700000000000),
+            fechaInicioActual: Timestamp.fromMillis(1700000000000),
+            fechaFinActual: Timestamp.fromMillis(1704067200000),
+            exentoMorosidad: false
+        })
+    );
+});
+
+test("PRUEBA 130: el ADMIN de OTRO negocio NO puede actualizar el resumen economico -> DENY", async () => {
+    const adminUid = "admin-resumen-130";
+    const clienteId = 6091;
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", adminUid), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId: NEGOCIO_B
+        });
+        await setDoc(
+            doc(database, "clientes", String(clienteId)),
+            fichaCliente(clienteId, NEGOCIO_A, null, "60910000X")
+        );
+    });
+    const database = testEnvironment.authenticatedContext(adminUid).firestore();
+    await assertFails(
+        updateDoc(doc(database, "clientes", String(clienteId)), { moroso: true })
+    );
+});
+
+// Cliente vinculado intentando tocar cada clave economica -> DENY.
+function escenarioClienteIntentaCambiarClave(clienteUid, clienteId, clave, valor) {
+    return (async () => {
+        await testEnvironment.withSecurityRulesDisabled(async (context) => {
+            const database = context.firestore();
+            await setDoc(doc(database, "usuarios", clienteUid), {
+                rol: "CLIENTE", activo: true, clienteId, negocioId: NEGOCIO_A
+            });
+            await setDoc(
+                doc(database, "clientes", String(clienteId)),
+                fichaCliente(clienteId, NEGOCIO_A, clienteUid, "60900000X")
+            );
+        });
+        const database = testEnvironment.authenticatedContext(clienteUid).firestore();
+        return updateDoc(doc(database, "clientes", String(clienteId)), { [clave]: valor });
+    })();
+}
+
+test("PRUEBA 131: el CLIENTE NO puede modificar moroso -> DENY", async () => {
+    await assertFails(escenarioClienteIntentaCambiarClave("cliente-resumen-131", 6100, "moroso", true));
+});
+
+test("PRUEBA 132: el CLIENTE NO puede modificar deuda -> DENY", async () => {
+    await assertFails(escenarioClienteIntentaCambiarClave("cliente-resumen-132", 6101, "deuda", 50));
+});
+
+test("PRUEBA 133: el CLIENTE NO puede modificar fechaEntradaMorosidad -> DENY", async () => {
+    await assertFails(escenarioClienteIntentaCambiarClave(
+        "cliente-resumen-133", 6102, "fechaEntradaMorosidad", Timestamp.fromMillis(1700000000000)
+    ));
+});
+
+test("PRUEBA 134: el CLIENTE NO puede modificar exentoMorosidad -> DENY", async () => {
+    await assertFails(escenarioClienteIntentaCambiarClave("cliente-resumen-134", 6103, "exentoMorosidad", true));
+});
+
+test("PRUEBA 135: el CLIENTE NO puede modificar fechaInicioActual -> DENY", async () => {
+    await assertFails(escenarioClienteIntentaCambiarClave(
+        "cliente-resumen-135", 6104, "fechaInicioActual", Timestamp.fromMillis(1700000000000)
+    ));
+});
+
+test("PRUEBA 136: el CLIENTE NO puede modificar fechaFinActual -> DENY", async () => {
+    await assertFails(escenarioClienteIntentaCambiarClave(
+        "cliente-resumen-136", 6105, "fechaFinActual", Timestamp.fromMillis(1704067200000)
+    ));
+});

@@ -6,6 +6,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.roberto.gestorpro.data.dao.ClaseDao
 import com.roberto.gestorpro.data.dao.ClienteDao
+import com.roberto.gestorpro.data.dao.EliminacionPendienteDao
 import com.roberto.gestorpro.data.dao.GastoDao
 import com.roberto.gestorpro.data.dao.MovimientoDao
 import com.roberto.gestorpro.data.dao.ReservaDao
@@ -15,6 +16,7 @@ import com.roberto.gestorpro.data.dao.SesionDao
 import com.roberto.gestorpro.data.dao.SolicitudDao
 import com.roberto.gestorpro.data.database.ClientesDatabase
 import com.roberto.gestorpro.data.firebase.ClienteRemotoRepository
+import com.roberto.gestorpro.data.firebase.MovimientoRemotoRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
@@ -318,6 +320,65 @@ object AppModule {
     }
 
     /**
+     * MIGRACION_16_17
+     * ---------------
+     * F2 DE ECONOMÍA: (1) añade a la tabla "cliente" la columna
+     * `exentoMorosidad` (INTEGER NOT NULL DEFAULT 0) y (2) crea la tabla
+     * `eliminacion_pendiente` para persistir los borrados remotos de
+     * movimientos pendientes de confirmar. Se recrea la tabla "cliente"
+     * conservando todas las filas (patrón habitual del proyecto).
+     */
+    private val MIGRACION_16_17 = object : Migration(16, 17) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `cliente_nueva` (" +
+                    "`idCliente` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`nombre` TEXT NOT NULL, " +
+                    "`apellidos` TEXT NOT NULL, " +
+                    "`dni` TEXT NOT NULL, " +
+                    "`telefono` TEXT NOT NULL, " +
+                    "`email` TEXT, " +
+                    "`foto` TEXT NOT NULL, " +
+                    "`fechaNacimiento` INTEGER, " +
+                    "`fechaRegistro` INTEGER NOT NULL, " +
+                    "`fechaAlta` INTEGER, " +
+                    "`fechaBaja` INTEGER, " +
+                    "`estado` TEXT NOT NULL, " +
+                    "`observaciones` TEXT, " +
+                    "`negocioId` TEXT, " +
+                    "`serviciosContratados` TEXT NOT NULL, " +
+                    "`firebaseUid` TEXT, " +
+                    "`moroso` INTEGER NOT NULL, " +
+                    "`fechaEntradaMorosidad` INTEGER, " +
+                    "`exentoMorosidad` INTEGER NOT NULL)"
+            )
+            db.execSQL(
+                "INSERT INTO `cliente_nueva` " +
+                    "(`idCliente`, `nombre`, `apellidos`, `dni`, `telefono`, `email`, " +
+                    "`foto`, `fechaNacimiento`, `fechaRegistro`, `fechaAlta`, `fechaBaja`, " +
+                    "`estado`, `observaciones`, `negocioId`, `serviciosContratados`, `firebaseUid`, " +
+                    "`moroso`, `fechaEntradaMorosidad`, `exentoMorosidad`) " +
+                    "SELECT `idCliente`, `nombre`, `apellidos`, `dni`, `telefono`, `email`, " +
+                    "`foto`, `fechaNacimiento`, `fechaRegistro`, `fechaAlta`, `fechaBaja`, " +
+                    "`estado`, `observaciones`, `negocioId`, `serviciosContratados`, `firebaseUid`, " +
+                    "`moroso`, `fechaEntradaMorosidad`, 0 " +
+                    "FROM `cliente`"
+            )
+            db.execSQL("DROP TABLE `cliente`")
+            db.execSQL("ALTER TABLE `cliente_nueva` RENAME TO `cliente`")
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_cliente_dni` ON `cliente` (`dni`)"
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `eliminacion_pendiente` (" +
+                    "`idMovimiento` INTEGER NOT NULL, " +
+                    "`idCliente` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`idMovimiento`))"
+            )
+        }
+    }
+
+    /**
      * provideFirebaseAuth
      * -------------------
      * ✔ TIPO: método (fun) de Hilt con anotación @Provides y @Singleton → FirebaseAuth
@@ -382,7 +443,8 @@ object AppModule {
                 MIGRACION_12_13,
                 MIGRACION_13_14,
                 MIGRACION_14_15,
-                MIGRACION_15_16
+                MIGRACION_15_16,
+                MIGRACION_16_17
             )
             .fallbackToDestructiveMigration()
 
@@ -453,6 +515,16 @@ object AppModule {
     }
 
     /**
+     * provideEliminacionPendienteDao
+     * ------------------------------
+     * Provee el DAO de eliminaciones pendientes de movimientos.
+     */
+    @Provides
+    fun provideEliminacionPendienteDao(database: ClientesDatabase): EliminacionPendienteDao {
+        return database.eliminacionPendienteDao()
+    }
+
+    /**
      * provideMovimientoRepository
      * ---------------------------
      * ✔ TIPO: método (fun) de Hilt con anotación @Provides → MovimientoRepository
@@ -470,9 +542,17 @@ object AppModule {
          */
         movimientoDao: MovimientoDao,
         clienteDao: ClienteDao,
-        clienteRemotoRepository: ClienteRemotoRepository
+        eliminacionPendienteDao: EliminacionPendienteDao,
+        clienteRemotoRepository: ClienteRemotoRepository,
+        movimientoRemotoRepository: MovimientoRemotoRepository
     ): MovimientoRepository {
-        return MovimientoRepository(movimientoDao, clienteDao, clienteRemotoRepository)
+        return MovimientoRepository(
+            movimientoDao,
+            clienteDao,
+            eliminacionPendienteDao,
+            clienteRemotoRepository,
+            movimientoRemotoRepository
+        )
     }
 
     @Provides

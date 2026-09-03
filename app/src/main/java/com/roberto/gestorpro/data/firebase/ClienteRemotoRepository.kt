@@ -7,6 +7,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.roberto.gestorpro.data.entity.ClienteEntity
 import com.roberto.gestorpro.model.EstadoCliente
+import com.roberto.gestorpro.util.MovimientoFirestore
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -436,6 +437,62 @@ class ClienteRemotoRepository @Inject constructor(
                     "fechaFinActual=$fechaFinActual",
                 e
             )
+            ResultadoAutenticacion(false, mensajeDe(e))
+        }
+    }
+
+    /**
+     * actualizarResumenEconomicoRemoto
+     * --------------------------------
+     * Publica el RESUMEN ECONÓMICO completo del cliente en su ficha pública
+     * `clientes/{idCliente}` con un `update()` (merge): moroso, deuda,
+     * fechaEntradaMorosidad, fechaInicioActual, fechaFinActual y exentoMorosidad.
+     * Sustituye a la antigua publicación exclusiva del período
+     * (`actualizarPeriodoActualRemoto`), que queda obsoleta.
+     */
+    suspend fun actualizarResumenEconomicoRemoto(
+        idCliente: Int,
+        moroso: Boolean,
+        fechaEntradaMorosidad: Long?,
+        deuda: Double,
+        fechaInicioActual: Long?,
+        fechaFinActual: Long?,
+        exentoMorosidad: Boolean
+    ): ResultadoAutenticacion {
+        val uid = auth.currentUser?.uid
+            ?: return ResultadoAutenticacion(false, "No hay ningún usuario autenticado")
+        if (uid.isBlank()) {
+            return ResultadoAutenticacion(false, "No hay ningún usuario autenticado")
+        }
+
+        return try {
+            val resumen = MovimientoFirestore.resumenDeCliente(
+                moroso = moroso,
+                fechaEntradaMorosidad = fechaEntradaMorosidad,
+                deuda = deuda,
+                fechaInicioActual = fechaInicioActual,
+                fechaFinActual = fechaFinActual,
+                exentoMorosidad = exentoMorosidad
+            )
+            db.collection(COLECCION_CLIENTES)
+                .document(idCliente.toString())
+                .update(resumen)
+                .esperar()
+            Log.i(
+                TAG,
+                "Resumen económico sincronizado: idCliente=$idCliente " +
+                    "moroso=$moroso deuda=$deuda exentoMorosidad=$exentoMorosidad resultado=OK"
+            )
+            ResultadoAutenticacion(true, "Resumen económico sincronizado")
+        } catch (e: FirebaseFirestoreException) {
+            Log.e(
+                TAG,
+                "Error en resumen económico: idCliente=$idCliente codigo=${e.code}",
+                e
+            )
+            ResultadoAutenticacion(false, mensajeDe(e))
+        } catch (e: Exception) {
+            Log.e(TAG, "Error en resumen económico: idCliente=$idCliente", e)
             ResultadoAutenticacion(false, mensajeDe(e))
         }
     }

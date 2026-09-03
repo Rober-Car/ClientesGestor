@@ -231,6 +231,14 @@ reservas/{clienteId}_{sesionId} = { idReserva, negocioId, sesionId, clienteId, f
 - **Bucket:** el por defecto de `google-services.json` (`project_info.storage_bucket`). **PENDIENTE en producción:** el bucket `gestorpro-50e83.firebasestorage.app` debe crearse/habilitarse en Firebase Console antes de subir el primer logo; hasta entonces la subida falla con "Object does not exist at location".
 - Reglas de Storage (`storage.rules`, versionado): lectura para cualquier usuario autenticado; escritura solo para el ADMIN propietario (`usuarios/{uid}.rol == "ADMIN" && usuarios/{uid}.negocioId == negocioId`). Un ADMIN no puede escribir el logo de otro negocio; CLIENTE y no autenticados, denegado. Resto del bucket bloqueado.
 - El Cliente descarga el logo por su URL con Coil (HTTP), sin SDK de Storage.
+- **Alcance actual vs decisiones (2026-09-03):** este apartado describe la implementación presente
+  (solo logo del negocio; escritura solo del ADMIN). Las decisiones de producto sobre logos/fotos
+  remotas compartidas y sus permisos (incluida la escritura de la propia foto del cliente por el
+  CLIENTE) están en el bloque «Decisiones de producto — Notificaciones, Cloud Functions y Storage».
+  Las `storage.rules` actuales aún no contemplan fotos de clientes ni escritura del CLIENTE, y **no
+  deben modificarse por este bloque**. Tamaño máximo decidido: **10 MB por fotografía con
+  compresión/redimensionado automático en la app** (las `storage.rules` preparadas usan 5 MB de
+  referencia y se alinearán al implementar; la implementación de compresión sigue PENDIENTE, ver bloque D).
 
 Flujos funcionales remotos:
 
@@ -351,7 +359,8 @@ node firestore-tests/auditoria_backfill_indices.cjs
 
 ## Tests
 
-- **Rules de Firestore + Storage:** `npm --prefix firestore-tests test` (**143 pruebas** en los emuladores `--only firestore,storage`, incluidas PRUEBA 6B/6C (Vía A), 9B, 33A–33H, 77–81, 82–88 (`horaDesdeReserva`), 99–108 (solicitudes de baja), 109–112 (bloqueo de BAJA), **113–120 (regresión sesiones/borrado solicitudes/aviso baja)** y **121–128 (acceso solo ACTIVO + notificación VINCULACION)**). Deben pasar **antes** de desplegar las Rules.
+- **Rules de Firestore + Storage:** `npm --prefix firestore-tests test` (**151 pruebas** en los emuladores `--only firestore,storage`): las previas PRUEBA 6B/6C (Vía A), 9B, 33A–33H, 77–81, 82–88 (`horaDesdeReserva`), 99–108 (solicitudes de baja), 109–112 (bloqueo de BAJA), 113–120 (regresión sesiones/borrado solicitudes/aviso baja), 121–128 (acceso solo ACTIVO + notificación VINCULACION) **y 129–136 (resumen económico remoto: ADMIN de su negocio ALLOW, otro negocio DENY, CLIENTE no modifica moroso/deuda/fechaEntradaMorosidad/exentoMorosidad/fechas)**. Deben pasar **antes** de desplegar las Rules.
+- **Unit tests Admin:** `:app:testDebugUnitTest` (**68/68**): MovimientoMorosidad (regla deuda = TODOS los PENDIENTES, dos causas, `exentoMorosidad`, `fechaEntradaMorosidad`=detección), MovimientoFirestore (resumen con `exentoMorosidad`), IdMovimiento (rango alto), MovimientoPrecio/Pago, NotificacionConfig.
 - **Test unitario appCliente:** `:appCliente:testDebugUnitTest` cubre el rechazo de Vía A cuando no existe el índice `negocioId_DNI`.
 - **Tests unitarios de helpers de Cloud Functions:** `node --test functions/test/ids.test.js functions/test/tokens.test.js` (**13/13**, sin necesidad de `npm install` en `functions/`; solo cubren los módulos puros `ids.js` y `tokens.js`).
 - **Test de aislamiento del alta (temporal, Sesión XVIII):** `firestore-tests/diagnostico_alta_cliente.test.cjs` (7/7) reproduce el payload real de `crearClienteRemoto()` contra las Rules locales para aislar el PERMISSION_DENIED del alta. Ejecutar con: `cd firestore-tests; Copy-Item ..\firestore.rules firestore.rules.generated -Force; .\node_modules\.bin\firebase.cmd emulators:exec --project gestorpro-rules-test --only firestore "node --test diagnostico_alta_cliente.test.cjs"`. No forma parte del suite oficial.
@@ -391,12 +400,18 @@ node firestore-tests/auditoria_backfill_indices.cjs
   hábil"** ni margen de días hábiles; no cuentan sábados, domingos ni festivos.
 - **Deuda:** **suma de TODOS los movimientos PENDIENTES**. Un movimiento PENDIENTE ya representa
   deuda (no hay que esperar a `fechaFin`).
-- **Morosidad:** un cliente es **MOROSO si tiene deuda pendiente** (no hay que esperar al
-  vencimiento). Segunda situación de entrada: un cliente que permanece ACTIVO pasa a MOROSO el
-  **día siguiente a la fechaFin** del período que le cubría si continúa sin cobertura económica
-  (p. ej. fechaFin 15/09 → 16/09), aunque ese día sea sábado, domingo o festivo. Sin reglas de días hábiles.
+- **Morosidad (dos causas; modelo 2026-09-03):** un cliente es **MOROSO** si tiene deuda pendiente
+  (**"moroso por deuda"** — uno o más movimientos `PENDIENTE`; no hay que esperar al vencimiento).
+  Segunda causa: un cliente que permanece ACTIVO pasa a **"moroso por fecha"** el **día siguiente a la
+  fechaFin** del período que le cubría si continúa sin cobertura económica (p. ej. fechaFin 15/09 →
+  16/09), aunque ese día sea sábado, domingo o festivo. Sin reglas de días hábiles. La distinción entre
+  ambas causas determina los avisos automáticos: solo la causa "por fecha" genera aviso/recordatorios
+  (ver bloque «Decisiones de producto — Notificaciones, Cloud Functions y Storage», A.3–A.7).
 - **Deuda (importe pendiente) ≠ MOROSO (situación del cliente).** Un PENDIENTE ya genera morosidad;
-  es INCORRECTO documentar que la deuda solo genera morosidad después de `fechaFin`.
+  es INCORRECTO documentar que la deuda solo genera morosidad después de `fechaFin`. Moroso por deuda y
+  moroso por fecha son causas independientes: un cliente puede ser moroso por ambas, y cada causa entra
+  y sale por separado (pagar la deuda no elimina la causa "por fecha" si sigue ACTIVO sin cobertura;
+  renovar con un nuevo período elimina la causa "por fecha" aunque conserve deuda).
 - **Salida de morosidad:** al marcar PAGADO el único pendiente y no existir otra causa →
   `moroso = false`; se actualizan `fechaPago`/`metodoPago`. Si quedan otros PENDIENTES sigue
   moroso. No se conserva historial de haber sido moroso (situación = estado ACTUAL).
@@ -428,7 +443,216 @@ node firestore-tests/auditoria_backfill_indices.cjs
 - **Cloud Functions:** qué procesos automatizar con Functions sigue siendo **DECISIÓN PENDIENTE**
   de una futura sesión. Lo cerrado es que **los movimientos los crea manualmente el ADMIN**.
 
+## Decisiones de producto — Notificaciones, Cloud Functions y Storage (2026-09-03, bloque documental)
+
+> Documento vivo y **EXCLUSIVAMENTE DOCUMENTAL** (no implementado). Decisiones de **producto FINALES**
+> del propietario sobre notificaciones, avisos automáticos de morosidad, Cloud Functions, Cloud
+> Storage, logos y fotos de clientes. **Prevalece sobre cualquier bloque/checkpoint anterior** de
+> AGENTS.md, de `CONTEXTO_PROYECTO.md` (p. ej. §12) y de la HOJA DE RUTA que describa flujos,
+> frecuencias o comportamientos contrarios.
+>
+> **2.ª tanda documental (2026-09-03):** esta versión actualiza el bloque y **SUPERSEDE** el texto
+> previo del propio bloque en: (a) **avisos de morosidad por movimiento PENDIENTE** — ya NO se avisa
+> automáticamente por el simple hecho de existir un movimiento PENDIENTE; (b) **frecuencia de
+> notificaciones programadas** — la precisión aproximada de **15 minutos es suficiente** (no cada
+> minuto ni 2 minutos por precisión); (c) **límite de tamaño de fotos** — decidido en **10 MB** con
+> compresión/redimensionado automático en la app. Las reglas/frecuencias preparadas en `functions/`
+> local (programadas cada 2 min, recordatorio de morosidad cada 1 h) y en `storage.rules` preparadas
+> (5 MB de referencia) eran **preparación provisional SIN desplegar** y quedan desactualizadas frente a
+> estas decisiones; se rediseñarán/alinearán en la sesión de implementación (NADA se modifica en esta
+> tarea documental). El histórico de `CONVERSACION_EXPORTADA.md` se conserva tal cual.
+
+### A. Notificaciones — decisiones cerradas
+
+1. **Notificaciones manuales del ADMIN (sin cambios).** Se mantiene la creación manual con destino
+   **Individual / Grupo / Todos** y envío **inmediato o programado**. La pantalla actual ya contempla
+   estas opciones.
+2. **Notificación manual = PUSH + BUZÓN.** Cuando el ADMIN envía una notificación se debe (a) enviar
+   push al cliente (FCM) y (b) registrar la notificación en el **buzón** del cliente. El buzón conserva
+   el mensaje aunque el cliente no tenga activados los avisos push.
+3. **Morosidad: dos causas con consecuencias distintas (distinción fundamental).**
+   - **Moroso por deuda:** tiene uno o más movimientos en `PENDIENTE`. Es una situación de morosidad del
+     cliente, pero **no genera por sí misma un aviso automático**: la deuda pendiente la gestiona el
+     ADMIN. `PENDIENTE` es estado del **MOVIMIENTO**, no del cliente.
+   - **Moroso por fecha:** su período pagado ha terminado, sigue **ACTIVO** y no existe un nuevo período
+     que lo cubra. **Este sí genera aviso y recordatorios.**
+4. **Morosidad — finalidad de la automatización.** La automatización de morosidad (caso "moroso por
+   fecha") sirve para avisar al cliente cuando ha terminado su período y sigue ACTIVO, provocando que
+   tome una decisión: **renovar o darse de baja**.
+5. **Entrada en morosidad por fecha.** Si un cliente tiene un período pagado que termina
+   (p. ej. `fechaFin = 15/09/2026`) y llega el 16/09/2026, continúa ACTIVO y no existe un nuevo período
+   que lo cubra → **se considera MOROSO por fecha**. Da igual que el día siguiente sea sábado, domingo o
+   festivo; **no existe regla de cuarto día hábil**.
+6. **Transiciones entre causas y detención de avisos.**
+   - Si paga la deuda pero **no renueva**: deja de ser moroso por deuda, pero **puede seguir siendo
+     moroso por fecha** (sigue ACTIVO sin cobertura → se mantienen los avisos/recordatorios por fecha).
+   - Si **renueva** y existe un nuevo período que lo cubre: deja de ser moroso por fecha (aunque conserve
+     deuda pendiente seguiría siendo moroso por deuda, sin aviso automático por ello).
+   - Si pasa a **BAJA**: **se detienen los avisos automáticos de morosidad**, aunque pueda conservar
+     deuda.
+7. **NO se avisa automáticamente por un movimiento PENDIENTE.** El simple hecho de que el ADMIN cree un
+   movimiento/cuota en `PENDIENTE` **no genera notificación automática** al cliente (moroso por deuda):
+   la existencia de la deuda pendiente la gestiona el ADMIN. La notificación automática de morosidad
+   queda reservada al escenario "moroso por fecha" (los detalles de redacción y recordatorios siguen
+   abiertos, ver bloque D).
+8. **PAGADO no genera aviso.** Cuando el ADMIN marca un movimiento como PAGADO **NO** se envía
+   notificación de confirmación de pago al cliente; el cambio de estado económico se actualiza con
+   normalidad.
+9. **BAJA CONFIRMADA (se mantiene).** Cuando el ADMIN acepta una solicitud de baja y el cliente pasa a
+   BAJA, el cliente recibe la notificación de baja confirmada (comportamiento automático ya previsto).
+10. **Sin notificación de rechazo de baja.** No se diseña flujo de notificación de rechazo: el ADMIN no
+    va a rechazar solicitudes de baja.
+11. **Notificaciones programadas (precisión ~15 min).** El ADMIN programa una notificación para
+    fecha/hora futura; **Cloud Functions es la responsable** del envío automático al llegar el momento
+    **aunque la app Admin no esté abierta**. Se ha decidido que una precisión aproximada de **15 minutos
+    es suficiente**: NO se comprueba cada minuto y **no se usa una frecuencia de 2 minutos solo por ser
+    más precisa**. La frecuencia de ejecución debe ser eficiente para evitar trabajo y coste
+    innecesarios.
+12. **Avisos desactivados ≠ sin buzón.** Si el cliente desactiva "Recibir avisos": no recibe push, pero
+    las notificaciones **siguen apareciendo en el buzón** de la app. El switch controla el push; no
+    elimina ni impide conservar el historial del buzón.
+13. **Varios dispositivos por cliente.** Una notificación debe poder llegar a **todos** los dispositivos
+    activos de un mismo cliente (móvil, móvil nuevo, tablet…). Se conserva la arquitectura actual de
+    dispositivos/tokens.
+
+### B. Cloud Functions — principios y decisiones
+
+1. **Cloud Functions = automatización.** No sustituyen a Room como fuente de verdad económica del
+   ADMIN. Arquitectura conceptual definitiva: **ROOM** → fuente de verdad económica del ADMIN;
+   **FIRESTORE** → réplica remota de la información que deba existir en nube; **CLOUD FUNCTIONS** →
+   automatizaciones y procesos en segundo plano; **FCM** → envío de notificaciones push; **CLOUD
+   STORAGE** → almacenamiento remoto de logos y fotografías.
+2. **Comprobación automática de morosidad (intención confirmada).** Se usará Cloud Functions para la
+   comprobación económica porque el ADMIN puede tener la app cerrada: el paso del tiempo debe poder
+   provocar la actualización de la situación económica aunque la app Admin no esté abierta.
+3. **Frecuencia de comprobación de morosidad:** **una vez al día, aproximadamente a las 08:00**
+   (suficiente: los cambios de día y de fecha de fin ocurren durante la noche y no es necesario
+   reaccionar a las 00:00 exactas, ni comprobar cada minuto). La **lógica exacta de esa Function sigue
+   PENDIENTE** (ver bloque D).
+4. **Coste de Firebase.** Evitar ejecuciones innecesariamente frecuentes cuando una frecuencia menor sea
+   suficiente; la frecuencia debe buscar el equilibrio entre precisión, funcionamiento correcto y
+   coste. No ejecutar Functions cada minuto por una respuesta ligeramente más rápida. Referencias
+   cerradas: precisión ~15 min para notificaciones programadas; comprobación de morosidad ~diaria
+   ~08:00.
+5. **Blaze.** La activación de Blaze queda asociada a la necesidad de usar infraestructura como Cloud
+   Functions y Cloud Storage. Antes del despliegue definitivo deberán revisarse consumo, configuración
+   de presupuesto/alertas, costes potenciales y las funciones que realmente se van a ejecutar. **No
+   activar ni configurar Blaze durante la fase documental.**
+
+### C. Cloud Storage — logos y fotos
+
+1. **Nombre y logo del centro compartidos.** El ADMIN configura el negocio con nombre del centro y logo
+   del centro; ADMIN y CLIENTE muestran la misma información (NOMBRE + LOGO). El logo **no** depende de
+   un archivo local exclusivo del dispositivo Admin: se usa **almacenamiento remoto**.
+2. **Actualización del logo.** Al cambiar el logo, el anterior se sustituye y el nuevo pasa a ser el
+   logo vigente en ambas aplicaciones. No se deben acumular innecesariamente versiones antiguas del
+   mismo logo en Storage.
+3. **Fotos de clientes remotas y compartidas.** Las fotos de clientes pasan a almacenarse remotamente
+   en Firebase Storage y se comparten entre ambas apps: ADMIN cambia foto → el CLIENTE la ve; CLIENTE
+   cambia foto → el ADMIN la ve. **No** debe existir una copia local independiente como fuente de
+   verdad de la fotografía: la foto remota es la referencia compartida.
+4. **Permisos de foto.** ADMIN y CLIENTE pueden cambiar la foto del cliente: el ADMIN las de los
+   clientes de su negocio; el CLIENTE solo la suya. Mantener las restricciones de seguridad; un cliente
+   nunca modifica fotografías de otro cliente.
+5. **Fotos de prueba actuales.** Las fotos locales que existen hoy en los dispositivos durante el
+   desarrollo son fotos de prueba y **NO requieren migración**. No son la arquitectura definitiva: la
+   solución de producción debe funcionar mediante Storage para cualquier negocio que utilice GestorPro.
+6. **Tamaño de fotos (decidido): máximo 10 MB por fotografía** como límite de seguridad. **El usuario
+   NO debe manipular manualmente una fotografía para cumplir el límite**: la aplicación debe poder
+   recibir una foto de la galería o tomada con la cámara, **redimensionar/comprimir automáticamente
+   cuando sea necesario** y subir el resultado a Storage. El objetivo es que el límite de 10 MB sea un
+   límite técnico, no una tarea que el usuario deba gestionar. La implementación exacta de la
+   compresión/redimensionado sigue **PENDIENTE** (bloque D). ⚠️ Las `storage.rules` preparadas actuales
+   usan **5 MB de referencia**: quedan desactualizadas frente a esta decisión; NO se modifican en esta
+   tarea y se alinearán al implementar.
+7. **Sustitución de fotos (principio de seguridad).** Al cambiar una fotografía: la nueva pasa a ser la
+   vigente, el archivo anterior debe eliminarse de Storage **cuando sea seguro hacerlo** y no deben
+   quedar versiones antiguas acumuladas innecesariamente. La implementación debe priorizar **no dejar al
+   cliente sin fotografía** si la subida o actualización falla. Orden del cambio:
+   (1) subir la nueva fotografía; (2) actualizar la referencia; (3) confirmar que la nueva es válida;
+   (4) eliminar la anterior. **No borrar la fotografía antigua antes de disponer correctamente de la
+   nueva.**
+
+### D. Decisiones que siguen ABIERTAS (NO cerrar, NO implementar todavía)
+
+> Quedan pendientes de una sesión específica de diseño. No inventar estrategias ni documentarlas como
+> definitivas.
+>
+> **3.ª aclaración (2026-09-03, modelo de morosidad):** las cuestiones 3, 4 y 5 quedan **RESUELTAS a
+> nivel de modelo** (ver A.3–A.7: dos causas "moroso por deuda / moroso por fecha", transiciones y
+> detención de avisos con BAJA). Se mantienen aquí numeradas solo por trazabilidad; su detalle
+> operativo/redacción puede seguir abierto.
+
+1. Redacción exacta de las notificaciones de morosidad.
+2. Diferencia exacta entre aviso inicial de morosidad y recordatorio.
+3. ~~Cuándo se detienen los recordatorios (intervalo de 24 h...)~~ → **RESUELTO en el modelo:** los
+   recordatorios acompañan al estado "moroso por fecha" y cesan cuando el cliente deja de serlo (renueva
+   con un nuevo período que lo cubre) o pasa a **BAJA** (los avisos automáticos de morosidad se detienen,
+   aunque conserve deuda). Solo queda el detalle operativo del ciclo/redacción.
+4. ~~Qué ocurre exactamente si se paga la deuda pero no existe un nuevo período~~ → **RESUELTO en el
+   modelo:** deja de ser moroso por deuda, pero **puede seguir siendo moroso por fecha** (ACTIVO sin
+   cobertura → continúan avisos/recordatorios por fecha).
+5. ~~Qué comportamiento tendrán las notificaciones de morosidad para clientes BAJA con deuda~~ →
+   **RESUELTO en el modelo:** al pasar a BAJA **se detienen los avisos automáticos de morosidad**, aunque
+   el cliente pueda conservar deuda (los PENDIENTES siguen existiendo y los gestiona el ADMIN).
+6. Estrategia exacta de idempotencia.
+7. Estrategia exacta de reintentos (y comportamiento cuando una Function falla).
+8. Lógica interna definitiva de la Function de morosidad (qué consulta, qué clientes/movimientos revisa,
+   cómo determina moroso, cuándo genera notificación, cómo evita duplicados).
+9. Lógica definitiva de actualización del resumen económico remoto (semántica exacta y sincronización de
+   `moroso`, `deuda`, `fechaEntradaMorosidad`, `fechaInicioActual`, `fechaFinActual`).
+10. Implementación concreta de compresión/redimensionado de fotos.
+11. Configuración definitiva de Blaze/presupuesto (consumo, alertas, costes y funciones a ejecutar).
+
+> **Relación con el modelo económico:** el bloque «Modelo económico definitivo» sigue vigente sin
+> cambios (Room = fuente de verdad; movimientos replicados a Firestore; histórico remoto completo;
+> crear/editar/eliminar manuales con confirmación y recálculo; PENDIENTE = deuda; morosidad por deuda y
+> por fin de período con ACTIVO sin cobertura; deuda subsiste con BAJA; sin entidad Pago; el CLIENTE no
+> tiene módulo económico, solo estado y fecha de fin de período; precio final decidido por el ADMIN; los
+> cambios de servicios afectan solo a movimientos nuevos). Las decisiones de Cloud Functions **no
+> modifican** el modelo económico.
+
 ## Estado actual y pendientes (2026-09-03)
+
+> ACTUALIZACIÓN 2026-09-03 (F2 ECONOMÍA ROOM↔FIRESTORE IMPLEMENTADA + DIAGNÓSTICO "CREAR NEGOCIO").
+> HEAD del desarrollador: `100c4eb "mejoras y correciones"`. Working tree con cambios SIN commit:
+> toda la F2 (economía) + las tandas documentales + `RegistroScreen.kt` (del desarrollador) +
+> `firestore-tests/firestore-debug.log` (basura del emulador). NO deploy, NO commit.
+>
+> **F2 cerrada en código (pendiente de prueba manual):**
+> - **Motor `MovimientoMorosidad`:** deuda = suma de TODOS los PENDIENTES (sin filtrar `fechaFin`);
+>   dos causas (por deuda / por fecha solo ACTIVO con cobertura PAGADA terminada); BAJA solo por deuda;
+>   `fechaEntradaMorosidad` = `ahora` (detección), nunca `fechaFin`; `exentoMorosidad` (moroso=false
+>   con la deuda real).
+> - **IDs globales:** `util/IdMovimiento` (rango alto ≥1e9, patrón `IdCliente`) preasignados antes del
+>   insert → sin colisiones `movimientos/{id}` entre dispositivos Admin. `MovimientoDao.insertarMovimiento`
+>   sigue en `Unit` (no se usa autoincrement local como id remoto).
+> - **Réplica cableada:** crear/editar/eliminar movimiento → Room → recálculo → `movimientos/{id}` +
+>   resumen remoto en `clientes/{id}` (`moroso`, `deuda`, `fechaEntradaMorosidad`, `fechaInicioActual`,
+>   `fechaFinActual`, `exentoMorosidad`). Baja/restauración publican resumen. Eliminaciones remotas
+>   fallidas persistidas en `eliminacion_pendiente` (Room v17) con reintento al arranque
+>   (`MainViewModel`), al entrar en gestión de clientes y desde el perfil.
+> - **Ajustes:** editar datos personales NO dispara economía (solo si cambia `estado`); abrir un perfil NO
+>   reescribe todos los movimientos (`sincronizarSiHayPendientes` solo si hay pendientes).
+> - **Room v17** (`MIGRACION_16_17`: columna `exentoMorosidad` en `cliente` + tabla
+>   `eliminacion_pendiente`). Switch "Exento de morosidad" en el perfil Admin.
+> - **`firestore.rules` LOCAL:** update ADMIN de `clientes` admite `moroso`/`deuda`/
+>   `fechaEntradaMorosidad`/`exentoMorosidad` (el CLIENTE nunca). Tests Rules **151/151** (PRUEBA 129–136);
+>   unit `:app` **68/68**; `assembleDebug` OK (ambos módulos). NO desplegado.
+>
+> **Diagnóstico ABIERTO — "Crear negocio en la nube" PERMISSION_DENIED (producción):** el batch de
+> `NegocioRepository.crearNegocio` (set `negocios/{uid}` + set `negocios_publicos/{uid}` + update
+> `usuarios/{uid}.negocioId`) falla. Evidencia: servicios/sesiones sí se crean → `usuarios/{uid}.negocioId`
+> ya está asignado (= UID). Hipótesis principal: estado de DATOS (negocioId asignado pero `negocios/{uid}`
+> ausente) → las tres escrituras las bloquean las Rules LOCALES (`usuarioActual().negocioId == null` /
+> `resource.data.negocioId == null`). Pendiente confirmar en consola y reconciliar datos (Admin SDK,
+> autorizado). NO es un bug de F2.
+>
+> **Pendientes inmediatos:** prueba manual de F2; reconciliar/desplegar `firestore.rules` local (151 tests)
+> solo con autorización (ruleset desplegado obsoleto, sin claves del resumen); retirar
+> `fallbackToDestructiveMigration` antes de producción; `actualizarPeriodoActualRemoto` quedó sin
+> consumidores (limpieza opcional); los fallos de create/update no se persisten (solo eliminaciones),
+> riesgo residual documentado.
 
 > ACTUALIZACIÓN 2026-09-03 (CIERRE — CORRECCIÓN ACCESO SOLO ACTIVO + NOTIFICACIÓN VINCULACIÓN + TEXTO
 > "ACTIVIDADES"). HEAD del desarrollador: `f32a5c1 "impplementando codigo para cuando contrate balze2"`
@@ -884,11 +1108,11 @@ Pendiente para continuar:
 
 ## 5. Bloqueado por Blaze/Firebase (infraestructura real)
 
-- **Cloud Functions 2ª gen** (código local listo en `functions/`): inmediatas, programadas (onSchedule 2 min), recordatorio morosidad (1 h), morosidad, baja confirmada. Requiere: Blaze → índice `notificaciones(estado ASC, fechaProgramada ASC)` → `npm install` en `functions/` → `firebase deploy --only functions`.
+- **Cloud Functions 2ª gen** (código local listo en `functions/`): inmediatas, programadas (onSchedule 2 min), recordatorio morosidad (1 h), morosidad, baja confirmada. Requiere: Blaze → índice `notificaciones(estado ASC, fechaProgramada ASC)` → `npm install` en `functions/` → `firebase deploy --only functions`. ⚠️ Los `onSchedule` (2 min / 1 h) son **preparación provisional SIN desplegar**; quedan desactualizados frente a las decisiones (precisión ~15 min para programadas; comprobación de morosidad ~diaria ~08:00) y se rediseñarán en la sesión de diseño según el bloque «Decisiones de producto — Notificaciones, Cloud Functions y Storage» (2026-09-03).
 - **FCM real** (push a dispositivo).
-- **Firebase Storage:** bucket + `storage.rules` (logo; fotos de clientes preparadas en rules locales, sin desplegar).
+- **Firebase Storage:** bucket + `storage.rules` (logo; fotos de clientes preparadas en rules locales, sin desplegar). ⚠️ Las reglas de fotos preparadas usan **5 MB como referencia desactualizada**: el tamaño máximo decidido es **10 MB** con compresión/redimensionado automático en la app (bloque C/§D del documento de decisiones); se alinearán al implementar.
 - **Backfill de `indices_clientes`** (solo con aprobación; DRY-RUN: 2 índices).
-- (Opcional) migración de fotos locales → Storage (`rutaFotoClienteEnStorage`).
+- ~~(Opcional) migración de fotos locales → Storage~~ — decisión 2026-09-03: las fotos de prueba locales **NO se migran**; en producción las fotos remotas (Storage) son la referencia compartida (ver bloque «Decisiones de producto — Notificaciones, Cloud Functions y Storage»).
 
 ## 6. Decisiones pendientes (el desarrollador debe decidir ANTES de programar)
 
@@ -897,7 +1121,7 @@ Pendiente para continuar:
 3. ~~appCliente economía~~: **decidido** — el CLIENTE no tendrá módulo económico.
 4. **Reservas:** ¿pantalla "Mis reservas"? ¿el ADMIN puede cancelar reservas desde `SesionReservasScreen`?
 5. **Sesiones:** ¿botón eliminar sesión en la UI?
-6. **Fotos:** ¿migrar a Storage cuando haya bucket?
+6. ~~**Fotos:** ¿migrar a Storage cuando haya bucket?~~ → **DECIDIDO** (2026-09-03, bloque «Decisiones de producto — Notificaciones, Cloud Functions y Storage»): fotos remotas compartidas ADMIN↔CLIENTE; sin migración de las fotos de prueba; máximo **10 MB** por foto con compresión/redimensionado automático en la app. Pendiente: implementación de compresión y Storage Rules (bloque D del documento de decisiones).
 7. **Backfill de índices** (aprobación explícita).
 
 ## 7. Orden recomendado de implementación

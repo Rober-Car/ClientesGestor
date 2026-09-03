@@ -114,9 +114,10 @@ class MovimientoViewModel @Inject constructor(
          */
         viewModelScope.launch {
 
-            // Reconciliación al abrir el perfil: es un respaldo, no el disparador
-            // principal, que ahora ocurre después de cada escritura en Room.
-            movimientoRepository.sincronizarPeriodoActual(idCliente)
+            // Reconciliación SOLO si hay pendientes reales (eliminaciones
+            // pendientes o una operación remota fallida en esta sesión). Abrir el
+            // perfil NO reescribe todos los movimientos históricos por defecto.
+            movimientoRepository.sincronizarSiHayPendientes(idCliente)
 
             /**
              * movimientoRepository.obtenerMovimientosPorCliente(idCliente)

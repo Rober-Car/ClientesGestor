@@ -28,5 +28,6 @@ data class Cliente(
     val observaciones: String?,
     val serviciosContratados: List<Int> = emptyList(),
     val moroso: Boolean = false,
-    val fechaEntradaMorosidad: Long? = null
+    val fechaEntradaMorosidad: Long? = null,
+    val exentoMorosidad: Boolean = false
 )

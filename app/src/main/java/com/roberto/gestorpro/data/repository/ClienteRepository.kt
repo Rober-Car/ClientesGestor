@@ -117,4 +117,13 @@ class ClienteRepository(
         return clienteDao.obtenerIdsMorosos()
     }
 
+    /**
+     * actualizarExentoMorosidad
+     * -------------------------
+     * Persiste la excepción manual de morosidad (solo el ADMIN la cambia).
+     */
+    suspend fun actualizarExentoMorosidad(idCliente: Int, exento: Boolean) {
+        clienteDao.actualizarExentoMorosidadDao(idCliente, exento)
+    }
+
 }

@@ -271,7 +271,12 @@ fun PerfilClienteScreen(
      */
     val esMoroso = cliente?.estado?.let { estadoCliente ->
         MovimientoMorosidad
-            .resultadoDe(estadoCliente, movimientos, System.currentTimeMillis())
+            .resultadoDe(
+                estadoCliente,
+                movimientos,
+                exentoMorosidad = cliente?.exentoMorosidad == true,
+                ahora = System.currentTimeMillis()
+            )
             .moroso
     } == true
 
@@ -1263,6 +1268,41 @@ fun PerfilClienteScreen(
                     },
                     enabled = movimientos.isNotEmpty()
                 )
+
+                /**
+                 * Exento de morosidad
+                 * -------------------
+                 * Excepción manual controlada SOLO por el ADMIN. Si está activa,
+                 * el cliente no se considera moroso (moroso=false en el resumen)
+                 * aunque su deuda real se mantiene; los movimientos no cambian.
+                 */
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Exento de morosidad",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "No se considerará moroso aunque tenga deuda.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray
+                        )
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = cliente?.exentoMorosidad == true,
+                        onCheckedChange = { nuevoValor ->
+                            viewModel.cambiarExentoMorosidad(idCliente, nuevoValor)
+                        }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
 
                 /**
                  * Contenido de movimientos

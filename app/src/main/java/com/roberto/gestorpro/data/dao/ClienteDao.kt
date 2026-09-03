@@ -143,6 +143,18 @@ interface ClienteDao {
         fechaEntradaMorosidad: Long?
     )
 
+    /**
+     * actualizarExentoMorosidadDao
+     * ----------------------------
+     * Persiste la excepción manual `exentoMorosidad` (solo la cambia el ADMIN).
+     * No toca moroso/fechaEntradaMorosidad (los recalcula MovimientoMorosidad).
+     */
+    @Query("UPDATE cliente SET exentoMorosidad = :exento WHERE idCliente = :idCliente")
+    suspend fun actualizarExentoMorosidadDao(
+        idCliente: Int,
+        exento: Boolean
+    )
+
     @Query("DELETE FROM cliente")
     suspend fun borrarTodosLosClientes()
 

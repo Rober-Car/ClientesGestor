@@ -12,6 +12,7 @@ import com.roberto.gestorpro.data.converter.StringListConverter
 import com.roberto.gestorpro.data.converter.TipoSolicitudConverter
 import com.roberto.gestorpro.data.dao.ClaseDao
 import com.roberto.gestorpro.data.dao.ClienteDao
+import com.roberto.gestorpro.data.dao.EliminacionPendienteDao
 import com.roberto.gestorpro.data.dao.GastoDao
 import com.roberto.gestorpro.data.dao.MovimientoDao
 import com.roberto.gestorpro.data.dao.ReservaDao
@@ -21,6 +22,7 @@ import com.roberto.gestorpro.data.dao.SesionDao
 import com.roberto.gestorpro.data.dao.SolicitudDao
 import com.roberto.gestorpro.data.entity.ClaseEntity
 import com.roberto.gestorpro.data.entity.ClienteEntity
+import com.roberto.gestorpro.data.entity.EliminacionPendienteEntity
 import com.roberto.gestorpro.data.entity.GastoEntity
 import com.roberto.gestorpro.data.entity.MovimientoEntity
 import com.roberto.gestorpro.data.entity.ReservaEntity
@@ -42,9 +44,10 @@ import com.roberto.gestorpro.data.entity.SolicitudEntity
         ReservaEntity::class,
         SolicitudEntity::class,
         ServicioEntity::class,
-        SesionEntity::class
+        SesionEntity::class,
+        EliminacionPendienteEntity::class
     ],
-    version = 16
+    version = 17
 )
 @TypeConverters(
     EstadoClienteConverter::class,
@@ -66,4 +69,5 @@ abstract class ClientesDatabase : RoomDatabase() {
     abstract fun solicitudDao(): SolicitudDao
     abstract fun servicioDao(): ServicioDao
     abstract fun sesionDao(): SesionDao
+    abstract fun eliminacionPendienteDao(): EliminacionPendienteDao
 }

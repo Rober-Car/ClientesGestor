@@ -51,23 +51,26 @@ object MovimientoFirestore {
      * ----------------
      * Resumen económico publicado en `clientes/{idCliente}` con `update()` (merge).
      * `moroso`/`fechaEntradaMorosidad` son los valores YA persistidos en Room por
-     * MovimientoMorosidad; `deuda` es la suma de PENDIENTES exigibles del mismo
+     * MovimientoMorosidad; `deuda` es la suma de TODOS los PENDIENTES del mismo
      * motor; el periodo (fechaInicioActual/fechaFinActual) conserva su semántica
-     * actual (movimiento con mayor fechaFin).
+     * actual (movimiento con mayor fechaFin) y `exentoMorosidad` es la excepción
+     * manual controlada por el ADMIN.
      */
     fun resumenDeCliente(
         moroso: Boolean,
         fechaEntradaMorosidad: Long?,
         deuda: Double,
         fechaInicioActual: Long?,
-        fechaFinActual: Long?
+        fechaFinActual: Long?,
+        exentoMorosidad: Boolean
     ): Map<String, Any?> {
         return mapOf(
             "moroso" to moroso,
             "fechaEntradaMorosidad" to fechaEntradaMorosidad?.let { timestampDe(it) },
             "deuda" to deuda,
             "fechaInicioActual" to fechaInicioActual?.let { timestampDe(it) },
-            "fechaFinActual" to fechaFinActual?.let { timestampDe(it) }
+            "fechaFinActual" to fechaFinActual?.let { timestampDe(it) },
+            "exentoMorosidad" to exentoMorosidad
         )
     }
 

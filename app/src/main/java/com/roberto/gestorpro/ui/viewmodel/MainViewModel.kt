@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.roberto.gestorpro.data.firebase.AutenticacionRepository
 import com.roberto.gestorpro.data.firebase.NegocioRepository
+import com.roberto.gestorpro.data.repository.MovimientoRepository
 import com.roberto.gestorpro.data.repository.PreferencesRepository
 import com.roberto.gestorpro.model.TipoUsuario
 import com.roberto.gestorpro.navigation.Routes
@@ -22,7 +23,8 @@ import javax.inject.Inject
 class MainViewModel @Inject constructor(
     private val preferencesRepository: PreferencesRepository,
     private val autenticacionRepository: AutenticacionRepository,
-    private val negocioRepository: NegocioRepository
+    private val negocioRepository: NegocioRepository,
+    private val movimientoRepository: MovimientoRepository
 ) : ViewModel() {
 
     /**
@@ -90,9 +92,24 @@ class MainViewModel @Inject constructor(
      */
     suspend fun destinoInicialSegunSesion(): String {
         return if (autenticacionRepository.haySesionActiva()) {
+            lanzarReintentoDeEliminacionesPendientes()
             Routes.HOME
         } else {
             Routes.LOGIN
+        }
+    }
+
+    /**
+     * lanzarReintentoDeEliminacionesPendientes
+     * ----------------------------------------
+     * Reintenta al ARRANQUE (o tras autenticarse) los borrados remotos de
+     * movimientos que quedaron pendientes persistidos en Room, con
+     * independencia de qué pantalla abra después el ADMIN (AJUSTE 1).
+     * Es un no-op si no hay sesión o si no hay pendientes.
+     */
+    private fun lanzarReintentoDeEliminacionesPendientes() {
+        viewModelScope.launch {
+            movimientoRepository.reintentarEliminacionesPendientesGlobal()
         }
     }
 
@@ -115,6 +132,7 @@ class MainViewModel @Inject constructor(
         try {
             val resultado = autenticacionRepository.iniciarSesion(email, contrasena)
             return if (resultado.exito) {
+                lanzarReintentoDeEliminacionesPendientes()
                 null
             } else {
                 resultado.mensaje
@@ -173,6 +191,7 @@ class MainViewModel @Inject constructor(
                 AutenticacionRepository.ROL_ADMIN
             )
             return if (resultado.exito) {
+                lanzarReintentoDeEliminacionesPendientes()
                 null
             } else {
                 resultado.mensaje

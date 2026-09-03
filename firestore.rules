@@ -564,6 +564,9 @@ service cloud.firestore {
 
       // El ADMIN edita la ficha. Si cambia el DNI debe mantener el indice
       // atomico: el nuevo indice nace y el viejo se borra en el mismo Batch.
+      // Ademas puede actualizar el RESUMEN ECONOMICO del cliente (moroso, deuda,
+      // fechaEntradaMorosidad, exentoMorosidad y fechas del periodo), claves que
+      // el CLIENTE nunca puede escribir.
       allow update: if esAdmin()
         && usuarioActual().negocioId is string
         && resource.data.negocioId == usuarioActual().negocioId
@@ -586,7 +589,11 @@ service cloud.firestore {
               "fechaAlta",
               "fechaBaja",
               "fechaInicioActual",
-              "fechaFinActual"
+              "fechaFinActual",
+              "moroso",
+              "deuda",
+              "fechaEntradaMorosidad",
+              "exentoMorosidad"
             ])
         && (request.resource.data.dni == resource.data.dni
             || (existsAfter(

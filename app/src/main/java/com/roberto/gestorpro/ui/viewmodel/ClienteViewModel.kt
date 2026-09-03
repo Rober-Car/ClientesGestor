@@ -68,6 +68,19 @@ class ClienteViewModel @Inject constructor(
     private val bajaClienteRemotoRepository: BajaClienteRemotoRepository
 ) : ViewModel() {
 
+    /**
+     * init
+     * ----
+     * Al entrar en la gestión de clientes se reintentan los borrados REMOTOS de
+     * movimientos que quedaron pendientes (persistidos en Room para sobrevivir
+     * al reinicio de la app).
+     */
+    init {
+        viewModelScope.launch {
+            movimientoRepository.reintentarEliminacionesPendientesGlobal()
+        }
+    }
+
     companion object {
         private const val TAG = "ClienteViewModel"
     }
@@ -459,14 +472,21 @@ class ClienteViewModel @Inject constructor(
                 return@launch
             }
 
-            // DNI previo para mantener atómico el índice negocio+DNI en Firestore
-            // (si el ADMIN cambia el DNI, el índice viejo se borra y el nuevo nace
-            // en el mismo Batch que la réplica).
-            val dniAnterior = clienteRepository.obtenerClientePorIdRepo(cliente.idCliente)?.dni
+            // Ficha previa para comparar (DNI previo para el índice atómico y
+            // detección de cambio de estado).
+            val fichaPrevia = clienteRepository.obtenerClientePorIdRepo(cliente.idCliente)
+            val dniAnterior = fichaPrevia?.dni
+            val cambiaEstado = fichaPrevia?.estado != cliente.estado
 
             try {
                 clienteRepository.actualizarClienteRepo(cliente)
-                movimientoRepository.recalcularMorosidadDeCliente(cliente.idCliente)
+                // El resumen económico solo se recalcula/publica si cambia algo
+                // económico o de estado relevante (AJUSTE 3): una edición de datos
+                // personales (nombre, teléfono, email, foto…) NO genera
+                // sincronización económica ni su banner de error.
+                if (cambiaEstado) {
+                    movimientoRepository.recalcularMorosidadDeCliente(cliente.idCliente)
+                }
                 if (replicar(cliente, esAlta = false, dniAnterior = dniAnterior)) {
                     onExito()
                 }
@@ -616,6 +636,24 @@ class ClienteViewModel @Inject constructor(
     fun obtenerClienteParaEditar(id: Int) {
         viewModelScope.launch {
             _clienteEditando.value = clienteRepository.obtenerClientePorIdRepo(id)
+        }
+    }
+
+    /**
+     * cambiarExentoMorosidad
+     * ----------------------
+     * Excepción manual controlada SOLO por el ADMIN: activa/desactiva
+     * `exentoMorosidad` en Room y recalcula + publica el resumen económico
+     * remoto (con la exención activa el cliente no se considera moroso, pero la
+     * deuda real se mantiene).
+     */
+    fun cambiarExentoMorosidad(idCliente: Int, exento: Boolean) {
+        viewModelScope.launch {
+            clienteRepository.actualizarExentoMorosidad(idCliente, exento)
+            movimientoRepository.recalcularMorosidadDeCliente(idCliente)
+            _clienteSeleccionado.value = clienteRepository
+                .obtenerClientePorIdRepo(idCliente)
+                ?.toCliente()
         }
     }
 

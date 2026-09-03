@@ -7,12 +7,16 @@ import com.roberto.gestorpro.model.EstadoMovimiento
 /**
  * ResultadoMorosidad
  * ------------------
- * Resultado de la detección de morosidad de un cliente en un instante dado.
+ * Resultado de la detección de morosidad de un cliente en un instante dado,
+ * con la distinción conceptual de las DOS causas:
+ *  - morosoPorDeuda : existe al menos un movimiento PENDIENTE.
+ *  - morosoPorFecha : ACTIVO cuyo período pagado terminó sin nueva cobertura.
  */
 data class ResultadoMorosidad(
     val moroso: Boolean,
     val deuda: Double,
-    val fechaEntradaSugerida: Long?
+    val morosoPorDeuda: Boolean = false,
+    val morosoPorFecha: Boolean = false
 )
 
 /**
@@ -29,42 +33,42 @@ data class EstadoFinalMorosidad(
 /**
  * MovimientoMorosidad
  * -------------------
- * ÚNICA fuente de lógica de morosidad y deuda del ADMIN (FASE 5). Funciones
- * PURAS, sin acceso a base de datos ni UI, para poder testearse fácilmente.
+ * ÚNICA fuente de lógica de morosidad y deuda del ADMIN (F2). Funciones PURAS,
+ * sin acceso a base de datos ni UI, para poder testearse fácilmente.
  *
- * Reglas de negocio cerradas:
- *  - La deuda es la suma de los movimientos PENDIENTES ya EXIGIBLES (su
- *    periodo terminó). Un PENDIENTE futuro NO es deuda.
- *  - La morosidad es INDEPENDIENTE del estado administrativo (ACTIVO/BAJA):
- *    se guarda como un flag `moroso`.
- *  - ACTIVO: es moroso si tiene deuda exigible O si su cobertura PAGADA ya
- *    terminó y no existe un periodo PAGADO que cubra la fecha actual (aunque
- *    el ADMIN no haya creado todavía el siguiente movimiento).
- *  - BAJA: solo es moroso por deuda real (la ausencia de nuevo periodo no
- *    genera morosidad).
- *  - fechaEntradaMorosidad = fechaFin del periodo que provoca la entrada; se
- *    conserva mientras siga moroso y solo se restablece al volver a entrar.
+ * Reglas de negocio cerradas (modelo económico definitivo):
+ *  - La deuda es la suma de TODOS los movimientos PENDIENTES. NO se filtra por
+ *    fechaFin: un PENDIENTE (aunque su período aún no haya terminado) ya es deuda.
+ *  - Morosidad por DEUDA: existe al menos un movimiento PENDIENTE.
+ *  - Morosidad por FECHA (solo ACTIVO): la cobertura PAGADA ha terminado y no
+ *    existe una nueva cobertura PAGADA que cubra la fecha actual.
+ *  - BAJA: solo moroso por deuda (nunca por fecha). La deuda no se elimina.
+ *  - REGISTRADO / ARCHIVADO / MOROSO (legacy): sin morosidad propia.
+ *  - exentoMorosidad = true: moroso = false y fechaEntradaMorosidad = null,
+ *    pero la DEUDA se sigue calculando (valor real). No toca los movimientos.
+ *  - fechaEntradaMorosidad = fecha ACTUAL (ahora) de detección de la entrada en
+ *    morosidad; NO se usa fechaFin como fecha de entrada automática. Se conserva
+ *    mientras siga moroso; se limpia al salir; se renueva al volver a entrar.
  */
 object MovimientoMorosidad {
 
     /**
-     * Movimiento pendiente exigible: periodo ya vencido (fechaFin <= ahora).
+     * Deuda actual: suma de precioFinal de TODOS los movimientos PENDIENTE.
+     * No cuenta los PAGADOS. No depende de fechaFin ni de la fecha actual.
      */
-    fun esExigible(movimiento: MovimientoEntity, ahora: Long): Boolean =
-        movimiento.estado == EstadoMovimiento.PENDIENTE &&
-            movimiento.fechaFin <= ahora
-
-    /**
-     * Deuda actual: suma de precioFinal de los PENDIENTES exigibles.
-     * No cuenta PAGADOS ni PENDIENTES futuros.
-     */
-    fun deudaDe(movimientos: List<MovimientoEntity>, ahora: Long): Double =
+    fun deudaDe(movimientos: List<MovimientoEntity>): Double =
         movimientos
-            .filter { esExigible(it, ahora) }
+            .filter { it.estado == EstadoMovimiento.PENDIENTE }
             .sumOf { it.precioFinal }
 
     /**
-     * ¿Existe un movimiento PAGADO cuyo periodo cubre la fecha actual?
+     * ¿Existe al menos un movimiento PENDIENTE? (morosidad por deuda).
+     */
+    fun morosidadPorDeuda(movimientos: List<MovimientoEntity>): Boolean =
+        movimientos.any { it.estado == EstadoMovimiento.PENDIENTE }
+
+    /**
+     * ¿Existe un movimiento PAGADO cuyo período cubre la fecha actual?
      */
     fun tieneCoberturaPagadaActual(movimientos: List<MovimientoEntity>, ahora: Long): Boolean =
         movimientos.any {
@@ -74,77 +78,68 @@ object MovimientoMorosidad {
         }
 
     /**
-     * ¿La cobertura pagada ya se perdió? (hubo un PAGADO que terminó en el
-     * pasado y no hay cobertura actual).
+     * ¿La cobertura PAGADA ya terminó y no hay una nueva que cubra `ahora`?
+     * Es la condición de "morosidad por fecha": hubo un período PAGADO que
+     * finalizó en el pasado y no existe un período vigente para la fecha actual.
      */
-    fun continuidadPagadaPerdida(movimientos: List<MovimientoEntity>, ahora: Long): Boolean {
+    fun coberturaPagadaTerminada(movimientos: List<MovimientoEntity>, ahora: Long): Boolean {
         if (tieneCoberturaPagadaActual(movimientos, ahora)) return false
-        return movimientos.any { it.estado == EstadoMovimiento.PAGADO && it.fechaFin < ahora }
-    }
-
-    /**
-     * Fecha sugerida de entrada en morosidad (fechaFin del periodo que la
-     * provoca). Si existen varios disparadores se usa el más temprano.
-     */
-    fun fechaEntradaSugerida(movimientos: List<MovimientoEntity>, ahora: Long): Long? {
-        val porDeuda = movimientos
-            .filter { esExigible(it, ahora) }
-            .minOfOrNull { it.fechaFin }
-        val porContinuidad = if (continuidadPagadaPerdida(movimientos, ahora)) {
-            movimientos
-                .filter { it.estado == EstadoMovimiento.PAGADO && it.fechaFin < ahora }
-                .maxOfOrNull { it.fechaFin }
-        } else {
-            null
+        return movimientos.any {
+            it.estado == EstadoMovimiento.PAGADO && it.fechaFin < ahora
         }
-        return listOfNotNull(porDeuda, porContinuidad).minOrNull()
     }
 
     /**
-     * Detección de morosidad según el estado administrativo del cliente.
+     * Detección de morosidad según el estado administrativo del cliente y la
+     * excepción manual `exentoMorosidad`. Devuelve también la deuda real.
      */
     fun resultadoDe(
         estado: EstadoCliente,
         movimientos: List<MovimientoEntity>,
-        ahora: Long
+        ahora: Long,
+        exentoMorosidad: Boolean = false
     ): ResultadoMorosidad {
-        val deuda = deudaDe(movimientos, ahora)
-        val moroso = when (estado) {
-            EstadoCliente.ACTIVO ->
-                deuda > 0.0 || continuidadPagadaPerdida(movimientos, ahora)
-            EstadoCliente.BAJA -> deuda > 0.0
-            // REGISTRADO / ARCHIVADO / MOROSO: sin regla de morosidad propia.
+        val deuda = deudaDe(movimientos)
+        val porDeuda = morosidadPorDeuda(movimientos)
+        val porFecha = estado == EstadoCliente.ACTIVO &&
+            coberturaPagadaTerminada(movimientos, ahora)
+        val morosoCalculado = when (estado) {
+            EstadoCliente.ACTIVO -> porDeuda || porFecha
+            EstadoCliente.BAJA -> porDeuda
+            // REGISTRADO / ARCHIVADO / MOROSO (legacy): sin morosidad propia.
             else -> false
         }
-        val fechaSugerida = if (moroso) {
-            fechaEntradaSugerida(movimientos, ahora)
-        } else {
-            null
-        }
-        return ResultadoMorosidad(moroso, deuda, fechaSugerida)
+        val moroso = if (exentoMorosidad) false else morosoCalculado
+        return ResultadoMorosidad(
+            moroso = moroso,
+            deuda = deuda,
+            morosoPorDeuda = porDeuda,
+            morosoPorFecha = porFecha
+        )
     }
 
     /**
-     * Valores finales a persistir. Si el cliente YA era moroso se conserva su
-     * fechaEntradaMorosidad (no se reinicia en cada recálculo); si sale de
-     * morosidad se limpia; si vuelve a entrar se propone una nueva fecha.
+     * Valores finales a persistir. fechaEntradaMorosidad:
+     *  - Si el cliente YA era moroso: se conserva su fecha de entrada previa.
+     *  - Si pasa de no moroso a moroso (o vuelve a entrar): `ahora` (fecha de
+     *    detección del inicio de la situación). NO se usa fechaFin.
+     *  - Si deja de ser moroso: null.
+     *  - Si exentoMorosidad = true: moroso = false y fechaEntradaMorosidad = null.
      */
     fun resultadoFinal(
         estado: EstadoCliente,
         movimientos: List<MovimientoEntity>,
         morosoPrevio: Boolean,
         fechaEntradaPrevia: Long?,
-        ahora: Long
+        ahora: Long,
+        exentoMorosidad: Boolean = false
     ): EstadoFinalMorosidad {
-        val resultado = resultadoDe(estado, movimientos, ahora)
-        val fechaFinal = if (resultado.moroso) {
-            if (morosoPrevio && fechaEntradaPrevia != null) {
-                fechaEntradaPrevia
-            } else {
-                resultado.fechaEntradaSugerida
-            }
-        } else {
-            null
+        val resultado = resultadoDe(estado, movimientos, ahora, exentoMorosidad)
+        val fechaFinal = when {
+            exentoMorosidad -> null
+            !resultado.moroso -> null
+            morosoPrevio && fechaEntradaPrevia != null -> fechaEntradaPrevia
+            else -> ahora
         }
         return EstadoFinalMorosidad(resultado.moroso, fechaFinal)
     }

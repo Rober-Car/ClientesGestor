@@ -75,11 +75,19 @@ data class ClienteEntity(
     val moroso: Boolean = false,
 
     /**
-     * fechaEntradaMorosidad: fechaFin del periodo que provocó la entrada en
-     * morosidad (null si el cliente no es moroso). NO se reinicia en cada
-     * recálculo mientras siga moroso.
+     * fechaEntradaMorosidad: fecha (epoch) de DETECCIÓN del inicio de la
+     * situación de morosidad ACTUAL (null si el cliente no es moroso). NO es
+     * histórico y NO se usa fechaFin como fecha de entrada.
      */
-    val fechaEntradaMorosidad: Long? = null
+    val fechaEntradaMorosidad: Long? = null,
+
+    /**
+     * exentoMorosidad: excepción MANUAL controlada solo por el ADMIN. Si es
+     * true el cliente NO se considera moroso (moroso=false y fecha de entrada
+     * null), aunque la DEUDA real se sigue calculando y los movimientos no se
+     * modifican. La Functions futura de morosidad debe respetar este flag.
+     */
+    val exentoMorosidad: Boolean = false
 )
 
 
@@ -100,6 +108,7 @@ fun ClienteEntity.toCliente(): Cliente {
         observaciones = observaciones,
         serviciosContratados = serviciosContratados,
         moroso = moroso,
-        fechaEntradaMorosidad = fechaEntradaMorosidad
+        fechaEntradaMorosidad = fechaEntradaMorosidad,
+        exentoMorosidad = exentoMorosidad
     )
 }
