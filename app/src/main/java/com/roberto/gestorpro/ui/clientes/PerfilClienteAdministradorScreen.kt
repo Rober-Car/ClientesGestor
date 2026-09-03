@@ -102,6 +102,7 @@ import com.roberto.gestorpro.ui.components.AppPrimaryButton
 import com.roberto.gestorpro.ui.components.AppSecondaryButton
 import com.roberto.gestorpro.ui.components.AppTextLinkButton
 import com.roberto.gestorpro.ui.components.BotonSelectorFoto
+import com.roberto.gestorpro.ui.economia.ResumenEconomiaCard
 import com.roberto.gestorpro.ui.viewmodel.ClienteViewModel
 import com.roberto.gestorpro.ui.viewmodel.MovimientoViewModel
 import com.roberto.gestorpro.util.MovimientoPrecio
@@ -275,10 +276,15 @@ fun PerfilClienteScreen(
                 estadoCliente,
                 movimientos,
                 exentoMorosidad = cliente?.exentoMorosidad == true,
+                inicioEtapa = cliente?.fechaBaja,
                 ahora = System.currentTimeMillis()
             )
             .moroso
     } == true
+
+    val deudaTotal = MovimientoMorosidad.deudaDe(movimientos)
+
+    val formatterMoneda = java.text.NumberFormat.getCurrencyInstance(java.util.Locale("es", "ES"))
 
     val context = LocalContext.current
 
@@ -1233,6 +1239,15 @@ fun PerfilClienteScreen(
                  * Sirve para listar servicios contratados, su estado de pago y añadir nuevos movimientos.
                  */
 
+                ResumenEconomiaCard(
+                    titulo = "Deuda total",
+                    cantidad = formatterMoneda.format(deudaTotal),
+                    color = Color(0xFFF44336),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
                 /**
                  * Button de Nuevo movimiento
                  * -------------------------
@@ -1786,8 +1801,6 @@ fun PerfilClienteScreen(
                                     text = "Guardar movimiento",
                                     onClick = {
 
-                                        errorServicioMovimiento = idsServiciosMovimiento.isEmpty()
-
                                         val precioValido = precioMovimiento
                                             .replace(",", ".")
                                             .toDoubleOrNull()
@@ -1811,7 +1824,6 @@ fun PerfilClienteScreen(
                                         }
 
                                         if (
-                                            !errorServicioMovimiento &&
                                             !errorPrecioMovimiento &&
                                             !errorFechaInicioMovimiento &&
                                             !errorFechaFinMovimiento &&
@@ -2661,12 +2673,22 @@ private fun ItemMovimientoPerfil(
         .toLocalDate()
         .format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
 
+    val colorFondo = when (movimiento.estado) {
+        EstadoMovimiento.PENDIENTE -> Color(0xFFF44336).copy(alpha = 0.08f)
+        EstadoMovimiento.PAGADO -> Color(0xFF4CAF50).copy(alpha = 0.08f)
+    }
+
+    val colorEstado = when (movimiento.estado) {
+        EstadoMovimiento.PENDIENTE -> Color(0xFFF44336)
+        EstadoMovimiento.PAGADO -> Color(0xFF4CAF50)
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF4CAF50).copy(alpha = 0.08f))
+        colors = CardDefaults.cardColors(containerColor = colorFondo)
     ) {
         Row(
             modifier = Modifier
@@ -2677,7 +2699,7 @@ private fun ItemMovimientoPerfil(
             Icon(
                 imageVector = Icons.Default.AttachMoney,
                 contentDescription = null,
-                tint = Color(0xFF4CAF50),
+                tint = colorEstado,
                 modifier = Modifier.size(32.dp)
             )
             Spacer(modifier = Modifier.width(12.dp))
@@ -2696,7 +2718,7 @@ private fun ItemMovimientoPerfil(
             Text(
                 text = "+${formatter.format(movimiento.precioFinal)}",
                 style = MaterialTheme.typography.bodyLarge,
-                color = Color(0xFF4CAF50)
+                color = colorEstado
             )
         }
     }

@@ -308,7 +308,8 @@ class MovimientoRepository @Inject constructor(
             morosoPrevio = cliente.moroso,
             fechaEntradaPrevia = cliente.fechaEntradaMorosidad,
             ahora = ahora,
-            exentoMorosidad = cliente.exentoMorosidad
+            exentoMorosidad = cliente.exentoMorosidad,
+            inicioEtapa = cliente.fechaBaja
         )
         clienteDao.actualizarMorosidadDao(
             idCliente,

@@ -1095,9 +1095,18 @@ fun AñadirClienteScreen(
                                 fechaRegistro = original.fechaRegistro,
                                 fechaAlta = original.fechaAlta,
                                 fechaBaja = if (esActivo) {
-                                    null
+                                    // ACTIVO (reactivado o no): se CONSERVA la
+                                    // fechaBaja previa (última fecha de baja). El
+                                    // ViewModel además la restaura en BAJA -> ACTIVO.
+                                    original.fechaBaja
                                 } else {
-                                    original.fechaBaja ?: System.currentTimeMillis()
+                                    // Nueva BAJA: fecha ACTUAL siempre. Si ya estaba
+                                    // en BAJA se conserva su fechaBaja original.
+                                    if (original.estado == EstadoCliente.BAJA) {
+                                        original.fechaBaja
+                                    } else {
+                                        System.currentTimeMillis()
+                                    }
                                 },
                                 estado = if (esActivo) EstadoCliente.ACTIVO else EstadoCliente.BAJA,
                                 observaciones = observaciones.ifBlank { null },

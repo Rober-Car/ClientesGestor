@@ -518,12 +518,22 @@ fun ItemMovimiento(
             .format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
     }
 
+    val colorFondo = when (movimiento.estado) {
+        EstadoMovimiento.PENDIENTE -> Color(0xFFF44336).copy(alpha = 0.08f)
+        EstadoMovimiento.PAGADO -> Color(0xFF4CAF50).copy(alpha = 0.08f)
+    }
+
+    val colorEstado = when (movimiento.estado) {
+        EstadoMovimiento.PENDIENTE -> Color(0xFFF44336)
+        EstadoMovimiento.PAGADO -> Color(0xFF4CAF50)
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF4CAF50).copy(alpha = 0.08f))
+        colors = CardDefaults.cardColors(containerColor = colorFondo)
     ) {
         Row(
             modifier = Modifier
@@ -534,7 +544,7 @@ fun ItemMovimiento(
             Icon(
                 imageVector = Icons.Default.AttachMoney,
                 contentDescription = null,
-                tint = Color(0xFF4CAF50),
+                tint = colorEstado,
                 modifier = Modifier.size(32.dp)
             )
             Spacer(modifier = Modifier.width(12.dp))
@@ -556,7 +566,7 @@ fun ItemMovimiento(
             Text(
                 text = "+${formatter.format(movimiento.precioFinal)}",
                 style = MaterialTheme.typography.bodyLarge,
-                color = Color(0xFF4CAF50)
+                color = colorEstado
             )
         }
     }

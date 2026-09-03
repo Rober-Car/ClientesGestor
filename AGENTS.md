@@ -614,6 +614,54 @@ node firestore-tests/auditoria_backfill_indices.cjs
 
 ## Estado actual y pendientes (2026-09-03)
 
+> ACTUALIZACIÓN 2026-09-04 (F2 PRUEBAS REALES + CORRECCIONES MOVIMIENTOS/MOROSIDAD + DEPLOY RULES).
+> HEAD del desarrollador: `c67cdbd "impplementando codigo para cuando contrate balze2"` (la F2 de
+> economía queda **COMMITEADA** en HEAD: Room v17, réplica `movimientos/{id}` + resumen en `clientes/{id}`,
+> `eliminacion_pendiente`, etc.). Working tree con cambios de esta sesión SIN commit (NO revertir).
+> Este bloque SUPERSEDE a los checkpoints previos que afirmaban "F2 sin commit / sin deploy".
+>
+> **DEPLOY AUTORIZADO (único de esta tanda):** `firestore.rules` local, validado con
+> `npm --prefix firestore-tests test` (**151/151**), desplegado en `gestorpro-50e83` → ruleset
+> `projects/gestorpro-50e83/rulesets/cd36cbc9-dee0-47e1-b523-481b31fb6eb0` (release `cloud.firestore`,
+> createTime 2026-09-03T21:32:40Z). **NO** se desplegó Storage Rules, Functions ni nada más.
+>
+> **Cambios de la sesión (working tree, sin commit):**
+> 1. **Alta de movimientos sin servicios:** se elimina la obligatoriedad "Selecciona al menos un
+>    servicio" (un movimiento puede tener 0..n servicios; `precioFinal` y fechas siguen obligatorios).
+> 2. **Visual de estado de movimientos:** `ItemMovimientoPerfil` (perfil) e `ItemMovimiento`
+>    (EconomíaScreen) pintan el card según `movimiento.estado` — PENDIENTE rojizo suave (`0xFFF44336`
+>    @8 %) y PAGADO verde (`0xFF4CAF50` @8 %) — e icono `$` + importe del mismo color del estado.
+>    `ui/components/MovimientoItem.kt` sigue SIN consumidores (no se toca).
+> 3. **"Deuda total"** al inicio de la pestaña Economía del perfil (antes de "Nuevo movimiento"),
+>    reutilizando `ResumenEconomiaCard` con `MovimientoMorosidad.deudaDe(movimientos)`, formato
+>    moneda es_ES sin signo `+`, color rojo.
+> 4. **Morosidad por fecha con ETAPAS (frontera = última `fechaBaja`):**
+>    - El motor `MovimientoMorosidad` gana `inicioEtapa: Long? = null`; un PAGADO solo cuenta en la
+>      causa por fecha si `fechaFin >= inicioEtapa`. `null` = sin corte (comportamiento histórico).
+>    - La frontera se alimenta con **`cliente.fechaBaja`** (última fecha de baja), NO con `fechaAlta`.
+>    - BAJA→ACTIVO: **conserva `fechaBaja`** (helpers puros `prepararReactivacion`/`aplicarBaja` en
+>      `ClienteViewModel`) y renueva `fechaAlta` (dato informativo). `restaurarCliente` (ARCHIVADO) ya
+>      no borra `fechaBaja`. Una nueva BAJA siempre fija `System.currentTimeMillis()` (formulario y
+>      `darDeBaja`), sin reutilizar la anterior.
+>    - `MovimientoRepository.calcularYPersistirMorosidad` y el `esMoroso` del perfil pasan
+>      `inicioEtapa = cliente.fechaBaja`.
+>    - `model/Cliente` y `toCliente()` exponen `fechaAlta`/`fechaBaja` (SIN migración Room ni cambios
+>      de Rules/Functions/Storage).
+>    - Corrige la regresión real detectada en producción (`clientes/1654697743`, ACTIVO, fechaAlta
+>      2026-09-03T21:23Z > fechaFin del único PAGADO 2026-09-03T00:00Z): ahora ese movimiento cuenta y
+>      el cliente es **MOROSO por fecha** con hoy posterior al fin. Se conserva el caso F2-14 (periodo
+>      antiguo cerrado antes de la última baja no provoca morosidad) y la deuda PENDIENTE sigue
+>      contando siempre.
+>
+> **Tests/verificación HOY:** `:app:testDebugUnitTest` → **85/85** (`MovimientoMorosidadTest` **35**,
+> nuevo `ClienteTransicionEstadoTest` **4**, resto intacto); `:app:assembleDebug` BUILD SUCCESSFUL.
+> Rules 151/151 (sin cambios). NO commit, NO deploy adicional.
+>
+> **Pendientes:** commit agrupado del working tree; retirar logs temporales (`[DIAG alta]`,
+> `[DIAG sesiones]`, `ClasesDiagnostico`); confirmar fix del alta con BD limpia; conciliar/desplegar
+> pendientes previos (VÍA 2/fecha nacimiento opcional, `fallbackToDestructiveMigration`, botones
+> restantes, diagnóstico "Crear negocio"); Blaze/Functions/Storage pendientes de decisión.
+
 > ACTUALIZACIÓN 2026-09-03 (F2 ECONOMÍA ROOM↔FIRESTORE IMPLEMENTADA + DIAGNÓSTICO "CREAR NEGOCIO").
 > HEAD del desarrollador: `100c4eb "mejoras y correciones"`. Working tree con cambios SIN commit:
 > toda la F2 (economía) + las tandas documentales + `RegistroScreen.kt` (del desarrollador) +

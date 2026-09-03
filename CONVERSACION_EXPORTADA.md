@@ -2554,3 +2554,88 @@ precio final editable que no cambia históricos; Functions: automatizaciones fut
 3. Commit agrupado del working tree (F2 + docs) y limpieza (`firestore-debug.log`).
 4. Retirar `fallbackToDestructiveMigration` antes de producción; decidir limpieza de `actualizarPeriodoActualRemoto` sin consumidores.
 5. Pendientes previos sin cerrar (logs `[DIAG alta]`/`[DIAG sesiones]`/`ClasesDiagnostico`, regenerar sesiones/índices, VÍA2/fecha nacimiento/pantalla elección, `DetalleVisuales.kt`, unificación de botones restante).
+
+---
+
+# ACTUALIZACIÓN 2026-09-04 — F2 PRUEBAS REALES (MOVIMIENTOS/DEUDA/COLORES) + MOROSIDAD POR FECHA CON ETAPAS (fechaBaja) + DEPLOY DE RULES
+
+> Estado de CONTINUACIÓN. HEAD del desarrollador: `c67cdbd "impplementando codigo para cuando contrate
+> balze2"` (la F2 de economía está COMMITEADA en HEAD). Working tree con los cambios de esta sesión SIN
+> commit (NO revertir). Resumen operativo en AGENTS.md («Estado actual y pendientes», 2026-09-04).
+
+## 0) Contexto y DEPLOY autorizado de Firestore Rules
+- El desarrollador autorizó desplegar `firestore.rules` local para poder probar F2 en producción.
+- Verificación previa: proyecto `.firebaserc` = `gestorpro-50e83`; `firestore.rules` idéntico al
+  commit (sin cambios); `npm --prefix firestore-tests test` → **151/151**.
+- `firebase deploy --only firestore:rules` → compilado sin errores (warnings benignos ya auditados) y
+  **Deploy complete!** a `gestorpro-50e83`.
+- Ruleset resultante (verificado por API): `projects/gestorpro-50e83/rulesets/
+  cd36cbc9-dee0-47e1-b523-481b31fb6eb0` (release `cloud.firestore`, createTime 2026-09-03T21:32:40Z).
+- NO se desplegó Storage Rules, Functions ni ningún otro recurso.
+
+## 1) Bug: movimientos con 0 servicios (CORREGIDO)
+- El alta de un movimiento sin seleccionar ningún servicio fallaba con "Selecciona al menos un
+  servicio" (obligatoriedad en `PerfilClienteAdministradorScreen`).
+- Fix mínimo: se elimina la validación de obligatoriedad de servicios (solo UI). Un movimiento puede
+  tener 0..n servicios; `precioFinal` y fechas siguen siendo obligatorios. Verificado: Room
+  (`IntListConverter` guarda lista vacía), réplica Firestore (`servicios: []` permitido por Rules de
+  `movimientos`), motor de morosidad (no usa servicios), edición/eliminación.
+
+## 2) Visual de estado en cards de movimiento (implementado)
+- `ItemMovimientoPerfil` (perfil) e `ItemMovimiento` (EconomíaScreen): el fondo, el icono `$` y el
+  importe (con `+`) se colorean según `movimiento.estado`:
+  - PENDIENTE → rojizo suave (`0xFFF44336`; fondo @8 %, icono/importe al 100 %).
+  - PAGADO → verde suave actual (`0xFF4CAF50`; fondo @8 %, icono/importe al 100 %).
+- Nombre en color por defecto y fecha en gris (sin cambios). `MovimientoItem.kt` (sin consumidores) NO
+  se toca. Diagnóstico previo: el color NO dependía del estado (card fija verde) y NO era una regresión
+  del punto 1.
+
+## 3) "Deuda total" en la pestaña Economía del perfil (implementado)
+- Antes de "Nuevo movimiento" se muestra `ResumenEconomiaCard(titulo = "Deuda total", ...)` con
+  `MovimientoMorosidad.deudaDe(movimientos)` (suma de TODOS los PENDIENTES), formato moneda es_ES sin
+  signo `+` y color rojo. Cálculo puro en memoria; sin cambios de Room/Firestore/Rules/morosidad.
+
+## 4) Morosidad por fecha con ETAPAS — frontera = última `fechaBaja` (F2-14 corregido y REVISADO)
+- **Problema F2-14 (previo):** al reactivar BAJA→ACTIVO, un periodo antiguo terminado provocaba
+  "moroso por fecha" indebidamente.
+- **Solución inicial (sesión previa, corregida en esta):** se usó `fechaAlta` renovada como frontera
+  (`fechaFin >= fechaAlta`). Esto REGRESIONÓ el caso real detectado en producción
+  (`clientes/1654697743`, ACTIVO, `fechaAlta` 2026-09-03T21:23Z > `fechaFin` 2026-09-03T00:00Z del único
+  PAGADO; hoy posterior al fin → el movimiento quedaba excluido y el cliente NO salía moroso).
+- **Solución definitiva (implementada):** la frontera de la "etapa actual" es la **última `fechaBaja`**:
+  - `MovimientoMorosidad` mantiene `inicioEtapa: Long? = null`; un PAGADO solo participa en la causa
+    por fecha si `fechaFin >= inicioEtapa`; `null` = comportamiento histórico (sin corte). `deudaDe()`
+    NO se modifica (PENDIENTE siempre cuenta).
+  - `ClienteViewModel`: transición BAJA→ACTIVO conserva `fechaBaja` y renueva `fechaAlta`
+    (helpers puros `prepararReactivacion`/`aplicarBaja`, testables). Una nueva BAJA SIEMPRE fija
+    `System.currentTimeMillis()` (formulario y `darDeBaja`). `restaurarCliente` (ARCHIVADO) ya no borra
+    `fechaBaja`. Revisado: no queda ningún punto que ponga `fechaBaja = null` al reactivar BAJA→ACTIVO.
+  - `MovimientoRepository.calcularYPersistirMorosidad` y el `esMoroso` del perfil pasan
+    `inicioEtapa = cliente.fechaBaja`.
+  - `model/Cliente` y `toCliente()` exponen `fechaAlta`/`fechaBaja` (sin migración Room; esquema v17
+    intacto).
+- Reglas resultantes verificadas con casos límite (tests): sin `fechaBaja` + PAGADO terminado ayer →
+  MOROSO; `fechaBaja` antigua + PAGADO anterior a esa baja → NO moroso; `fechaBaja` antigua + nuevo
+  PAGADO de la nueva etapa terminado → MOROSO; nuevo PAGADO vigente → NO moroso; PENDIENTE anterior a
+  la baja → sigue como deuda; segunda baja → fecha actual; reactivación → fechaBaja conservada.
+
+## Archivos tocados (working tree, sin commit)
+- `PerfilClienteAdministradorScreen.kt` (0 servicios, colores por estado en perfil, Deuda total,
+  esMoroso con fechaBaja), `EconomiaScreen.kt` (colores ItemMovimiento), `ClienteViewModel.kt`
+  (helpers prepararReactivacion/aplicarBaja + darDeBaja), `AñadirClienteScreen.kt` (fechaBaja al
+  guardar), `MovimientoRepository.kt` (inicioEtapa = fechaBaja), `MovimientoMorosidad.kt` (inicioEtapa,
+  docs), `model/Cliente.kt` + `ClienteEntity.kt` (exponer fechaAlta/fechaBaja en toCliente).
+- Tests: `MovimientoMorosidadTest.kt` (35) y NUEVO `ClienteTransicionEstadoTest.kt` (4).
+- Docs: `AGENTS.md` (estado 2026-09-04), `CONVERSACION_EXPORTADA.md` (este bloque).
+
+## Verificación
+- `npm --prefix firestore-tests test` → **151/151** (antes del deploy).
+- `:app:testDebugUnitTest` → **BUILD SUCCESSFUL**: **85/85** (0 fallos).
+- `:app:assembleDebug` → **BUILD SUCCESSFUL** (solo warnings de deprecación preexistentes).
+- NO commit, NO deploy adicional (el único deploy de la tanda fue `firestore:rules`).
+
+## Para REANUDAR
+1. Revisar y commitear agrupado el working tree (10 archivos `.kt` M + test nuevo).
+2. Seguir pendientes previos sin cerrar: logs `[DIAG alta]`/`[DIAG sesiones]`/`ClasesDiagnostico`,
+   confirmar fix del alta con BD limpia, VÍA2/fecha de nacimiento, `fallbackToDestructiveMigration`,
+   botones restantes, diagnóstico "Crear negocio", Blaze/Functions/Storage.

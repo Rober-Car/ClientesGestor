@@ -104,6 +104,8 @@ fun ClienteEntity.toCliente(): Cliente {
         dni = dni,
         foto = foto,
         fechaNacimiento = fechaNacimiento,
+        fechaAlta = fechaAlta,
+        fechaBaja = fechaBaja,
         estado = estado,
         observaciones = observaciones,
         serviciosContratados = serviciosContratados,

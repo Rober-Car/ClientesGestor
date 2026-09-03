@@ -478,16 +478,27 @@ class ClienteViewModel @Inject constructor(
             val dniAnterior = fichaPrevia?.dni
             val cambiaEstado = fichaPrevia?.estado != cliente.estado
 
+            // Reactivación de BAJA a ACTIVO: se renueva fechaAlta al instante de
+            // la reactivación y se CONSERVA la fechaBaja como "última fecha de
+            // baja" (frontera de la nueva etapa). Los movimientos cerrados antes
+            // de esa baja no cuentan para la morosidad por fecha
+            // (ver MovimientoMorosidad y prepararReactivacion).
+            val clienteAEscribir = prepararReactivacion(
+                entidad = cliente,
+                fichaPrevia = fichaPrevia,
+                ahora = System.currentTimeMillis()
+            )
+
             try {
-                clienteRepository.actualizarClienteRepo(cliente)
+                clienteRepository.actualizarClienteRepo(clienteAEscribir)
                 // El resumen económico solo se recalcula/publica si cambia algo
                 // económico o de estado relevante (AJUSTE 3): una edición de datos
                 // personales (nombre, teléfono, email, foto…) NO genera
                 // sincronización económica ni su banner de error.
                 if (cambiaEstado) {
-                    movimientoRepository.recalcularMorosidadDeCliente(cliente.idCliente)
+                    movimientoRepository.recalcularMorosidadDeCliente(clienteAEscribir.idCliente)
                 }
-                if (replicar(cliente, esAlta = false, dniAnterior = dniAnterior)) {
+                if (replicar(clienteAEscribir, esAlta = false, dniAnterior = dniAnterior)) {
                     onExito()
                 }
             } catch (e: SQLiteConstraintException) {
@@ -551,10 +562,7 @@ class ClienteViewModel @Inject constructor(
      */
     fun restaurarCliente(cliente: ClienteEntity) {
         viewModelScope.launch {
-            val actualizado = cliente.copy(
-                estado = EstadoCliente.ACTIVO,
-                fechaBaja = null
-            )
+            val actualizado = cliente.copy(estado = EstadoCliente.ACTIVO)
             clienteRepository.actualizarClienteRepo(actualizado)
             movimientoRepository.recalcularMorosidadDeCliente(actualizado.idCliente)
             replicar(actualizado, esAlta = false)
@@ -564,10 +572,7 @@ class ClienteViewModel @Inject constructor(
     fun restaurarCliente(cliente: Cliente) {
         viewModelScope.launch {
             val entity = clienteRepository.obtenerClientePorIdRepo(cliente.idCliente) ?: return@launch
-            val actualizado = entity.copy(
-                estado = EstadoCliente.ACTIVO,
-                fechaBaja = null
-            )
+            val actualizado = entity.copy(estado = EstadoCliente.ACTIVO)
             clienteRepository.actualizarClienteRepo(actualizado)
             movimientoRepository.recalcularMorosidadDeCliente(actualizado.idCliente)
             replicar(actualizado, esAlta = false)
@@ -589,8 +594,10 @@ class ClienteViewModel @Inject constructor(
     fun darDeBaja(cliente: ClienteEntity, onExito: () -> Unit = {}) {
         viewModelScope.launch {
             _error.value = null
-            val fechaBaja = cliente.fechaBaja ?: System.currentTimeMillis()
-            val entidad = cliente.copy(estado = EstadoCliente.BAJA, fechaBaja = fechaBaja)
+            // Una BAJA nueva siempre fija la fecha ACTUAL, nunca reutiliza una
+            // fechaBaja anterior conservada de una baja previa.
+            val fechaBaja = System.currentTimeMillis()
+            val entidad = aplicarBaja(cliente, fechaBaja)
 
             try {
                 clienteRepository.actualizarClienteRepo(entidad)
@@ -658,3 +665,39 @@ class ClienteViewModel @Inject constructor(
     }
 
 }
+
+/**
+ * prepararReactivacion
+ * --------------------
+ * Función PURA de transición de estado para poder testearse: si el cliente pasa
+ * de BAJA a ACTIVO se renueva `fechaAlta` (nueva inscripción) y se CONSERVA la
+ * `fechaBaja` como última fecha de baja (frontera de la etapa, ver
+ * MovimientoMorosidad). En cualquier otro caso devuelve la entidad sin cambios.
+ */
+internal fun prepararReactivacion(
+    entidad: ClienteEntity,
+    fichaPrevia: ClienteEntity?,
+    ahora: Long
+): ClienteEntity =
+    if (fichaPrevia?.estado == EstadoCliente.BAJA &&
+        entidad.estado == EstadoCliente.ACTIVO
+    ) {
+        entidad.copy(
+            fechaAlta = ahora,
+            fechaBaja = fichaPrevia.fechaBaja
+        )
+    } else {
+        entidad
+    }
+
+/**
+ * aplicarBaja
+ * -----------
+ * Función PURA de transición a BAJA para poder testearse: una BAJA nueva
+ * SIEMPRE fija `fechaBaja = ahora`, sin reutilizar una fecha anterior.
+ */
+internal fun aplicarBaja(
+    entidad: ClienteEntity,
+    ahora: Long
+): ClienteEntity =
+    entidad.copy(estado = EstadoCliente.BAJA, fechaBaja = ahora)

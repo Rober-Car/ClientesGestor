@@ -304,4 +304,205 @@ class MovimientoMorosidadTest {
         assertFalse(final.moroso)
         assertNull(final.fechaEntradaMorosidad)
     }
+
+    // =========================================================
+    // REINSCRIPCIÓN / NUEVA ETAPA (inicioEtapa = fecha de la última baja)
+    // Casos límite: BAJA de un año -> reactivación -> nuevo período.
+    // Solo cuentan los PAGADO con fechaFin >= inicioEtapa.
+    // =========================================================
+
+    // 23. Caso 1: reactivar hoy con un nuevo PAGADO que empieza hoy -> NO moroso.
+    @Test
+    fun reinscripcion_pagado_empieza_hoy_no_moroso() {
+        val antiguo = movimiento(1, 1, fecha(1, 1, 2025), fecha(31, 1, 2025), 30.0, EstadoMovimiento.PAGADO)
+        val nuevo = movimiento(2, 1, fecha(1, 7, 2026), fecha(31, 7, 2026), 40.0, EstadoMovimiento.PAGADO)
+        val res = MovimientoMorosidad.resultadoDe(
+            EstadoCliente.ACTIVO, listOf(antiguo, nuevo), fecha(10, 7),
+            inicioEtapa = fecha(1, 7)
+        )
+        assertFalse(res.moroso)
+        assertFalse(res.morosoPorFecha)
+        assertEquals(0.0, res.deuda, 0.0001)
+    }
+
+    // 24. Caso 2: el nuevo PAGADO empieza mañana (aún sin cobertura) -> NO moroso.
+    @Test
+    fun reinscripcion_pagado_empieza_manana_no_moroso() {
+        val antiguo = movimiento(1, 1, fecha(1, 1, 2025), fecha(31, 1, 2025), 30.0, EstadoMovimiento.PAGADO)
+        val nuevo = movimiento(2, 1, fecha(1, 8), fecha(31, 8), 40.0, EstadoMovimiento.PAGADO)
+        val res = MovimientoMorosidad.resultadoDe(
+            EstadoCliente.ACTIVO, listOf(antiguo, nuevo), fecha(10, 7),
+            inicioEtapa = fecha(1, 7)
+        )
+        assertFalse(res.moroso)
+        assertFalse(res.morosoPorFecha)
+        assertEquals(0.0, res.deuda, 0.0001)
+    }
+
+    // 25. Caso 3: el nuevo PAGADO tiene fechaInicio de ayer (retrasada) pero
+    //    termina después de fechaAlta -> cuenta como cobertura (filtro por fechaFin).
+    @Test
+    fun reinscripcion_pagado_con_inicio_retrasado_cuenta_por_fechafin() {
+        val antiguo = movimiento(1, 1, fecha(1, 1, 2025), fecha(31, 1, 2025), 30.0, EstadoMovimiento.PAGADO)
+        val nuevo = movimiento(2, 1, fecha(30, 6), fecha(31, 7), 40.0, EstadoMovimiento.PAGADO)
+        val res = MovimientoMorosidad.resultadoDe(
+            EstadoCliente.ACTIVO, listOf(antiguo, nuevo), fecha(10, 7),
+            inicioEtapa = fecha(1, 7)
+        )
+        assertFalse(res.moroso)
+        assertFalse(res.morosoPorFecha)
+        assertEquals(0.0, res.deuda, 0.0001)
+    }
+
+    // 26. Caso 4: PENDIENTE antiguo (anterior a fechaAlta) -> moroso por deuda
+    //    (la deuda no depende de etapas ni fechas).
+    @Test
+    fun reinscripcion_con_pendiente_antiguo_moroso_por_deuda() {
+        val pendiente = movimiento(1, 1, fecha(1, 2, 2025), fecha(28, 2, 2025), 25.0, EstadoMovimiento.PENDIENTE)
+        val res = MovimientoMorosidad.resultadoDe(
+            EstadoCliente.ACTIVO, listOf(pendiente), fecha(10, 7),
+            inicioEtapa = fecha(1, 7)
+        )
+        assertTrue(res.moroso)
+        assertTrue(res.morosoPorDeuda)
+        assertFalse(res.morosoPorFecha)
+        assertEquals(25.0, res.deuda, 0.0001)
+    }
+
+    // 27. Caso 5: PAGADO antiguo terminado y ningún movimiento nuevo -> NO moroso
+    //    por fecha. Sin inicioEtapa (comportamiento histórico) sí lo sería.
+    @Test
+    fun reinscripcion_sin_nuevo_movimiento_no_arrastra_periodo_anterior() {
+        val antiguo = movimiento(1, 1, fecha(1, 1, 2025), fecha(31, 1, 2025), 30.0, EstadoMovimiento.PAGADO)
+        val res = MovimientoMorosidad.resultadoDe(
+            EstadoCliente.ACTIVO, listOf(antiguo), fecha(10, 7),
+            inicioEtapa = fecha(1, 7)
+        )
+        assertFalse(res.moroso)
+        assertFalse(res.morosoPorFecha)
+        assertEquals(0.0, res.deuda, 0.0001)
+
+        val sinCorte = MovimientoMorosidad.resultadoDe(
+            EstadoCliente.ACTIVO, listOf(antiguo), fecha(10, 7)
+        )
+        assertTrue(sinCorte.morosoPorFecha)
+    }
+
+    // 28. Caso 6: ACTIVO normal (misma etapa) con período terminado sin renovar
+    //    -> SÍ moroso por fecha (se conserva la regla).
+    @Test
+    fun activo_misma_etapa_periodo_terminado_sigue_moroso_por_fecha() {
+        val pagado = movimiento(1, 1, fecha(1, 8), fecha(31, 8), 30.0, EstadoMovimiento.PAGADO)
+        val res = MovimientoMorosidad.resultadoDe(
+            EstadoCliente.ACTIVO, listOf(pagado), fecha(15, 9),
+            inicioEtapa = fecha(1, 1)
+        )
+        assertTrue(res.moroso)
+        assertFalse(res.morosoPorDeuda)
+        assertTrue(res.morosoPorFecha)
+        assertEquals(0.0, res.deuda, 0.0001)
+    }
+
+    // 29. Caso 7: ACTIVO normal con un PENDIENTE aunque el período pagado siga
+    //    vigente -> moroso por deuda (independiente de fechas).
+    @Test
+    fun activo_con_pendiente_y_periodo_vigente_moroso_por_deuda() {
+        val pendiente = movimiento(1, 1, fecha(1, 8), fecha(31, 8), 20.0, EstadoMovimiento.PENDIENTE)
+        val vigente = movimiento(2, 1, fecha(1, 9), fecha(30, 9), 30.0, EstadoMovimiento.PAGADO)
+        val res = MovimientoMorosidad.resultadoDe(
+            EstadoCliente.ACTIVO, listOf(pendiente, vigente), fecha(15, 9),
+            inicioEtapa = fecha(1, 1)
+        )
+        assertTrue(res.moroso)
+        assertTrue(res.morosoPorDeuda)
+        assertFalse(res.morosoPorFecha)
+        assertEquals(20.0, res.deuda, 0.0001)
+    }
+
+    // 30. Caso 8: reactivar sin deuda y sin haber creado todavía el nuevo
+    //    movimiento -> NO moroso y sin fecha de entrada de morosidad.
+    @Test
+    fun reactivar_sin_movimiento_nuevo_no_entra_en_morosidad() {
+        val antiguo = movimiento(1, 1, fecha(1, 1, 2025), fecha(31, 1, 2025), 30.0, EstadoMovimiento.PAGADO)
+        val final = MovimientoMorosidad.resultadoFinal(
+            EstadoCliente.ACTIVO, listOf(antiguo),
+            morosoPrevio = false, fechaEntradaPrevia = null,
+            ahora = fecha(10, 7), inicioEtapa = fecha(1, 7)
+        )
+        assertFalse(final.moroso)
+        assertNull(final.fechaEntradaMorosidad)
+    }
+
+    // =========================================================
+    // FRONTERA = ÚLTIMA FECHA DE BAJA (fechaBaja)
+    // =========================================================
+
+    // 31. Cliente sin fechaBaja (nunca de baja) con PAGADO terminado ayer
+    //    -> moroso por fecha (regresión 04/09/2026 con fin 03/09/2026).
+    @Test
+    fun sin_fecha_baja_pagado_terminado_ayer_moroso_por_fecha() {
+        val pagado = movimiento(1, 1, fecha(1, 9), fecha(3, 9), 33.0, EstadoMovimiento.PAGADO)
+        val res = MovimientoMorosidad.resultadoDe(
+            EstadoCliente.ACTIVO, listOf(pagado), fecha(4, 9)
+        )
+        assertTrue(res.moroso)
+        assertFalse(res.morosoPorDeuda)
+        assertTrue(res.morosoPorFecha)
+        assertEquals(0.0, res.deuda, 0.0001)
+    }
+
+    // 32. fechaBaja antigua + PAGADO terminado ANTES de esa baja -> NO moroso.
+    @Test
+    fun fecha_baja_antigua_pagado_anterior_terminado_no_moroso() {
+        val antiguo = movimiento(1, 1, fecha(1, 1, 2025), fecha(31, 1, 2025), 30.0, EstadoMovimiento.PAGADO)
+        val res = MovimientoMorosidad.resultadoDe(
+            EstadoCliente.ACTIVO, listOf(antiguo), fecha(10, 7),
+            inicioEtapa = fecha(1, 7, 2025)
+        )
+        assertFalse(res.moroso)
+        assertFalse(res.morosoPorFecha)
+        assertEquals(0.0, res.deuda, 0.0001)
+    }
+
+    // 33. fechaBaja antigua + NUEVO PAGADO de la nueva etapa terminado
+    //    (fin 03/09/2026, hoy 04/09/2026) -> MOROSO por fecha.
+    @Test
+    fun fecha_baja_antigua_nuevo_pagado_terminado_moroso() {
+        val nuevo = movimiento(1, 1, fecha(1, 8), fecha(3, 9), 33.0, EstadoMovimiento.PAGADO)
+        val res = MovimientoMorosidad.resultadoDe(
+            EstadoCliente.ACTIVO, listOf(nuevo), fecha(4, 9),
+            inicioEtapa = fecha(1, 7, 2025)
+        )
+        assertTrue(res.moroso)
+        assertFalse(res.morosoPorDeuda)
+        assertTrue(res.morosoPorFecha)
+        assertEquals(0.0, res.deuda, 0.0001)
+    }
+
+    // 34. fechaBaja antigua + NUEVO PAGADO vigente (cubre hoy) -> NO moroso.
+    @Test
+    fun fecha_baja_antigua_nuevo_pagado_vigente_no_moroso() {
+        val nuevo = movimiento(1, 1, fecha(1, 9), fecha(30, 9), 33.0, EstadoMovimiento.PAGADO)
+        val res = MovimientoMorosidad.resultadoDe(
+            EstadoCliente.ACTIVO, listOf(nuevo), fecha(4, 9),
+            inicioEtapa = fecha(1, 7, 2025)
+        )
+        assertFalse(res.moroso)
+        assertFalse(res.morosoPorFecha)
+        assertEquals(0.0, res.deuda, 0.0001)
+    }
+
+    // 35. PENDIENTE anterior a la fechaBaja sigue contando como deuda.
+    @Test
+    fun pendiente_anterior_a_fecha_baja_sigue_como_deuda() {
+        val pendiente = movimiento(1, 1, fecha(1, 2, 2025), fecha(28, 2, 2025), 25.0, EstadoMovimiento.PENDIENTE)
+        val res = MovimientoMorosidad.resultadoDe(
+            EstadoCliente.ACTIVO, listOf(pendiente), fecha(10, 7),
+            inicioEtapa = fecha(1, 7, 2025)
+        )
+        assertTrue(res.moroso)
+        assertTrue(res.morosoPorDeuda)
+        assertFalse(res.morosoPorFecha)
+        assertEquals(25.0, res.deuda, 0.0001)
+    }
 }
