@@ -5,6 +5,13 @@
 > **Regla de uso:** este documento es SOLO lectura/contexto. No refleja decisiones nuevas.
 > **Fuentes:** inspección directa del código, Gradle, Manifiestos, `firestore.rules`, `storage.rules`, `functions/`, `firestore-tests/`, tests ejecutados, `AGENTS.md` (documentación viva; este informe la complementa y corrige donde está desactualizada) y **`CONVERSACION_EXPORTADA.md`** (crónica completa Sesiones I–XXXV, 2026-08-24 → 2026-09-03; ver Anexo A con índice por sesión y los matices de reverts del desarrollador). Si una afirmación de este informe contradice a AGENTS.md o a un checkpoint de la conversación, **prevalece lo verificado en el árbol actual** (los checkpoints describen working trees intermedios que el desarrollador ya commiteó).
 
+> **⚠️ ACTUALIZACIÓN 2026-09-03 (F2 ECONOMÍA ROOM↔FIRESTORE + DIAGNÓSTICO CREAR NEGOCIO):** verificado contra el árbol real (HEAD `100c4eb "mejoras y correciones"`). Este documento y AGENTS.md han quedado desactualizados en varios puntos por la F2, que **sí está implementada en el working tree (SIN commit y SIN deploy)**:
+> - **Room v17** (no v15/16): `cliente` con `exentoMorosidad` + tabla `eliminacion_pendiente` (`MIGRACION_16_17`).
+> - **Economía cableada** (ya NO "sin cablear", §8.5/§14-G/§24): réplica `movimientos/{id}` + resumen remoto en `clientes/{id}` (`moroso`, `deuda`, `fechaEntradaMorosidad`, fechas, `exentoMorosidad`); motor de morosidad con deuda = TODOS los PENDIENTES, dos causas y `fechaEntradaMorosidad`=detección; `IdMovimiento` (ids altos); eliminaciones pendientes persistidas con reintento al arranque (`MainViewModel`) y en gestión de clientes/perfil.
+> - **Rules locales** ampliadas (update ADMIN de `clientes` con claves económicas); suite Rules **151/151** (PRUEBA 129–136) y unit `:app` **68/68**; `assembleDebug` OK en ambos módulos. **NO desplegado.**
+> - **Abierto:** diagnóstico "Crear negocio en la nube" PERMISSION_DENIED en producción (hipótesis principal: `usuarios/{uid}.negocioId` asignado pero `negocios/{uid}` ausente → lo bloquean también las Rules LOCALES); pendiente de confirmar en consola y reconciliar con Admin SDK.
+> - Algunas cifras y frases de las secciones siguientes (HEAD limpio `60cf834`, Room v15, "réplica no cableada", 143 tests) quedan **superadas por este bloque**; prevalecerá lo verificado arriba hasta el próximo traspaso.
+
 Convención de evidencia usada en todo el informe:
 - **[CONFIRMADO]** — comprobado directamente en el código/configuración/ejecución de hoy.
 - **[INFERIDO]** — conclusión razonable por el comportamiento del código, no documentada explícitamente.
@@ -126,7 +133,7 @@ Repository (lógica de negocio + orquestación)
 - `AppNavigation` decide el destino inicial según sesión (`destinoInicialSegunSesion` en Admin; `destinoInicial()` en Cliente). No hay deep links. Rutas con placeholder se construyen sustituyendo, nunca concatenando (regla del proyecto).
 
 ## Persistencia
-- **Admin:** Room (`ClientesDatabase`, versión 15) + DataStore (`preferencias`) + Firestore/Storage.
+- **Admin:** Room (`ClientesDatabase`, versión 17) + DataStore (`preferencias`) + Firestore/Storage.
 - **Cliente:** Firestore + DataStore (`preferencias_cliente`) + fotos locales en `filesDir` (no subidas a Storage todavía).
 - El ID de cliente en el Admin usa **rango alto aleatorio** (≥ 1.000.000.000, `util/IdCliente.kt`) para evitar colisiones entre instalaciones de un mismo negocio en Firestore.
 
@@ -160,10 +167,10 @@ model/             Cliente, EstadoCliente, EstadoMovimiento, MetodoPago, EstadoS
                    SolicitudBaja, ReservaConCliente, ReservaClienteDetalle, SesionConClase(legacy),
                    TipoUsuario
 data/
-  entity/          9 entidades Room (Cliente, Movimiento, Gasto, Servicio, Sesion, Reserva,
-                   Solicitud(legacy), Clase(legacy), SesionClase(legacy))
-  dao/             9 DAOs (incluye queries de cascadas de reservas/sesiones)
-  database/        ClientesDatabase (v15)
+  entity/          10 entidades Room (Cliente, Movimiento, Gasto, Servicio, Sesion, Reserva,
+                   Solicitud(legacy), Clase(legacy), SesionClase(legacy), EliminacionPendiente)
+  dao/             10 DAOs (incluye queries de cascadas de reservas/sesiones + EliminacionPendiente)
+  database/        ClientesDatabase (v17)
   converter/       7 conversores Room (enum/lista a texto)
   firebase/        AutenticacionRepository, ClienteRemotoRepository, BajaClienteRemotoRepository,
                    MovimientoRemotoRepository, NegocioRepository, NotificacionRemotoRepository,
@@ -232,13 +239,13 @@ ui/
 # 5. Estado del repositorio y de compilación (verificado hoy)
 
 - [CONFIRMADO] `git status`: working tree **limpio**, rama `master`, sincronizada con `origin/master`.
-- [CONFIRMADO] HEAD: `60cf834 "mejoras y correciones"` (2026-09-03 01:18 +0200).
+- [CONFIRMADO] HEAD del desarrollador: `100c4eb "mejoras y correciones"`; working tree con la F2 de economía + tandas documentales SIN commit (ver ACTUALIZACIÓN al inicio).
 - [CONFIRMADO] Ejecutado hoy:
-  - `.\gradlew.bat :app:testDebugUnitTest :appCliente:testDebugUnitTest` → **BUILD SUCCESSFUL** (compila Kotlin/Java debug de ambos módulos).
-  - Unit tests `:app` = **59/59 OK**; `:appCliente` = **9/9 OK**.
-  - `npm --prefix firestore-tests test` → **143/143 OK** (emuladores firestore+storage, proyecto `gestorpro-rules-test`).
+  - `.\gradlew.bat :app:testDebugUnitTest` → **BUILD SUCCESSFUL**.
+  - Unit tests `:app` = **68/68 OK**; `:appCliente` = **9/9 OK**.
+  - `npm --prefix firestore-tests test` → **151/151 OK** (emuladores firestore+storage, proyecto `gestorpro-rules-test`; PRUEBA 129–136 nuevas).
   - `node --test functions/test/ids.test.js functions/test/tokens.test.js` → **13/13 OK**.
-- No se ejecutó `assembleDebug` completo hoy; el último build reportado en AGENTS.md fue OK. [INFERIDO] el proyecto compila dado que la compilación de tests compiló todo el código main.
+- `:app:assembleDebug` y `assembleDebug` (ambos módulos) → BUILD SUCCESSFUL.
 
 ---
 
@@ -275,7 +282,7 @@ ui/
 
 ## 7.1 Room (solo Admin) — [CONFIRMADO]
 
-`ClientesDatabase` **versión 15**, 9 entidades. Migraciones registradas en `di/AppModule.kt`: `11→12` (columna `horaDesdeReserva` en sesion), `12→13` (elimina `tieneLlave` del cliente), `13→14` (economía: `servicio.precio`; movimiento pasa a `servicios List<Int>`, `precioFinal`, `metodoPago`), `14→15` (cliente con `moroso` y `fechaEntradaMorosidad`). **Aún hay `.fallbackToDestructiveMigration()`** con TODO(PRODUCCION) para sustituirlo por migraciones reales antes de publicar.
+`ClientesDatabase` **versión 17**, 10 entidades. Migraciones registradas en `di/AppModule.kt`: `11→12` (columna `horaDesdeReserva` en sesion), `12→13` (elimina `tieneLlave` del cliente), `13→14` (economía: `servicio.precio`; movimiento pasa a `servicios List<Int>`, `precioFinal`, `metodoPago`), `14→15` (cliente con `moroso` y `fechaEntradaMorosidad`), `15→16` (`fechaNacimiento` nullable) y **`16→17` (F2: `cliente.exentoMorosidad` + tabla `eliminacion_pendiente`)**. **Aún hay `.fallbackToDestructiveMigration()`** con TODO(PRODUCCION) para sustituirlo por migraciones reales antes de publicar.
 
 Tablas y campos principales:
 - **`cliente`**: idCliente PK autoincremental, nombre, apellidos, dni (índice único), telefono, email?, foto, fechaNacimiento Long, fechaRegistro, fechaAlta?, fechaBaja?, estado (enum), observaciones?, negocioId?, serviciosContratados (CSV Int), firebaseUid?, **moroso Boolean**, **fechaEntradaMorosidad Long?**. NO tiene `tieneLlave`.
@@ -313,7 +320,7 @@ Regla general: **bloqueo por defecto** salvo rutas declaradas. Roles: `ADMIN` y 
 
 **Notas importantes de Rules [CONFIRMADO]:**
 - El helper `clientePuedeAcceder` exige `c.estado == "ACTIVO"` (regla definitiva cerrada en esta línea de trabajo). Un cliente **moroso (flag) con estado ACTIVO SÍ accede**; REGISTRADO/ARCHIVADO/BAJA NO.
-- El ruleset local NO contiene claves económicas `moroso`/`fechaEntradaMorosidad`/`deuda` en el `update` de `clientes` (la sincronización de resumen económico NO está cableada; ver §8/§15).
+- El ruleset local SÍ contiene las claves económicas `moroso`/`deuda`/`fechaEntradaMorosidad`/`exentoMorosidad` en el `update` de `clientes` tras F2 (la sincronización de resumen económico está CABLEADA; ver §24 y la ACTUALIZACIÓN al inicio).
 - Índices compuestos necesarios en producción (creados según AGENTS.md en `gestorpro-50e83`): `sesiones(idServicio, negocioId)`, `reservas(clienteId, negocioId)`, `reservas(sesionId, negocioId)`. El índice `notificaciones(estado, fechaProgramada)` para Functions programadas está **documentado pero pendiente de crear** [INFERIDO según AGENTS.md].
 
 ## 7.3 Firebase Storage — [CONFIRMADO en `storage.rules`]
@@ -359,9 +366,9 @@ Problemas: logs `[DIAG sesiones]` temporales; botón de eliminar sesión y cance
 ## 8.5 Economía (Admin) — PARCIAL en su extremo remoto (modelo DEFINIDO — ver §24)
 - **Room (Fases 1-5):** modelo movimiento multi-servicio con `precioFinal` + `metodoPago` + estado PENDIENTE/PAGADO + `fechaPago`; servicios con `precio`; motor puro de morosidad `MovimientoMorosidad` (un único punto donde se aplica la regla de deuda/morosidad; debe aplicarse según la decisión §24: un PENDIENTE ya es deuda y genera morosidad); `ClienteDao.obtenerIdsMorosos` lee `moroso=1`. **`EstadoCliente.MOROSO` sigue en el enum pero ya no se persiste como estado.**
 - **UI:** `EconomiaScreen` (resumen ingresos/gastos/balance + CRUD de gastos + movimientos en modo lectura); CRUD completo de movimientos en el perfil del cliente.
-- **Firestore (Fase 6, estado FINAL tras reverts del desarrollador):** quedaron en el árbol `util/MovimientoFirestore.kt` y `data/firebase/MovimientoRemotoRepository.kt` (crear/actualizar/eliminar en `movimientos/{id}`), pero **NO están cableados**: `MovimientoRepository` NO los invoca (solo persiste Room → recalcula morosidad → replica el período con `actualizarPeriodoActualRemoto`), `MovimientoDao.insertarMovimiento` **NO devuelve Long** (fue revertido) y `MovimientoFirestore.resumenDeCliente` no tiene consumidores. Por tanto: solo se replica a Firestore `fechaInicioActual`/`fechaFinActual` en `clientes/{id}`; **no se replica ni `movimientos/{id}` ni el resumen `moroso`/`deuda`**; las Rules no admiten esas claves en `clientes`. (La conversación describe la Fase 6 "completa" con resumen publicado y 144 tests; el desarrollador la revirtió parcialmente después.)
+- **Firestore (Fase 6 → F2 cableada, 2026-09-03):** la réplica remota quedó **CABLEADA** en el working tree: `MovimientoRepository` persiste Room → recalcula morosidad → replica `movimientos/{id}` y publica el resumen `moroso`/`deuda`/`fechaEntradaMorosidad`/`exentoMorosidad` + fechas en `clientes/{id}`; `MovimientoFirestore.resumenDeCliente` tiene consumidor (`ClienteRemotoRepository.actualizarResumenEconomicoRemoto`); eliminaciones fallidas persistidas en `eliminacion_pendiente`; Rules locales admiten esas claves (151/151). `MovimientoDao.insertarMovimiento` sigue en `Unit` porque los ids nuevos son globales preasignados (`IdMovimiento`), no autoincrement. (Histórico: la Fase 6 original fue revertida por el desarrollador; F2 la reconstruyó y cableó.)
 Archivos: `util/{MovimientoMorosidad,MovimientoPrecio,MovimientoFirestore}.kt`, `MovimientoRepository.kt`, `MovimientoRemotoRepository.kt`, `EconomiaScreen.kt`, `PerfilClienteAdministradorScreen.kt`.
-Problemas: la réplica remota (`movimientos/{id}` + resumen en `clientes/{id}`) **no está cableada** en el árbol; **la decisión de negocio YA está cerrada en §24** (queda solo implementación + Rules/tests). Véase bug histórico de `fechaPago` (resuelto en código, §15-8) y su matiz.
+Problemas: la réplica remota (`movimientos/{id}` + resumen en `clientes/{id}`) quedó **CABLEADA en F2 (2026-09-03)** — ver ACTUALIZACIÓN al inicio; pendiente solo la prueba manual y el deploy autorizado de Rules. Véase bug histórico de `fechaPago` (resuelto en código, §15-8) y su matiz.
 
 ## 8.6 Solicitudes de baja (Cliente → Admin) — COMPLETA
 El CLIENTE solicita baja desde `CuentaScreen`; el ADMIN acepta (Transaction: solicitud ACEPTADA + cliente BAJA + fechaBaja, y aplica consecuencias de baja) o rechaza; puede eliminar resueltas (no PENDIENTES). Búsqueda por datos reales. Aviso SOLICITUD_BAJA al ADMIN al cargar PENDIENTES.
@@ -499,8 +506,8 @@ Extraídas de AGENTS.md y verificadas en el código. Resumen operativo:
 # 13. Testing (estado real, ejecutado HOY)
 
 ### Probado y funciona [CONFIRMADO hoy]
-- **Rules Firestore + Storage: 143/143** (`npm --prefix firestore-tests test`), emuladores `firestore,storage`, proyecto `gestorpro-rules-test`. Cubren: PRUEBA 1-18 (clientes/permisos/VÍA 1/VÍA 2/índices/perfiles pendientes/privados/negocios públicos/cambio DNI), 19-20 (Storage logo), 21-33 + 33A-33H (servicios + queries admin con negocioId), 34-53 (sesiones), 54-76 (reservas/transacciones/plazas/duplicado), 77-81 (cascadas admin), 82-88 (horaDesdeReserva), 89-98 (notificaciones), 99-108 (solicitudes de baja), 109-112 (bloqueo BAJA), 113-120 (regresión sesiones + borrado solicitudes + SOLICITUD_BAJA), 121-128 (acceso solo ACTIVO + VINCULACION).
-- **Unit `:app` (Admin): 59/59** (`:app:testDebugUnitTest`). Archivos: `ExampleUnitTest` (2), `MovimientoPrecioTest` (10), `MovimientoPagoTest` (12), `MovimientoMorosidadTest` (17), `MovimientoFirestoreTest` (14), `NotificacionConfigTest` (5). Se contaron 60 anotaciones `@Test`; el runner reporta 59 ejecutados (una no computa por algún motivo; no es un fallo).
+- **Rules Firestore + Storage: 151/151** (`npm --prefix firestore-tests test`), emuladores `firestore,storage`, proyecto `gestorpro-rules-test`. Cubren: PRUEBA 1-18 (clientes/permisos/VÍA 1/VÍA 2/índices/perfiles pendientes/privados/negocios públicos/cambio DNI), 19-20 (Storage logo), 21-33 + 33A-33H (servicios + queries admin con negocioId), 34-53 (sesiones), 54-76 (reservas/transacciones/plazas/duplicado), 77-81 (cascadas admin), 82-88 (horaDesdeReserva), 89-98 (notificaciones), 99-108 (solicitudes de baja), 109-112 (bloqueo BAJA), 113-120 (regresión sesiones + borrado solicitudes + SOLICITUD_BAJA), 121-128 (acceso solo ACTIVO + VINCULACION), **129-136 (resumen económico: ADMIN ALLOW, otro negocio/CLIENTE DENY)**.
+- **Unit `:app` (Admin): 68/68** (`:app:testDebugUnitTest`). Archivos: `MovimientoMorosidadTest` (22, regla deuda = TODOS los PENDIENTES + dos causas + exento + fechaEntrada=detección), `MovimientoFirestoreTest` (15, resumen con `exentoMorosidad`), `IdMovimientoTest` (3), `MovimientoPrecioTest` (10), `MovimientoPagoTest` (12), `NotificacionConfigTest` (5), `ExampleUnitTest` (1).
 - **Unit `:appCliente`: 9/9** (`VinculacionRepositoryTest` 1 — rechazo de Vía A sin índice; `ReservaTest` 8).
 - **Helpers de Functions: 13/13** (`node --test functions/test/ids.test.js functions/test/tokens.test.js`), solo módulos puros `ids.js`/`tokens.js`; `functions/` no tiene `node_modules` (no requiere instalación para estos tests).
 - **Compilación:** ambos módulos compilan (los unit tests compilaron todo el main + tests).
@@ -682,15 +689,15 @@ ARQUITECTURA: MVVM + repositorios (sin capa use-case). UI Compose -> ViewModel (
 Repository -> (Room DAO [Admin] y/o data/firebase/*RemotoRepository -> Firestore). 1 sola Activity por app.
 Navegación Compose centralizada en navigation/{Routes,AppNavigation}.kt por app. Hilt en di/AppModule.kt.
 
-ESTADO REAL (verificado 2026-09-03): working tree LIMPIO, HEAD=60cf834 "mejoras y correcciones".
-Compila. Tests HOY: :app unit 59/59, :appCliente 9/9, Rules Firestore/Storage 143/143,
-Functions helpers 13/13. AGENTS.md puede estar desactualizado; contrastar con el árbol.
+ESTADO REAL (2026-09-03, tras F2): HEAD del desarrollador = 100c4eb "mejoras y correcciones". Working tree con la F2 de economía (Room v17, réplica movimientos+resumen cableada) SIN commit/deploy.
+Compila. Tests HOY: :app unit 68/68, :appCliente 9/9, Rules Firestore/Storage 151/151,
+Functions helpers 13/13. AGENTS.md puede estar desactualizado; contrastar con el árbol y con la ACTUALIZACIÓN al inicio de este documento.
 
 MODELO DE NEGOCIO: Cliente -> Servicio (catálogo con precio) -> Sesión (programación, horaDesdeReserva)
 -> Reserva (documentId reservas/{clienteId}_{sesionId}, plazas±1 atómicas). Vinculación del cliente por
 CÓDIGO MAESTRO + DNI con indices_clientes/{negocioId}_{dni} (VÍA 1 activa; VÍA 2 conservada sin ejecutar;
 Vía B/deep links DESCARTADA). Acceso del cliente SOLO con estado ACTIVO; morosidad = flag, no estado.
-Room Admin v15 (migraciones 11->12->13->14->15 + fallbackToDestructiveMigration PENDIENTE de retirar).
+Room Admin v17 (migraciones 11->12->13->14->15->16->17, con exentoMorosidad + eliminacion_pendiente en 16->17; fallbackToDestructiveMigration PENDIENTE de retirar).
 Legacy TRANSITORIO no eliminar: ui/clases/*, Clase/SesionClase, tabla Room solicitud, TipoSolicitud.CLASE.
 
 IMPORTANTE: login Admin NO valida rol==ADMIN (riesgo abierto); alta Admin PERMISSION_DENIED: causa raíz
@@ -698,8 +705,8 @@ IMPORTANTE: login Admin NO valida rol==ADMIN (riesgo abierto); alta Admin PERMIS
 (logs temporales también: [DIAG sesiones]/ClasesDiagnostico); Cloud Functions 2ª gen en
 functions/ SIN desplegar (requiere Blaze) => FCM real y notificaciones automáticas NO operan; Storage
 bucket pendiente; Economía: modelo DECIDIDO (ver §24) — la réplica remota `movimientos/{id}` +
-resumen (`moroso`/`deuda`/`fechaEntradaMorosidad` en `clientes/{id}`) aún SIN cablear en el árbol
-(solo se replica el período fechaInicioActual/fechaFinActual);
+resumen (`moroso`/`deuda`/`fechaEntradaMorosidad` en `clientes/{id}` + `exentoMorosidad`) ya está
+CABLEADA en F2 (working tree, Room v17), pendiente prueba manual y deploy autorizado de Rules;
 cambiar contraseña Admin es placeholder; sin botón eliminar sesión ni
 cancelar reserva admin; sin pantalla "Mis reservas" del cliente (VM preparado).
 
@@ -827,9 +834,11 @@ Histórico completo por sesiones: CONVERSACION_EXPORTADA.md (índice en Anexo A 
 - **Cloud Functions:** qué procesos automatizar con Functions sigue siendo **DECISIÓN PENDIENTE** de una
   futura sesión. Lo cerrado es que **los movimientos los crea manualmente el ADMIN**.
 
-> **Nota de implementación (no es decisión abierta):** la sincronización remota de la economía
-> (`movimientos/{id}` + resumen `moroso`/`deuda`/`fechaEntradaMorosidad` en `clientes/{id}` + Rules/tests)
-> aún **no está cableada** en el árbol actual (ver §8.5, §14-G). Es trabajo de implementación pendiente.
+> **Nota de implementación (resuelta en F2, 2026-09-03):** la sincronización remota de la economía
+> (`movimientos/{id}` + resumen `moroso`/`deuda`/`fechaEntradaMorosidad`/`exentoMorosidad` en
+> `clientes/{id}` + Rules/tests) está **CABLEADA** en el working tree (Room v17): crear/editar/eliminar
+> movimiento replican a Firestore, se publica el resumen y las eliminaciones fallidas se persisten en
+> `eliminacion_pendiente`. Pendiente: prueba manual y deploy autorizado de Rules (ver ACTUALIZACIÓN al inicio).
 
 ---
 
@@ -1036,6 +1045,6 @@ Histórico completo por sesiones: CONVERSACION_EXPORTADA.md (índice en Anexo A 
 
 **Matices importantes que la crónica aporta y este informe incorpora:**
 1. El root cause del alta Admin (`PERMISSION_DENIED`) fue el **seed Room** (ids 1–20), no solo "documentos huérfanos"; el seed se eliminó.
-2. La **Fase 6 de economía** se implementó completa (resumen `moroso`/`deuda` en `clientes/{id}` + 144 tests + deploy autorizado de Rules) y luego el desarrollador la **revirtió parcialmente**: hoy `MovimientoRemotoRepository`/`resumenDeCliente` existen pero sin cablear, y las Rules locales no admiten esas claves.
+2. La **Fase 6 de economía** se implementó completa (resumen `moroso`/`deuda` en `clientes/{id}` + 144 tests + deploy autorizado de Rules) y luego el desarrollador la **revirtió parcialmente**; la **F2 (2026-09-03)** la reconstruyó y **cableó** de nuevo en el working tree (movimientos + resumen + eliminaciones pendientes, Room v17, Rules locales con las claves, 151/151). Pendiente solo deploy autorizado.
 3. El ruleset desplegado pasó por varios deploys históricos (algunos verificados byte-idénticos); el último deploy conocido fue en el checkpoint 2026-09-0X. El estado DESPLEGADO actual frente al local (143 tests) es **[DESCONOCIDO]** y debe reconciliarse antes de producción.
 4. Varias tandas (fecha de nacimiento opcional, VÍA 2 reactivada, botones, `DetalleVisuales.kt`, pantalla "Mis reservas") fueron creadas y luego **revertidas por commits del desarrollador**; el árbol actual es la única verdad.

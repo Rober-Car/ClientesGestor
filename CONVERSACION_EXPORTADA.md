@@ -2500,3 +2500,57 @@ precio final editable que no cambia históricos; Functions: automatizaciones fut
 5. Pendientes previos sin cerrar: logs `[DIAG alta]`/`[DIAG sesiones]`/`ClasesDiagnostico`,
    regenerar sesiones y confirmar índices, VÍA2/fecha nacimiento y pantalla elección a validar,
    `DetalleVisuales.kt`, cambios de texto/UI de Home, unificación de botones restante.
+
+# ACTUALIZACIÓN 2026-09-03 (F2 — SINCRONIZACIÓN ECONÓMICA ROOM ↔ FIRESTORE IMPLEMENTADA)
+
+> Estado de CONTINUACIÓN. HEAD del desarrollador: `100c4eb "mejoras y correciones"`. Working tree con
+> la F2 de economía + las tandas documentales SIN commit, SIN deploy. Detalle del plan y la revisión en
+> AGENTS.md (bloque «Estado actual y pendientes») y en la conversación de esta sesión. Este bloque es el
+> checkpoint de la implementación de F2.
+
+## Qué se ha implementado (F2, por fases, con verificación entre fases)
+
+1. **Motor `util/MovimientoMorosidad.kt`** (nueva semántica definitiva):
+   - deuda = suma de **TODOS** los movimientos PENDIENTE (sin filtrar por `fechaFin`);
+   - dos causas: **por deuda** (≥1 PENDIENTE) y **por fecha** (solo ACTIVO con cobertura PAGADA terminada y sin nueva cobertura);
+   - BAJA solo por deuda; REGISTRADO/ARCHIVADO/MOROSO(legacy) sin morosidad;
+   - `fechaEntradaMorosidad` = `ahora` en la detección de la entrada (nunca `fechaFin`); se conserva mientras siga moroso; `null` al salir; nueva al reentrar;
+   - `exentoMorosidad` (si true → `moroso=false` y fecha null, pero la deuda real se mantiene).
+2. **IDs globales `util/IdMovimiento.kt`**: ids en rango alto (≥1e9) preasignados antes del insert (patrón `IdCliente`) para evitar colisiones `movimientos/{id}` entre dispositivos Admin. `MovimientoDao.insertarMovimiento` sigue en `Unit` (no se usa autoincrement local como id remoto).
+3. **`MovimientoFirestore.resumenDeCliente`** con `exentoMorosidad` y **`ClienteRemotoRepository.actualizarResumenEconomicoRemoto`** (publica moroso/deuda/fechaEntradaMorosidad/fechas/exentoMorosidad en `clientes/{id}`). `actualizarPeriodoActualRemoto` quedó sin consumidores (limpieza opcional pendiente).
+4. **Room v17** (`MIGRACION_16_17`): columna `cliente.exentoMorosidad` + tabla `eliminacion_pendiente` (persistencia mínima de borrados remotos fallidos, sin cola general).
+5. **`MovimientoRepository` reescrito**: crear/editar/eliminar → Room → recálculo y persistencia de morosidad → réplica `movimientos/{id}` → resumen remoto. Eliminación: Room primero → registrar pendiente → recálculo con los movimientos restantes → delete remoto (quita pendiente si OK). Reintento global al arranque/gestión de clientes (`reintentarEliminacionesPendientesGlobal`), reconciliación por cliente (`sincronizarPeriodoActual`) y gated `sincronizarSiHayPendientes` (no reescribe todos los movimientos al abrir el perfil).
+6. **Flujos de baja/restauración**: `recalcularMorosidadDeCliente` ahora también publica el resumen remoto (cubre baja directa, aceptación de solicitud y restauración sin cambiar su lógica).
+7. **Override `exentoMorosidad`**: campo Room + Firestore, motor, resumen, `ClienteDao.actualizarExentoMorosidadDao`, `ClienteViewModel.cambiarExentoMorosidad` y **switch "Exento de morosidad"** en la pestaña Economía del perfil Admin (solo ADMIN).
+8. **Ajustes posteriores a la revisión del diff**:
+   - Reintento de eliminaciones pendientes también al **arranque/login/registro** en `MainViewModel` (independiente de la pantalla que abra el ADMIN).
+   - Abrir un perfil NO reescribe todos los movimientos: `MovimientoViewModel.cargarMovimientosPorCliente` usa `sincronizarSiHayPendientes`.
+   - La **edición de datos personales** no dispara economía: `ClienteViewModel.actualizarCliente` solo recalcula si cambia `estado`.
+9. **`firestore.rules` LOCAL**: el update ADMIN de `clientes` admite `moroso`/`deuda`/`fechaEntradaMorosidad`/`exentoMorosidad`. El CLIENTE nunca puede escribir esas claves. Aislamiento por negocio intacto.
+
+## Verificación (todo verde)
+- Rules Firestore: **151/151** (`npm --prefix firestore-tests test`; nuevas **PRUEBA 129–136**: ADMIN resumen ALLOW, otro negocio DENY, CLIENTE no modifica moroso/deuda/fechaEntradaMorosidad/exentoMorosidad/fechas).
+- Unit `:app`: **68/68** (MovimientoMorosidadTest reescrito con la regla de todos los PENDIENTES; IdMovimientoTest; MovimientoFirestoreTest con `exentoMorosidad`).
+- `:app:assembleDebug` y `assembleDebug` (ambos módulos): BUILD SUCCESSFUL.
+- NO deploy, NO commit. No tocados: `appCliente`, `storage.rules`, `functions/`, FCM, reservas, solicitudes.
+
+## Revisión del diff (antes de los tres ajustes) — hallazgos
+- Limitación del reintento global atado a `ClienteViewModel` → corregida con `MainViewModel` (arranque/login/registro).
+- `sincronizarPeriodoActual` reescribía todos los movimientos del cliente al abrir el perfil → corregido con `sincronizarSiHayPendientes`.
+- Edición personal generaba escritura económica innecesaria y banner de error → corregido (solo si cambia `estado`).
+- Riesgos residuales documentados: (a) fallos de create/update no persistidos (solo eliminaciones) → se pierden al reiniciar si no se reintenta en sesión; (b) `actualizarPeriodoActualRemoto` sin consumidores; (c) la migración Room 16→17 y los flujos con Firestore solo verificables con Emulator/dispositivo; (d) el ruleset DESPLEGADO no tiene las claves del resumen → hasta el deploy, los resúmenes remotos fallarían en producción.
+- Filtro "Morosos": comportamiento intencionado (cualquier PENDIENTE, también futuro, genera morosidad); NO es regresión.
+
+## Diagnóstico ABIERTO — "Crear negocio en la nube" PERMISSION_DENIED (producción)
+- Síntoma: Admin → Mi negocio → "Crear negocio" falla con "No tienes permisos para esta operación"; el login funciona y servicios/sesiones sí se crean.
+- Flujo: `MiNegocioScreen` → `MainViewModel.crearNegocio` → `NegocioRepository.crearNegocio` = WriteBatch atómico con 3 escrituras: `set negocios/{uid}`, `set negocios_publicos/{uid}`, `update usuarios/{uid}.negocioId` (`negocioId = uid`).
+- Rules implicadas (LOCALES): `negocios/create` exige `usuarioActual().negocioId == null`; `negocios_publicos/create` ídem; `usuarios/update` ADMIN exige `resource.data.negocioId == null`.
+- **Hipótesis principal (datos, no despliegue):** que los servicios se creen implica `usuarios/{uid}.negocioId` ya está asignado (= UID). Si además `negocios/{uid}` no existe (lo que indica la pantalla), las tres escrituras las bloquean TAMBIÉN las Rules locales por la precondición `negocioId == null`. Es un estado de datos inconsistente (negocioId asignado + documento de negocio ausente) que debe reconciliarse con Admin SDK (autorizado). No es un bug de F2.
+- Verificación pendiente en consola: valor de `usuarios/{uid}.negocioId` y existencia de `negocios/{uid}` y `negocios_publicos/{uid}`; comparar ruleset desplegado vs local. NO arreglado (diagnóstico solo).
+
+## Para REANUDAR
+1. **Prueba manual de F2** (guion pendiente): migración Room 16→17 en dispositivo, crear/editar/pagar/eliminar movimiento → `movimientos/{id}` + resumen en `clientes/{id}`, eliminación con red caída → pendiente → reinicio reintenta, baja/restauración, switch "Exento de morosidad", filtro morosos, import/export.
+2. Confirmar y reconciliar el estado del negocio (diagnóstico abierto) y desplegar `firestore.rules` local (151 tests) SOLO con autorización (ruleset desplegado obsoleto).
+3. Commit agrupado del working tree (F2 + docs) y limpieza (`firestore-debug.log`).
+4. Retirar `fallbackToDestructiveMigration` antes de producción; decidir limpieza de `actualizarPeriodoActualRemoto` sin consumidores.
+5. Pendientes previos sin cerrar (logs `[DIAG alta]`/`[DIAG sesiones]`/`ClasesDiagnostico`, regenerar sesiones/índices, VÍA2/fecha nacimiento/pantalla elección, `DetalleVisuales.kt`, unificación de botones restante).
