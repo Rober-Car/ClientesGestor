@@ -1,0 +1,775 @@
+# CONTEXTO_PROYECTO.md — Documento de traspaso a nueva IA
+
+> **Fecha del informe:** 2026-09-03 (verificado contra el árbol real).
+> **Objetivo:** que una IA que no conoce ninguna conversación previa pueda continuar el desarrollo con precisión.
+> **Regla de uso:** este documento es SOLO lectura/contexto. No refleja decisiones nuevas.
+> **Fuentes:** inspección directa del código, Gradle, Manifiestos, `firestore.rules`, `storage.rules`, `functions/`, `firestore-tests/`, tests ejecutados, `AGENTS.md` (documentación viva; este informe la complementa y corrige donde está desactualizada) y **`CONVERSACION_EXPORTADA.md`** (crónica completa Sesiones I–XXXV, 2026-08-24 → 2026-09-03; ver Anexo A con índice por sesión y los matices de reverts del desarrollador). Si una afirmación de este informe contradice a AGENTS.md o a un checkpoint de la conversación, **prevalece lo verificado en el árbol actual** (los checkpoints describen working trees intermedios que el desarrollador ya commiteó).
+
+Convención de evidencia usada en todo el informe:
+- **[CONFIRMADO]** — comprobado directamente en el código/configuración/ejecución de hoy.
+- **[INFERIDO]** — conclusión razonable por el comportamiento del código, no documentada explícitamente.
+- **[DESCONOCIDO / NO DETERMINADO]** — no hay información suficiente en el repositorio.
+- Cuando se indica "según AGENTS.md" es información heredada de la documentación del proyecto, no verificada hoy.
+
+---
+
+# 1. Descripción general de la aplicación
+
+## Nombre del proyecto
+**GestorPro** ([CONFIRMADO]: `rootProject.name = "GestorPro"` en `settings.gradle.kts`).
+
+## Qué es
+Sistema Android para la gestión de un **negocio deportivo (gimnasio)**, formado por **dos aplicaciones independientes** que comparten el **mismo proyecto Firebase/Firestore** (`gestorpro-50e83`, [CONFIRMADO] en `.firebaserc`):
+
+1. **GestorPro Admin** — módulo `:app`, paquete `com.roberto.gestorpro`, rol remoto `ADMIN`. Es la app del gestor del negocio.
+2. **GestorPro Cliente** — módulo `:appCliente`, paquete `com.roberto.gestorpro.cliente`, rol remoto `CLIENTE`. Es la app del socio/cliente del gimnasio.
+
+## Tipo de aplicación
+- Aplicaciones Android nativas en **Kotlin + Jetpack Compose (Material 3)**, 100% UI Compose, una sola Activity por app.
+- Backend: **Firebase** (Authentication + Firestore como base de datos principal remota + Storage para logo/fotos futuro). Solo el Admin usa además **Room** como base de datos local. El Cliente usa **Firestore como fuente de verdad** y **DataStore** solo como caché/preferencias.
+
+## Objetivo / problema que resuelve
+Digitalizar la gestión de un gimnasio pequeño/mediano: altas y bajas de clientes, cobro de cuotas (representadas como "movimientos"), reservas de actividades/servicios por sesiones, avisos/notificaciones, solicitudes de baja, y datos económicos básicos, con dos perfiles diferenciados (gestor y cliente) sobre los mismos datos remotos y con control de acceso por Security Rules de Firestore.
+
+## Usuario objetivo
+- El **administrador/gestor** del gimnasio (Admin).
+- Los **clientes/socios** del gimnasio (Cliente), que se vinculan a la ficha que crea el Admin mediante **código maestro + DNI**.
+
+## Funcionalidades principales (resumen)
+- Autenticación real con Firebase en ambas apps (roles `ADMIN`/`CLIENTE`).
+- **Admin:** alta/edición/consulta/archivado/restauración de clientes con réplica write-through a Firestore; cambio de DNI atómico; **servicios** (catálogo con precio), **sesiones** (programación, apertura de reservas), **reservas** (contingente, atómicas), **economía** (movimientos por cliente con multi-servicio, precio, método de pago, morosidad; gastos; resumen), **solicitudes de baja**, **notificaciones** (creación, configuración, listado), configuración del negocio (nombre/código maestro/logo con Storage).
+- **Cliente:** registro/login; perfil pendiente si no está vinculado ("No tengo vinculación"); **vinculación por código maestro + DNI (VÍA 1)** a la ficha creada por el Admin; ver/editar sus datos personales (el DNI queda bloqueado tras vincularse); Home con estado de su cuota; **"Clases/Actividades de hoy"** con reservar/cancelar reservas; buzón de notificaciones; **solicitar baja**; configuración visual.
+
+## Estado actual general
+[CONFIRMADO] El árbol está **limpio y en git** (working tree sin cambios; HEAD `60cf834 "mejoras y correciones"`, 2026-09-03 01:18). Compila y los tests pasan (ver §13). El proyecto NO está publicado en Google Play y tiene varios pendientes de producción (migraciones Room, Rules desplegadas, Functions/Blaze, Storage). Términos comerciales de interfaz: el texto visible dice **"Actividades"** (antes "Servicios"/"Clases"), pero el nombre interno de modelos/colecciones sigue siendo `Servicio`/`servicios` (decisión deliberada, ver §11).
+
+> ⚠️ **Los checkpoints de AGENTS.md y de `CONVERSACION_EXPORTADA.md` que citan "working tree con N archivos SIN commit" están DESACTUALIZADOS:** el desarrollador commiteó todo ese trabajo en los commits `60cf834`, `f32a5c1`, `3b94164`, `91f9e94`, `d42fa75`, `0838adb` y anteriores ("mejoras y correcciones" / "impplementando codigo para cuando contrate balze*"). El árbol de HOY está limpio y contiene TODO (incluidas las correcciones que la conversación describe a veces como "solo en working tree"). No revertir nada "para recuperar un working tree perdido".
+
+> ⚠️ **El archivo `AGENTS.md` está desactualizado en algunos puntos** (afirma "32 archivos sin commitear", cifras de tests antiguas, descripciones de Fase 6 que no coinciden con el estado final, etc.). Este informe recoge el estado REAL verificado. No borrar `AGENTS.md`: es la documentación de referencia con las reglas del proyecto y el histórico.
+
+---
+
+# 2. Tecnologías y versiones
+
+[CONFIRMADO] en `gradle/libs.versions.toml`, `build.gradle.kts` de cada módulo y `gradle-wrapper.properties`.
+
+| Tecnología | Versión | Uso |
+|---|---|---|
+| Kotlin | 2.2.10 | Lenguaje principal (ambas apps) |
+| Android Gradle Plugin (AGP) | 9.1.1 | Build Android |
+| KSP | 2.3.6 | Compilador de Room y Hilt |
+| Gradle (wrapper) | 9.3.1 | Sistema de build |
+| compileSdk | 36 (minor API level 1 → 36.1) | SDK de compilación |
+| targetSdk | 36 | SDK objetivo |
+| minSdk | 26 | SDK mínimo |
+| Java | source/target `VERSION_11` | Compilación Java/Kotlin |
+| Jetpack Compose | BOM `2026.02.01` (Material 3) | UI |
+| Navigation Compose | 2.9.3 | Navegación |
+| Hilt | 2.60.1 (+ `hilt-navigation-compose` 1.2.0) | Inyección de dependencias |
+| Room | 2.8.4 | BD local SOLO Admin (`:app`) |
+| DataStore Preferences | 1.1.7 | Preferencias/caché (ambas) |
+| Coil | 3.3.0 (`io.coil-kt.coil3:coil-compose`) | Carga de imágenes (logo/fotos) |
+| Gson | 2.11.0 | Export/import de datos SOLO Admin |
+| Firebase | BOM `34.16.0` (declarado inline en cada `build.gradle.kts`, no en el catálogo) | auth, firestore, messaging (ambas); storage (solo `:app`) |
+| google-services plugin | 4.5.0 | Config Firebase por app |
+| androidx core/lifecycle/activity | core-ktx 1.18.0, lifecycle 2.10.0, activity-compose 1.13.0 | Base AndroidX |
+| material-icons-extended | (BOM Compose) | Iconos Compose |
+| JUnit | 4.13.2 (unit) / androidx junit 1.3.0, espresso 3.7.0 (instrumental) | Tests |
+
+**Observaciones de dependencias [CONFIRMADO]:**
+- `libs.firebase.storage` y `libs.firebase.messaging` existen en el catálogo **sin versión** (la resuelve el BOM inline).
+- `:app` NO declara `firebase-messaging`; `:appCliente` SÍ (tiene `FcmService`). El Admin no recibe push.
+- `:appCliente` NO usa Room ni Gson ([CONFIRMADO] en sus dependencias).
+- `appCliente/` NO tiene `.gitignore` propio; lo cubre el `.gitignore` raíz con `**/google-services.json`. [CONFIRMADO] `app/google-services.json` y `appCliente/google-services.json` existen localmente y están ignorados por git.
+
+---
+
+# 3. Arquitectura
+
+## Arquitectura real (MVVM con repositorios; NO Clean Architecture estricta)
+
+```
+UI Compose (screens)
+      │  observa StateFlow (collectAsState / collectAsStateWithLifecycle)
+      ▼
+ViewModel (@HiltViewModel, viewModelScope)
+      │  llama a métodos del repositorio
+      ▼
+Repository (lógica de negocio + orquestación)
+      │
+      ├──► Room DAO (SOLO :app) ───► ClientesDatabase (fuente de verdad local ADMIN)
+      │
+      └──► data/firebase/*RemotoRepository ───► Firestore / Storage / Auth
+```
+
+- **Admin (`:app`):** Room es la fuente de verdad local y Firestore el **espejo remoto write-through** (réplica inmediata sin cola offline). Cuando la réplica falla se conserva el dato local, se informa al ADMIN y queda una operación de reintento manual.
+- **Cliente (`:appCliente`):** Firestore es la fuente de verdad; DataStore solo cachea (tema, idCliente, negocioId, dniPendiente, nombre/logo del negocio, `notificacionesActivadas`).
+- No existe capa `domain/usecase`. No usar ViewModels como dependencia directa de composables hijos cuando se pueda evitar (se pasan datos + lambdas).
+
+## Flujo de una acción (ejemplo reserva del CLIENTE)
+`ClasesScreen` → botón → `ReservasClienteViewModel.reservar()` → `ReservaRepository.crearReserva()` (Firestore `runTransaction`: lee cliente/servicio/sesión/reserva, valida estado ACTIVO + servicio activo + contratado + plazas + no duplicado + apertura, escribe `reservas/{clienteId}_{sesionId}` y `sesiones.plazasDisponibles-1`) → el VM expone estado → la pantalla recarga.
+
+## Flujo en ADMIN (ejemplo alta cliente)
+`AñadirClienteScreen` → `ClienteViewModel` → `ClienteRepository` (Room insert) → `ClienteRemotoRepository.crearClienteRemoto()` (WriteBatch `clientes/{id}` + `indices_clientes/{negocioId}_{DNI}` + `clientes_privados/{id}`). La confirmación de alta/edición solo ocurre cuando la réplica remota termina.
+
+## Gestión de estado
+- `StateFlow`/`MutableStateFlow` en ViewModels, expuestos como `StateFlow`; varias pantallas usan `collectAsStateWithLifecycle()`, pero existen usos heredados de `collectAsState()` (deuda aceptada, ver §22).
+- `MainViewModel` suele compartirse a nivel de `AppNavigation` (p. ej. `NotificacionesViewModel` en Admin se obtiene una vez en `AppNavigation` y se pasa a sus pantallas).
+
+## Inyección de dependencias
+- **Hilt.** `@HiltAndroidApp` en `GestorProApplication` y `GestorProClienteApplication`; `@AndroidEntryPoint` en `MainActivity`.
+- Cada app tiene un único `di/AppModule.kt` que provee singletons (FirebaseAuth, Firestore, Storage en Admin, DB Room + DAOs + repositorios en Admin; FirebaseAuth/Firestore/Context en Cliente).
+- Repositorios de Firestore del Cliente y algunos de Admin usan `@Singleton @Inject constructor`.
+
+## Navegación
+- Una sola Activity + **Navigation Compose**. Cada app tiene su pareja `navigation/Routes.kt` + `navigation/AppNavigation.kt`.
+- `AppNavigation` decide el destino inicial según sesión (`destinoInicialSegunSesion` en Admin; `destinoInicial()` en Cliente). No hay deep links. Rutas con placeholder se construyen sustituyendo, nunca concatenando (regla del proyecto).
+
+## Persistencia
+- **Admin:** Room (`ClientesDatabase`, versión 15) + DataStore (`preferencias`) + Firestore/Storage.
+- **Cliente:** Firestore + DataStore (`preferencias_cliente`) + fotos locales en `filesDir` (no subidas a Storage todavía).
+- El ID de cliente en el Admin usa **rango alto aleatorio** (≥ 1.000.000.000, `util/IdCliente.kt`) para evitar colisiones entre instalaciones de un mismo negocio en Firestore.
+
+---
+
+# 4. Estructura del proyecto
+
+## Raíz
+```
+build.gradle.kts / settings.gradle.kts / gradle.properties
+gradle/libs.versions.toml            -> catálogo de versiones
+gradlew(.bat), gradle/wrapper/       -> wrapper Gradle 9.3.1
+firebase.json                        -> rules (firestore.rules, storage.rules) + functions
+.firebaserc                          -> proyecto por defecto: gestorpro-50e83
+firestore.rules (1338 líneas)        -> Security Rules de Firestore (LOCAL)
+storage.rules                        -> Security Rules de Storage
+functions/                           -> Cloud Functions 2ª gen (preparadas, SIN deploy)
+firestore-tests/                     -> tests de Rules + emulador
+AGENTS.md                            -> documentación viva y reglas (leer SIEMPRE)
+AI_RULES.md, AUDITORIA_PROYECTO_MIGRACION_KMP.md, CONVERSACION_EXPORTADA.md,
+EXPLICACION_BASE_DE_DATOS.html, build_*.txt, files.txt, structure.txt,
+app_kt_files.txt, conversacionEstilo.md, firestore-debug.log  -> basura/históricos versionados (ver §17)
+```
+
+## Módulo `:app` — GestorPro Admin (`app/src/main/java/com/roberto/gestorpro`)
+```
+GestorProApplication.kt, MainActivity.kt
+navigation/        Routes.kt + AppNavigation.kt
+model/             Cliente, EstadoCliente, EstadoMovimiento, MetodoPago, EstadoSolicitud,
+                   TipoSolicitud(CLASE/BAJA, legacy), FiltroClientes, NotificacionAdmin,
+                   SolicitudBaja, ReservaConCliente, ReservaClienteDetalle, SesionConClase(legacy),
+                   TipoUsuario
+data/
+  entity/          9 entidades Room (Cliente, Movimiento, Gasto, Servicio, Sesion, Reserva,
+                   Solicitud(legacy), Clase(legacy), SesionClase(legacy))
+  dao/             9 DAOs (incluye queries de cascadas de reservas/sesiones)
+  database/        ClientesDatabase (v15)
+  converter/       7 conversores Room (enum/lista a texto)
+  firebase/        AutenticacionRepository, ClienteRemotoRepository, BajaClienteRemotoRepository,
+                   MovimientoRemotoRepository, NegocioRepository, NotificacionRemotoRepository,
+                   ReservaRemotoRepository, ServicioRemotoRepository, SesionRemotoRepository,
+                   SolicitudRemotoRepository
+  repository/      ClienteRepository, MovimientoRepository, GastoRepository, ServicioRepository,
+                   SesionRepository, ReservaRepository, PreferencesRepository + legacy
+                   (Clase/SesionClase/Solicitud)
+  export/          ExportManager (export/import/restore JSON)
+di/AppModule.kt    Hilt + Room + migraciones 11→15
+util/              IdCliente, MovimientoFirestore, MovimientoMorosidad, MovimientoPrecio(incluye MovimientoPago)
+ui/
+  auth/            Login, Registro, RecuperarPassword
+  home/            HomeScreen (panel con 6 accesos: Clientes, Actividades, Economía, Ajustes, Notificaciones, Solicitudes)
+  clientes/        ClientesScreen (lista+filtros+búsqueda), PerfilClienteAdministradorScreen (2733 líneas;
+                   composable PerfilClienteScreen), AñadirClienteScreen (archivo con "ñ" en el nombre),
+                   DialogoEditarServiciosContratados
+  servicios/       ServiciosScreen, EditarServicioScreen, DetalleServicioScreen, ProgramarSesionesScreen,
+                   EditarSesionScreen, SesionReservasScreen (MODELO NUEVO)
+  economia/        EconomiaScreen (resumen + CRUD gastos + detalle solo lectura de movimientos)
+  solicitudes/     SolicitudesScreen
+  notificaciones/  GestionNotificacionesScreen, CrearNotificacionScreen, ConfigNotificacionesScreen,
+                   SeleccionarClientesScreen, DialogoSeleccionarClientes (sin uso)
+  configuracion/   ConfiguracionScreen, MiNegocioScreen, CrearNegocioScreen, PreferenciasScreen,
+                   DatosScreen, CuentaScreen, PoliticaPrivacidadScreen
+  componentes/     Botones.kt (kit App*), MenuCard, ClienteItem, BotonSelectorFoto + sin uso:
+                   ServicioItem, MovimientoItem, ResumenCard
+  clases/          Código LEGACY (ClasesScreen, CrearClaseScreen, DetalleClaseScreen,
+                   DetalleSesionReservasScreen) — rutas registradas pero INALCANZABLES desde la UI activa
+  viewmodel/       MainViewModel, ClienteViewModel, MovimientoViewModel, EconomiaViewModel,
+                   GastoViewModel, ServicioViewModel, SesionViewModel, SolicitudesViewModel,
+                   NotificacionesViewModel, PreferenciasViewModel, DatosViewModel, ClaseViewModel(legacy)
+  theme/           Color/Theme/Type
+  utils/           FotoUtils
+```
+
+## Módulo `:appCliente` — GestorPro Cliente (`appCliente/src/main/java/com/roberto/gestorpro/cliente`)
+```
+GestorProClienteApplication.kt, MainActivity.kt
+navigation/        Routes.kt + AppNavigation.kt
+model/             Cliente, EstadoCliente, EstadoHomeCliente, EstadoSolicitud, Servicio, Sesion,
+                   Reserva, Notificacion, SolicitudBaja
+data/
+  firebase/        AutenticacionRepository, ClienteRepository, NegocioRepository, PerfilPendienteRepository,
+                   VinculacionRepository, SesionRepository, ReservaRepository, SolicitudRepository,
+                   NotificacionRepository, DispositivoRepository
+  repository/      PreferencesRepository (DataStore "preferencias_cliente")
+di/AppModule.kt    Hilt (Auth, Firestore, Context)
+ui/
+  auth/            InicioScreen (código+DNI), Login, Registro, RecuperarPassword, CompletarPerfil,
+                   MiPerfil, EditarPerfil, CuentaScreen (solicitar baja + cerrar sesión)
+  home/            HomeScreen, ClasesScreen ("Clases/Actividades de hoy", reservar/cancelar)
+  configuracion/   ConfiguracionScreen, NotificacionesScreen (switch avisos), InformacionLegalScreen
+                   (genérica, "Contenido próximamente"), PoliticaPrivacidadScreen
+  notificaciones/  ListaNotificacionesScreen (buzón)
+  rutinas/         RutinasScreen (placeholder visual)
+  service/         FcmService (FCM)
+  viewmodel/       MainViewModel, SesionesClienteViewModel, ReservasClienteViewModel, NotificacionesClienteViewModel
+  theme/ utils/    Tema + FotoUtils
+```
+
+**Nota de localización:** `app/src/main/java/com/roberto/gestorpro/ui/clientes/AñadirClienteScreen.kt` tiene un carácter `ñ` en el nombre de archivo [CONFIRMADO]. Compila en Windows pero es un riesgo de portabilidad/git; no renombrar sin avisar (rompería imports).
+
+---
+
+# 5. Estado del repositorio y de compilación (verificado hoy)
+
+- [CONFIRMADO] `git status`: working tree **limpio**, rama `master`, sincronizada con `origin/master`.
+- [CONFIRMADO] HEAD: `60cf834 "mejoras y correciones"` (2026-09-03 01:18 +0200).
+- [CONFIRMADO] Ejecutado hoy:
+  - `.\gradlew.bat :app:testDebugUnitTest :appCliente:testDebugUnitTest` → **BUILD SUCCESSFUL** (compila Kotlin/Java debug de ambos módulos).
+  - Unit tests `:app` = **59/59 OK**; `:appCliente` = **9/9 OK**.
+  - `npm --prefix firestore-tests test` → **143/143 OK** (emuladores firestore+storage, proyecto `gestorpro-rules-test`).
+  - `node --test functions/test/ids.test.js functions/test/tokens.test.js` → **13/13 OK**.
+- No se ejecutó `assembleDebug` completo hoy; el último build reportado en AGENTS.md fue OK. [INFERIDO] el proyecto compila dado que la compilación de tests compiló todo el código main.
+
+---
+
+# 6. Autenticación y roles
+
+## Cómo funciona (común a ambas apps)
+- **Firebase Authentication** con email/contraseña. Sesión persistida por el SDK (restauración automática al arrancar).
+- Al **registrar**, se crea la cuenta Auth y después el documento `usuarios/{uid}` = `{ rol, activo: true, clienteId: null, negocioId: null }`. Si la escritura falla, se borra la cuenta para no dejar huérfanos.
+- Al **iniciar sesión**, se lee `usuarios/{uid}`: si no existe o `activo != true` se cierra sesión y se informa.
+- **Roles remotos exactos:** `ADMIN` y `CLIENTE` (constantes en cada `AutenticacionRepository`).
+- **Logout:** `FirebaseAuth.signOut()`. No borra DataStore.
+- **Recuperación de contraseña:** únicamente `FirebaseAuth.sendPasswordResetEmail`. Mensaje de éxito SIEMPRE genérico ("Si el email existe, recibirás un enlace…") para no revelar cuentas existentes; ante errores de autenticación se responde el mismo mensaje genérico; solo se comunican fallos reales (p. ej. sin conexión). Validación previa de email con `Patterns.EMAIL_ADDRESS`.
+
+## Diferencias por app
+- **Admin (`:app`):** registro siempre con rol `ADMIN`. `destinoInicialSegunSesion()` → si hay sesión restaurada va a `HOME`, si no a `LOGIN`. **[CONFIRMADO - PROBLEMA]**: `AutenticacionRepository.iniciarSesion` (Admin) NO valida que `rol == "ADMIN"`; solo comprueba que el documento exista y `activo == true`. Un usuario con rol CLIENTE que conozca las credenciales podría entrar en la app Admin (riesgo de seguridad conocido, ver §15 y §19). En la UI, si el ADMIN no tiene negocio creado se muestra el guard "crea tu negocio".
+- **Cliente (`:appCliente`):** registro siempre con rol `CLIENTE`. El login valida `usuarios/{uid}` con rol CLIENTE. `destinoInicial()`: autenticado → si existe ficha vinculada o perfil pendiente va a `HOME`; si no, a `INICIO` (pantalla "¿Tu gimnasio ya te ha registrado?").
+
+## Vinculación del CLIENTE (flujo clave, ver también §7)
+- **VÍA 1 (única activa hoy [CONFIRMADO]):** El Admin crea la ficha (replica `clientes/{id}` con `firebaseUid: null` + `indices_clientes/{negocioId}_{DNI}` + `clientes_privados/{id}`). El cliente, desde `InicioScreen`, introduce **código maestro + DNI**:
+  1. Resuelve `negocioId` con `negocios_publicos` por código maestro.
+  2. Escribe en `perfiles_pendientes/{uid}` una **declaración mínima** `{ dni, negocioId }` con `SetOptions.merge()` (para que las Rules validen el acceso al índice/ficha).
+  3. Busca `indices_clientes/{negocioId}_{dni}`.
+     - **Si existe y `firebaseUid == null`** → Transaction: `clientes/{id}.firebaseUid = uid` + `usuarios/{uid} = {clienteId, negocioId}` (VÍA 1).
+     - **Si existe y `firebaseUid != null`** → error "Ese DNI ya está vinculado a otra cuenta".
+     - **Si NO existe** → error fijo **"No existe ningún cliente registrado con ese DNI."** ([CONFIRMADO] el código de VÍA 2 `crearFicha()` está CONSERVADO en `VinculacionRepository` pero NO se ejecuta desde esta entrada; hay test unitario que verifica ese rechazo).
+  4. Tras éxito: borra `perfiles_pendientes/{uid}` y llama `notificarVinculacionAlAdmin(...)` (crea `notificaciones/vinculacion_{negocioId}_{clienteId}` tipo `VINCULACION`, falla en silencio).
+- **"No tengo vinculación":** el cliente completa un perfil completo que se guarda en `perfiles_pendientes/{uid}` (VÍA 2 de datos, sin negocio) y entra al Home sin vincular (aviso visible). Más tarde solo puede VINCULARSE por VÍA 1 (código + DNI con ficha existente).
+- **DNI:** editable por el cliente SOLO mientras no está vinculado (se guarda en `perfiles_pendientes`); una vez vinculado, la ficha vive en `clientes/{id}` y el DNI queda **bloqueado para el cliente** (solo el ADMIN lo cambia manteniendo el índice atómico).
+- El documento `perfiles_pendientes/{uid}` admite dos modos (mínimo VÍA 1 o completo VÍA 2) y **solo se borra cuando la vinculación se completa con éxito**.
+
+---
+
+# 7. Base de datos / Firebase
+
+## 7.1 Room (solo Admin) — [CONFIRMADO]
+
+`ClientesDatabase` **versión 15**, 9 entidades. Migraciones registradas en `di/AppModule.kt`: `11→12` (columna `horaDesdeReserva` en sesion), `12→13` (elimina `tieneLlave` del cliente), `13→14` (economía: `servicio.precio`; movimiento pasa a `servicios List<Int>`, `precioFinal`, `metodoPago`), `14→15` (cliente con `moroso` y `fechaEntradaMorosidad`). **Aún hay `.fallbackToDestructiveMigration()`** con TODO(PRODUCCION) para sustituirlo por migraciones reales antes de publicar.
+
+Tablas y campos principales:
+- **`cliente`**: idCliente PK autoincremental, nombre, apellidos, dni (índice único), telefono, email?, foto, fechaNacimiento Long, fechaRegistro, fechaAlta?, fechaBaja?, estado (enum), observaciones?, negocioId?, serviciosContratados (CSV Int), firebaseUid?, **moroso Boolean**, **fechaEntradaMorosidad Long?**. NO tiene `tieneLlave`.
+- **`servicio`**: idServicio PK, negocioId, nombre, descripcion, activo, **precio Double**.
+- **`sesion`**: idSesion PK, negocioId, idServicio, fecha Long, hora "HH:mm", duracionMinutos, capacidad, plazasDisponibles, **horaDesdeReserva String?**.
+- **`reserva`**: idReserva PK, negocioId, idSesion, idCliente, fechaReserva; índice único `(idSesion, idCliente)`.
+- **`movimiento`**: idMovimiento PK, idCliente, **servicios List<Int>**, fechaInicio, fechaFin, **precioFinal Double**, estado (PENDIENTE/PAGADO), fechaPago Long?, **metodoPago?**, observaciones?.
+- **`gasto`**: idGasto PK, concepto, importe, fecha, observaciones?.
+- **`solicitud`** (LEGACY/inerte): tipo TipoSolicitud **CLASE/BAJA** (deuda: el contrato remoto es ALTA/BAJA), estado, detalle, fechas.
+- **`clase` / `sesion_clase`** (LEGACY transitorio): modelo antiguo Clase→SesionClase→Reserva, sin uso funcional.
+
+## 7.2 Firestore — colecciones y operaciones [CONFIRMADO, extraído de `firestore.rules`]
+
+Regla general: **bloqueo por defecto** salvo rutas declaradas. Roles: `ADMIN` y `CLIENTE`. Identidad: `usuarios/{uid}` es la fuente de roles; no hay Custom Claims.
+
+| Colección | Documento / ID | Operaciones y quién |
+|---|---|---|
+| `usuarios/{uid}` | `{ rol, activo, clienteId, negocioId }` | get (propio), create autenticado, update ADMIN (negocioId), update CLIENTE VÍA 1/VÍA 2 (clienteId/negocioId). delete prohibido. |
+| `negocios/{negocioId}` | `{ adminUid, nombre, codigoMaestro, logo }` | get/list/create/update ADMIN propietario. delete no. `negocioId` = UID del ADMIN. |
+| `negocios_publicos/{negocioId}` | `{ nombre, codigoMaestro, logo }` | get/list cualquier autenticado; create (negocio nuevo) y update ADMIN (solo codigoMaestro/nombre/logo). |
+| `clientes/{idCliente}` | `{ idCliente, negocioId, firebaseUid, nombre, apellidos, dni, telefono, email, foto, fechaNacimiento, fechaRegistro, fechaAlta, fechaBaja, estado, serviciosContratados:[int], fechaInicioActual, fechaFinActual }` | get: ADMIN su negocio; CLIENTE su propia ficha; CLIENTE sin vínculo VÍA 1 (declaración en perfiles_pendientes) y VÍA 2 (`resource==null`). list solo ADMIN. create ADMIN (con índice en el mismo batch) / CLIENTE VÍA 2. update CLIENTE solo campos personales (DNI y campos admin bloqueados) y update VÍA 1 (firebaseUid); update ADMIN con cambio de DNI atómico (índice viejo→nuevo). **delete prohibido**. Los valores de `estado` son los nombres del enum (ACTIVO/BAJA/ARCHIVADO/REGISTRADO). MOROSO se calcula, no se almacena. |
+| `clientes_privados/{idCliente}` | `{ negocioId, observaciones }` | Solo ADMIN del negocio. delete prohibido. |
+| `indices_clientes/{negocioId}_{dni}` | `{ negocioId, dni, clienteId }` | get: ADMIN su negocio, o CLIENTE cuyo DNI+negocioId coinciden con su perfiles_pendientes. create solo en el mismo batch que su ficha. **update prohibido**. delete solo ADMIN al cambiar DNI. list prohibido. |
+| `perfiles_pendientes/{uid}` | VÍA 1 `{ dni, negocioId }` o VÍA 2 completo `{ nombre, apellidos, dni, telefono, email, foto, fechaNacimiento }` | create/get/update/delete solo del propio uid. list prohibido. |
+| `servicios/{idServicio}` | `{ idServicio, negocioId, nombre, descripcion, activo, precio }` | get/list/create/update/delete ADMIN; CLIENTE vinculado puede `get` servicios ACTIVOS de su negocio (necesario en la Transaction de reserva). |
+| `sesiones/{idSesion}` | `{ idSesion, negocioId, idServicio, fecha, hora, duracionMinutos, capacidad, plazasDisponibles, horaDesdeReserva }` | get/list/create/update/delete ADMIN (create exige servicio existente, del negocio y ACTIVO). CLIENTE vinculado: get/list solo sesiones de servicios **contratados + ACTIVOS + estado cliente ACTIVO** (`clientePuedeAcceder`). CLIENTE puede `update` SOLO plazas ±1 en Transaction con su reserva. |
+| `reservas/{clienteId}_{sesionId}` | `{ idReserva, negocioId, sesionId, clienteId, fechaReserva }` | ID determinista. create/cancelar ATÓMICOS por Transaction (CLIENTE): `reservaCreaValida` exige cliente ACTIVO, servicio contratado+activo, plazas = anterior−1 y ≥0; cancelar = delete + plazas+1 (sin superar capacidad). ADMIN consulta y elimina con cascadas/ajuste de plazas. CLIENTE update: false. |
+| `movimientos/{movimientoId}` | documento de movimiento (réplica Admin) | **Solo ADMIN** del negocio: get/list/create/update/delete. [CONFIRMADO] existe `match /movimientos/` (líneas ~795-811). |
+| `solicitudes/{solicitudId}` | `{ idSolicitud, negocioId, idCliente, firebaseUid, fechaSolicitud, estado(PENDIENTE/ACEPTADA/RECHAZADA), tipo(ALTA/BAJA), fechaResolucion, resueltaPor, motivo }` | create CLIENTE (PENDIENTE, tipo ALTA/BAJA, no BAJA/ARCHIVADO); update ADMIN solo resolución desde PENDIENTE; delete ADMIN solo si no está PENDIENTE. ID determinista `baja_{clienteId}_{fechaSolicitud}`. |
+| `notificaciones/{id}` | `{ negocioId, titulo, mensaje, tipo, origen, modoDestino, clienteId?, idsClientes?, fechaCreacion, fechaEnvio?, fechaProgramada?, estado(PENDIENTE/ENVIADA/PROGRAMADA/CANCELADA/ERROR), programada }` | get/list/delete ADMIN. create ADMIN (tipos MANUAL/MOROSIDAD/BAJA_CONFIRMADA/PROGRAMADA/SOLICITUD_BAJA). **create CLIENTE solo tipo VINCULACION** con `hasOnly` y `!exists` anti-duplicado. update ADMIN (estado/fechaEnvio/idsClientes). |
+| `notificaciones_por_destinatario/{clienteId}_{notificacionId}` | buzón del CLIENTE (`leida`, `fechaLeida`, etc.) | create ADMIN; get/list CLIENTE (solo suyas) o ADMIN; update CLIENTE solo marcar leída; delete ADMIN. |
+| `configuracion_notificaciones/{negocioId}` | `{ morosidad, bajaConfirmada }` | Solo ADMIN. delete prohibido. |
+| `clientes/{idCliente}/dispositivos/{token}` (subcolección) | `{ token, plataforma, notificacionesActivadas, updatedAt }` | create/update/delete CLIENTE dueño de la ficha (token FCM); get/list ADMIN del negocio. |
+| `clases/{claseId}` y relacionadas | — | **LEGACY transitorio** (reglas presentes para no romper históricos). |
+
+**Notas importantes de Rules [CONFIRMADO]:**
+- El helper `clientePuedeAcceder` exige `c.estado == "ACTIVO"` (regla definitiva cerrada en esta línea de trabajo). Un cliente **moroso (flag) con estado ACTIVO SÍ accede**; REGISTRADO/ARCHIVADO/BAJA NO.
+- El ruleset local NO contiene claves económicas `moroso`/`fechaEntradaMorosidad`/`deuda` en el `update` de `clientes` (la sincronización de resumen económico NO está cableada; ver §8/§15).
+- Índices compuestos necesarios en producción (creados según AGENTS.md en `gestorpro-50e83`): `sesiones(idServicio, negocioId)`, `reservas(clienteId, negocioId)`, `reservas(sesionId, negocioId)`. El índice `notificaciones(estado, fechaProgramada)` para Functions programadas está **documentado pero pendiente de crear** [INFERIDO según AGENTS.md].
+
+## 7.3 Firebase Storage — [CONFIRMADO en `storage.rules`]
+- `negocios/{negocioId}/logo.jpg`: lectura cualquier autenticado; escritura solo ADMIN propietario (`usuarios/{uid}.rol == "ADMIN"` y `negocioId`). El Cliente descarga por URL con Coil.
+- `clientes/{clienteId}/foto.jpg`: reglas preparadas (ADMIN del negocio escribe, CLIENTE solo su propia foto, image/* ≤ 5 MB) para una migración futura de fotos; la app hoy guarda fotos en local.
+- Bloqueo del resto del bucket.
+
+## 7.4 Firestore como espejo (Admin) vs fuente de verdad (Cliente)
+- En Admin, la réplica a Firestore es **write-through por entidad**: cliente (con `clientes_privados` e índice), servicios, sesiones, reservas (transacciones atómicas con plazas), movimientos (colección `movimientos/{id}`), períodos económicos (`fechaInicioActual`/`fechaFinActual` en `clientes/{id}`), solicitudes y notificaciones.
+- **La replicación del resumen económico (moroso/deuda) NO está implementada** ([CONFIRMADO] `util/MovimientoFirestore.resumenDeCliente` no tiene consumidores; `ClienteRemotoRepository.actualizarResumenEconomicoRemoto` no existe en el árbol actual). Solo se replica el período. Esto limita lo que Cloud Functions puede calcular desde Firestore.
+
+---
+
+# 8. Funcionalidades implementadas (estado por feature)
+
+> Leyenda de estado: **COMPLETA** = funciona y cableada; **PARCIAL** = hay parte; **PROBLEMÁTICA** = tiene bug/riesgo conocido; **NO TERMINADA** = a medias.
+
+## 8.1 Autenticación (Admin y Cliente) — COMPLETA
+Registro, login, logout, recuperación (genérica) reales con Firebase Auth + documento `usuarios/{uid}`.
+Archivos: `AutenticacionRepository.kt` en cada app; `MainViewModel.kt`; screens `ui/auth/*`.
+Problemas: login Admin sin validar rol == ADMIN (§15-E).
+
+## 8.2 Negocio (Admin) — COMPLETA
+Crear negocio (Batch `negocios` + `negocios_publicos` + `usuarios.negocioId`), editar nombre y código maestro, logo a Storage con WriteBatch de URLs (`negocios/{uid}/logo.jpg`).
+Archivos: `NegocioRepository.kt`, `ui/configuracion/{MiNegocioScreen,CrearNegocioScreen}`.
+Pendiente real: bucket habilitado (Storage). Histórico: "crear negocio PERMISSION_DENIED" no cerrado (§15).
+
+## 8.3 Clientes (Admin) — COMPLETA con avisos
+Lista con búsqueda/filtros/estados; alta/edición con foto; servicios contratados (multi-select de ACTIVOS); archivar/restaurar; baja (ver §8.10); sincronización Room↔Firestore write-through con banner y reintento; incorporación de clientes remotos a Room al entrar en ClientesScreen; ids de rango alto.
+Archivos: `ClienteRemotoRepository.kt`, `ClienteViewModel.kt`, `ClientesScreen.kt`, `PerfilClienteAdministradorScreen.kt` (archivo grande), `AñadirClienteScreen.kt`, `DialogoEditarServiciosContratados.kt`, `util/IdCliente.kt`.
+Problemas: la causa raíz del `PERMISSION_DENIED` del alta (seed Room con ids 1–20) ya se eliminó; queda verificar en dispositivo con BD limpia y retirar los logs `[DIAG alta]` (§14-A); `AñadirClienteScreen` exige fechaNacimiento obligatoria (decisión actual); uso de `!!` y strings hardcodeados.
+
+## 8.4 Servicios, Sesiones, Reservas (modelo nuevo, Admin) — COMPLETA
+- `ServiciosScreen`: listado ACTIVOS/DE BAJA mostrando **precio**; crear/editar (con campo precio ≥ 0), dar de baja/reactivar/eliminar.
+- `DetalleServicioScreen`: detalle + sesión del día con plazas reales (refresco en `onResume`).
+- `ProgramarSesionesScreen`: generar sesiones desde/hasta por día con hora propia, apertura global de reservas, duración y capacidad.
+- `EditarSesionScreen`: ver/editar sesión (fecha/hora/apertura/duración/capacidad). **Sin botón eliminar sesión en UI** aunque el ViewModel tiene `eliminarSesion`.
+- `SesionReservasScreen`: clientes reservados (solo lectura; al pulsar va al perfil). **El ADMIN no puede cancelar reservas desde aquí.**
+- Reservas atómicas Room (`withTransaction`, plazas±1, duplicado por `(idSesion,idCliente)`) + Firestore (`runTransaction`), cascadas al regenerar/desactivar/eliminar servicios y al eliminar sesiones (Room + remoto con reintentos por sesión).
+Archivos: `data/repository/{Servicio,Sesion,Reserva}Repository.kt`, `data/firebase/{Servicio,Sesion,Reserva}RemotoRepository.kt`, `ui/servicios/*`, `ui/viewmodel/{Servicio,Sesion}ViewModel.kt`.
+Problemas: logs `[DIAG sesiones]` temporales; botón de eliminar sesión y cancelación admin sin UI (§9-8/§9-9).
+
+## 8.5 Economía (Admin) — PARCIAL / PROBLEMÁTICA en su extremo remoto
+- **Room (Fases 1-5):** modelo movimiento multi-servicio con `precioFinal` + `metodoPago` + estado PENDIENTE/PAGADO + `fechaPago`; servicios con `precio`; motor puro de morosidad `MovimientoMorosidad` (ACTIVO moroso si deuda exigible o perdió continuidad PAGADA; BAJA solo por deuda; `fechaEntradaMorosidad` conservada); `ClienteDao.obtenerIdsMorosos` lee `moroso=1`. **`EstadoCliente.MOROSO` sigue en el enum pero ya no se persiste como estado.**
+- **UI:** `EconomiaScreen` (resumen ingresos/gastos/balance + CRUD de gastos + movimientos en modo lectura); CRUD completo de movimientos en el perfil del cliente.
+- **Firestore (Fase 6, estado FINAL tras reverts del desarrollador):** quedaron en el árbol `util/MovimientoFirestore.kt` y `data/firebase/MovimientoRemotoRepository.kt` (crear/actualizar/eliminar en `movimientos/{id}`), pero **NO están cableados**: `MovimientoRepository` NO los invoca (solo persiste Room → recalcula morosidad → replica el período con `actualizarPeriodoActualRemoto`), `MovimientoDao.insertarMovimiento` **NO devuelve Long** (fue revertido) y `MovimientoFirestore.resumenDeCliente` no tiene consumidores. Por tanto: solo se replica a Firestore `fechaInicioActual`/`fechaFinActual` en `clientes/{id}`; **no se replica ni `movimientos/{id}` ni el resumen `moroso`/`deuda`**; las Rules no admiten esas claves en `clientes`. (La conversación describe la Fase 6 "completa" con resumen publicado y 144 tests; el desarrollador la revirtió parcialmente después.)
+Archivos: `util/{MovimientoMorosidad,MovimientoPrecio,MovimientoFirestore}.kt`, `MovimientoRepository.kt`, `MovimientoRemotoRepository.kt`, `EconomiaScreen.kt`, `PerfilClienteAdministradorScreen.kt`.
+Problemas: circuito económico completo sin cerrar (decisiones pendientes §20); véase bug histórico de `fechaPago` (resuelto, §15-8) y su matiz.
+
+## 8.6 Solicitudes de baja (Cliente → Admin) — COMPLETA
+El CLIENTE solicita baja desde `CuentaScreen`; el ADMIN acepta (Transaction: solicitud ACEPTADA + cliente BAJA + fechaBaja, y aplica consecuencias de baja) o rechaza; puede eliminar resueltas (no PENDIENTES). Búsqueda por datos reales. Aviso SOLICITUD_BAJA al ADMIN al cargar PENDIENTES.
+Archivos: `SolicitudRemotoRepository.kt`, `BajaClienteRemotoRepository.kt`, `ui/solicitudes/SolicitudesScreen.kt`, `ui/viewmodel/SolicitudesViewModel.kt`; appCliente: `SolicitudRepository.kt`, `CuentaScreen.kt`.
+
+## 8.7 Baja de cliente unificada — COMPLETA
+`BajaClienteRemotoRepository.bajaEfectiva`: cancela reservas futuras (Room y Firestore, liberando plazas), conserva pasadas y `serviciosContratados`, genera `BAJA_CONFIRMADA` con ID determinista si la config lo permite. La usan la baja directa y la aceptación de solicitud.
+Acceso del CLIENTE: BAJA no lee sesiones ni reserva (app y Rules); Home oculta la card de Actividades a no-ACTIVOS.
+
+## 8.8 Notificaciones (Admin) y buzón (Cliente) — COMPLETA (envío real pendiente)
+- Admin: `GestionNotificacionesScreen` (lista, tipos con etiqueta "Vinculación"), `CrearNotificacionScreen` (individual/grupo/todos; inmediata o programada; selección individual reutiliza `SeleccionarClientesScreen` modo UNO), `ConfigNotificacionesScreen` (morosidad, recordatorio 24h, baja confirmada), `SeleccionarClientesScreen`.
+- Cliente: buzón `ListaNotificacionesScreen` (`notificaciones_por_destinatario`), switch "Recibir avisos" (`notificacionesActivadas`, DataStore + doc de dispositivo), `FcmService`.
+- El **envío real (FCM)** lo harían las Cloud Functions (Fase E), que NO están desplegadas. Hoy las notificaciones quedan como documentos `PENDIENTE`/`PROGRAMADA`; el push no se envía. La política de privacidad declara que el push "no está operativo en esta versión".
+Archivos: `data/firebase/NotificacionRemotoRepository.kt`, `ui/notificaciones/*`, `ui/viewmodel/NotificacionesViewModel.kt`; appCliente: `NotificacionRepository.kt`, `DispositivoRepository.kt`, `FcmService.kt`, `ListaNotificacionesScreen.kt`.
+
+## 8.9 Clases/Actividades de hoy del CLIENTE + reservas — COMPLETA
+`ClasesScreen` (appCliente): carga solo sesiones de HOY de servicios contratados y activos; estados (noVinculado/cargando/error/dadoDeBaja/estadoNoActivo/sinServicios/sinSesionesHoy/lista); respeta `horaDesdeReserva`; **reservar y cancelar** con Transactions; botón "Reservas abren a las HH:mm" deshabilitado si la apertura no ha llegado.
+Archivos: `SesionesClienteViewModel.kt` (contiene logs `ClasesDiagnostico`), `ReservasClienteViewModel.kt`, `ClasesScreen.kt`, `SesionRepository.kt`, `ReservaRepository.kt` (appCliente).
+Problemas: sin pantalla "Mis reservas" (el VM tiene `reservasVisibles` sin consumidor).
+
+## 8.10 Perfil y configuración del CLIENTE — COMPLETA
+Ver/editar datos personales (sin vínculo → `perfiles_pendientes`, DNI editable; vinculado → `clientes/{id}`, DNI bloqueado). `CompletarPerfilScreen` exige fechaNacimiento (obligatoria). `EditarPerfilScreen` deja la fecha de nacimiento en texto libre sin validar (inconsistencia de UI menor).
+`HomeScreen`: nombre/logo del negocio, banner "No estás vinculado", indicador de estado (ACTIVO/PAGO_VENCIDO con borde rojo/BAJA/REGISTRADO/ARCHIVADO), aviso de morosidad con enlace "aquí" a `CUENTA`.
+`ConfiguracionScreen` (Cliente): Mi perfil, **Mi cuenta** (→ `Routes.CUENTA`, donde está "Solicitar baja"), Notificaciones (switch), tema claro/oscuro/sistema, política de privacidad y términos.
+Archivos: `ui/auth/{MiPerfil,EditarPerfil,CompletarPerfil,Cuenta}Screen.kt`, `ui/home/{HomeScreen,ClasesScreen}.kt`, `ui/configuracion/*`, `MainViewModel.kt` (appCliente).
+
+## 8.11 Utilidades varias — COMPLETA/PARCIAL
+- `data/export/ExportManager.kt` (Admin): exporta/importa/restaura JSON de clientes+movimientos+gastos **solo** (no servicios/sesiones/reservas/solicitudes/negocio).
+- `ui/components/Botones.kt` en ambas apps: kit `AppPrimaryButton`/`AppSecondaryButton`/`AppDialogConfirmButton`/etc. En Admin fijados al azul corporativo `#1E88E5`.
+- Fotos: `FotoUtils` local (galería + cámara con `TakePicture` + `FileProvider`); el guardado se hace en el callback del resultado.
+- Política de privacidad con contenido real en ambas apps.
+
+## 8.12 Legacy / transitorio (NO eliminar sin tarea específica)
+- Admin: tablas/entidades/DAOs/repositorios/ViewModel de `Clase`/`SesionClase`, `ui/clases/*` (inalcanzable desde la UI activa), `SolicitudEntity` Room inerte, `ui/components/{ServicioItem,MovimientoItem,ResumenCard}` y `DialogoSeleccionarClientes` (sin uso), modelo `SesionConClase`.
+- Rules: colección `clases/{claseId}` legacy.
+
+---
+
+# 9. Funcionalidades pendientes (por prioridad)
+
+## CRÍTICO (para que el sistema funcione correctamente en producción)
+1. **Conciliar y desplegar `firestore.rules`** (local = 143 tests) frente a lo desplegado en producción. [DESCONOCIDO] el estado exacto del ruleset desplegado (requiere consola/CLI). Riesgo: hasta el deploy, en producción un cliente REGISTRADO/ARCHIVADO podría operar y la notificación VINCULACION podría no poder crearse. Depende de: revisar `firebase deploy --only firestore:rules` (requiere autorización). Historial de deploys en §14-B, §15-17 y Anexo A.
+2. **Verificación final del alta ADMIN (PERMISSION_DENIED)** — la causa raíz (seed Room con ids 1–20) ya se eliminó y está commiteada; queda **confirmar en dispositivo con BD limpia** que el primer cliente real obtiene `idCliente=1` y se replica (logs `[DIAG alta] existencia previa -> false,false,false`), limpiar un posible documento huérfano con aprobación si persistiera, y **retirar el logging temporal `[DIAG alta]`**. Relacionado con el backfill de índices (DRY-RUN existe).
+3. **Cerrar el circuito económico y su réplica** (decisiones de negocio primero, §20): la morosidad que muestra Firebase no puede calcularse con precisión porque no se replican `moroso`/deuda; hay que decidir el modelo definitivo (fuente de verdad, campos en `clientes/{id}` o colección, compatibilidad con Rules/Functions) antes de tocar código.
+4. **Migraciones Room sin `fallbackToDestructiveMigration`** antes de publicar (TODO(PRODUCCION) en `ClientesDatabase.kt` y `AppModule.kt`). Riesgo de pérdida de datos si se publica con el fallback.
+5. **Cloud Functions + FCM + Storage en producción** (bloqueado por plan Blaze/decisión del propietario): crear bucket, índice `notificaciones(estado, fechaProgramada)`, `npm install` en `functions/`, `deploy`, pruebas FCM reales.
+
+## IMPORTANTE (antes de considerar el proyecto terminado)
+6. **Login Admin sin validar `rol == "ADMIN"`** (riesgo de seguridad confirmado).
+7. **Cambiar contraseña real en Cuenta Admin** (hoy placeholder sin `updatePassword`).
+8. **Botón "eliminar sesión"** en `EditarSesionScreen` (VM ya tiene `eliminarSesion`).
+9. **Cancelar reserva desde el ADMIN** en `SesionReservasScreen` (hoy solo lectura).
+10. **Pantalla "Mis reservas" del CLIENTE** (VM preparado, sin UI) — si el propietario la aprueba.
+11. **Retirar logs de diagnóstico temporales**: `[DIAG alta]` (`ClienteRemotoRepository`), `[DIAG sesiones]` (`SesionViewModel`, `SesionRemotoRepository`, `ReservaRemotoRepository`), `ClasesDiagnostico` (`SesionesClienteViewModel` en appCliente).
+12. **Reactivación/decisión sobre VÍA 2** de vinculación (código conservado pero inactivo; hoy "si el índice no existe → error"). Decidir si se reactiva con la regla de fecha de nacimiento opcional o se elimina el código.
+13. **Decidir si se reintroduce la sincronización de resumen económico** a `clientes/{id}` (campos `moroso`/`deuda`/`fechaEntradaMorosidad` + Rules + tests) o se elimina el helper `resumenDeCliente` sin uso.
+
+## MEJORA
+14. Unificar a `Botones.kt` los botones Material 3 directos que quedan en pantallas activas (FABs, TextButton de DatePickers, `MiNegocioScreen`, `PerfilClienteAdministradorScreen`, `EconomiaScreen`, `DetalleServicioScreen`, `ProgramarSesionesScreen`, notificaciones, auth de `:app`, etc.). NO tocar `ui/clases/*` (legacy).
+15. Mover textos hardcodeados a `strings.xml` (hoy 0 uso de recursos de string; solo `app_name`). Es deuda grande.
+16. Migrar fotos de perfil locales → Firebase Storage (reglas ya preparadas en `storage.rules`) cuando haya bucket.
+17. `AñadirClienteScreen.kt` con "ñ" en el nombre de archivo: evaluar renombrado (riesgo: imports).
+18. `DetalleVisuales.kt` (kit de detalle): decidir si se recupera o se elimina definitivamente (hoy no existe).
+19. Limpieza de basura versionada: `build_*.txt`, `files.txt`, `structure.txt`, `app_kt_files.txt`, `conversacionEstilo.md`, `EXPLICACION_BASE_DE_DATOS.html`, `AI_RULES.md`, `AUDITORIA_PROYECTO_MIGRACION_KMP.md`, `firestore-debug.log` (raíz y `firestore-tests/`). (Algunos pueden ser documentos deliberados del propietario; confirmar antes de borrar.)
+
+## OPCIONAL (no son tareas pendientes obligatorias)
+20. Módulo económico completo en appCliente (cuotas/movimientos/pagos) — requiere decisión de producto.
+21. Auditoría de migración KMP (existe `AUDITORIA_PROYECTO_MIGRACION_KMP.md`).
+22. Tests instrumentados de Compose (hoy solo `ExampleInstrumentedTest`).
+23. Página de estado (Home Admin) con resumen económico/morosidad.
+
+---
+
+# 10. Decisiones de diseño ya tomadas
+
+| # | DECISIÓN | POR QUÉ | NO MODIFICAR SIN CONSULTAR |
+|---|---|---|---|
+| D1 | **Dos apps independientes** (`:app` + `:appCliente`) sobre el mismo proyecto Firebase | Separar roles y superficies UI; comparten datos vía Firestore | No fusionar en una app "multirol" |
+| D2 | **Room = fuente de verdad local del Admin**; Firestore = espejo write-through; el Cliente usa Firestore directo sin Room | Trabajo offline local + réplica remota controlada | No cambiar la fuente de verdad sin tarea explícita |
+| D3 | **Modelo `Cliente → Servicio → Sesión → Reserva`** (sin entidad Clase en el flujo nuevo) | Simplificar la programación de actividades | No reintroducir Clase en el flujo nuevo |
+| D4 | **`Clase`/`SesionClase` y su UI/DAOs/ViewModel legacy TRANSITORIOS** (no eliminados) | Evitar pérdidas antes de una tarea de limpieza dedicada | NO ELIMINAR ni conectar sin tarea específica |
+| D5 | **Vía B (enlace/deep link de vinculación) DESCARTADA**; sin `vinculaciones` ni `codigoVinculacion` | Decisión de producto | NO reintroducir nunca |
+| D6 | **Vinculación por código maestro + DNI** con `indices_clientes/{negocioId}_{dni}` y documentId determinista | Unicidad negocio+DNI con Transaction | Mantener unicidad y el ID determinista |
+| D7 | **`perfiles_pendientes/{uid}` admite DOS modos** (VÍA 1 mínima con merge y VÍA 2 completa) y solo se borra al completar la vinculación | No perder datos del usuario ante fallos | No borrar el perfil pendiente ante errores |
+| D8 | **DNI**: lo cambia solo el ADMIN manteniendo el índice atómico; el CLIENTE lo edita solo pre-vinculación; bloqueado después | Integridad de la identidad | No permitir al cliente cambiar DNI vinculado |
+| D9 | **Eliminación de `tieneLlave`**: la llave se gestiona como un **servicio normal** | Simplificar el modelo | No reintroducir el campo especial |
+| D10 | **Reservas atómicas** con documentId `reservas/{clienteId}_{sesionId}`, plazas ±1 en Transaction (Room y Firestore), sin update directo de CLIENTE | Evitar sobre-reserva y duplicados | No abrir update de reservas al cliente |
+| D11 | **Acceso CLIENTE solo con estado `ACTIVO`** (`clientePuedeAcceder`); morosidad es flag, no estado | Regla de negocio definitiva | No volver a `!= "BAJA"` |
+| D12 | **`EstadoCliente.MOROSO` ya no se persiste** como estado (es flag `moroso`), aunque el enum conserva el valor | Evitar estados duplicados | Antes de eliminar el enum, tarea explícita (riesgo de referencias) |
+| D13 | **`TipoSolicitud` Room (CLASE/BAJA) y `SolicitudEntity` Room legacy inertes** | Pendiente de decisión sobre la tabla antigua | Adaptar a ALTA/BAJA solo con tarea específica + migración |
+| D14 | **Economía Fases 1-6**: movimiento multi-servicio (lista ids + precioFinal + método pago), precio en servicio, morosidad por motor puro `MovimientoMorosidad` | Modelo económico más rico | No revertir el modelo sin decisión (§20) |
+| D15 | **Notificaciones**: buzones `notificaciones_por_destinatario`, docs `notificaciones/{id}` con estados, `configuracion_notificaciones` por negocio, IDs deterministas | Preparar Cloud Functions | No cambiar IDs deterministas (los comparte CF) |
+| D16 | **`BajaClienteRemotoRepository` = lógica de baja UNIFICADA** (directa y por solicitud) | Convergencia y coherencia | No duplicar lógica de baja en otros sitios |
+| D17 | **Recuperación de contraseña con mensaje genérico** siempre | No revelar qué emails existen | No mostrar errores específicos |
+| D18 | **Terminología visible "Actividades"** en cards (Admin y Cliente) mientras el código interno sigue `Servicio`/`servicios` | Decisión de producto/UI | No renombrar colecciones/modelos por el cambio de etiqueta |
+| D19 | **`android:allowBackup="false"`** en ambas apps + TODO(PRODUCCION) para decidir al publicar | Evitar que Google restaure BDs viejas en desarrollo | Decidir reactivación y reglas antes de publicar |
+| D20 | **Botones App* con azul corporativo `#1E88E5` en Admin** (el tema usa Material You/dinámico) | Identidad visual | No reemplazar por colores dinámicos sin consultar |
+| D21 | **`compileSdk 36 minor 36.1`, target 36, min 26; Java 11; sin minify en release** | Configuración actual | No cambiar versiones por iniciativa propia |
+| D22 | **El `negocioId` del ADMIN es su UID** y viaja como String; ids de cliente/servicio/sesión/reserva son enteros | Contrato remoto | Mantener tipos del contrato |
+| D23 | **Strings hardcodeados en español** (deuda conocida, no migración general sin pedirla) | Convención actual | No iniciar migración masiva a strings.xml sin orden |
+| D24 | **No hay capa use-case/domain**; MVVM + repositorios | Decisión de arquitectura | No exigir Clean Architecture como requisito automático |
+
+---
+
+# 11. Reglas del proyecto (comportamientos que no deben cambiar)
+
+Extraídas de AGENTS.md y verificadas en el código. Resumen operativo:
+- Roles remotos exactos `ADMIN`/`CLIENTE`. `usuarios/{uid}` gobierna permisos; **sin Custom Claims**.
+- Un ADMIN solo accede a su negocio; un CLIENTE solo a sus datos/reservas/solicitudes/sesiones de servicios contratados y activos. **Los clientes nunca acceden a `movimientos` ni a `clientes_privados`.**
+- `clientePuedeAcceder` exige **estado `ACTIVO`** para leer sesiones y reservar.
+- La morosidad es un **flag independiente** (deuda), no un estado administrativo.
+- Creación del negocio, `negocios_publicos` y `usuarios/{uid}.negocioId` en el **mismo Batch**.
+- Réplica de clientes en un único Batch con `indices_clientes` y `clientes_privados`. Cambio de DNI = índice atómico (borrar viejo + crear nuevo en el mismo Batch).
+- `delete` prohibido en `clientes`; el borrado local es baja lógica remota. Delete de solicitudes PENDIENTES prohibido.
+- Consultas Firestore **compatibles con Security Rules** (las Rules no filtran después; incluir `negocioId` en queries).
+- Valores de `clientes.estado` remotos: `ACTIVO`, `BAJA`, `ARCHIVADO`, `REGISTRADO` (MOROSO nunca se almacena).
+- Los valores remotos de `solicitudes.tipo` son `ALTA` y `BAJA`.
+- Reglas de código: español en identificadores/comentarios; PascalCase clases, camelCase funciones; no `!!` en código nuevo; no operaciones Room/Firestore/DataStore/red en main thread; no secretos en texto plano ni en archivos versionados; no añadir dependencias ni cambiar versiones sin avisar; usar `libs.versions.toml`; avisar antes de tocar `build.gradle.kts`; usar `StateFlow` + `collectAsStateWithLifecycle()` en lo nuevo; strings nuevos en `strings.xml` cuando se pueda; respetar una sola Activity por app; no introducir Vía B/deep links; los tests de Android funcionales se reservan para la fase final salvo petición expresa.
+- Fotos: usar `FotoUtils`/`BotonSelectorFoto`; guardar la foto de cámara solo en el callback.
+- Los ViewModels acceden a datos mediante repositorios, no por DAOs directamente.
+
+---
+
+# 12. Notificaciones
+
+- **Estado:** preparación completa en cliente; envío real PENDIENTE (Functions no desplegadas).
+- **Modelo de datos:** `notificaciones/{id}` (registro), `notificaciones_por_destinatario/{clienteId}_{notificacionId}` (buzón, campo `leida`), `configuracion_notificaciones/{negocioId}` (switches), `clientes/{id}/dispositivos/{token}` (tokens FCM, con `notificacionesActivadas`).
+- **Cliente:** `FcmService` (`onNewToken` registra token; `onMessageReceived` dibuja notificación local si `notificacionesActivadas`; canal `"notificaciones"` IMPORTANCE_HIGH creado al mostrar). Permiso `POST_NOTIFICATIONS` solicitado en `MainActivity` (Android 13+). Toggle en `ui/configuracion/NotificacionesScreen.kt`. Buzón en `ListaNotificacionesScreen.kt` (marcar leída).
+- **Envío (Fase E, sin desplegar):** Cloud Functions 2ª gen en `functions/` — triggers `notificacionInmediata` (onDocumentCreated), `procesarProgramadas` (onSchedule 2 min), `recordatorioMorosidad` (1 h), `entradaMorosidad` (onUpdate clientes), `bajaConfirmada` (onUpdate clientes). Patrón: buzones deterministas → CLAIM atómico en Transaction (PENDIENTE→ENVIADA / PROGRAMADA→ENVIADA) → envío FCM por lotes ≤500 (`sendEachForMulticast`) → limpieza de tokens inválidos. Config global `europe-west1`, `maxInstances: 10`.
+- **Problemas/limitaciones:** no desplegadas (sin Blaze); índice compuesto `notificaciones(estado, fechaProgramada)` pendiente de crear en producción; no hay deep links (al pulsar la notificación se abre `MainActivity` genérica). [DESCONOCIDO] estado real del proyecto Firebase respecto a FCM/sender (requiere consola).
+
+---
+
+# 13. Testing (estado real, ejecutado HOY)
+
+### Probado y funciona [CONFIRMADO hoy]
+- **Rules Firestore + Storage: 143/143** (`npm --prefix firestore-tests test`), emuladores `firestore,storage`, proyecto `gestorpro-rules-test`. Cubren: PRUEBA 1-18 (clientes/permisos/VÍA 1/VÍA 2/índices/perfiles pendientes/privados/negocios públicos/cambio DNI), 19-20 (Storage logo), 21-33 + 33A-33H (servicios + queries admin con negocioId), 34-53 (sesiones), 54-76 (reservas/transacciones/plazas/duplicado), 77-81 (cascadas admin), 82-88 (horaDesdeReserva), 89-98 (notificaciones), 99-108 (solicitudes de baja), 109-112 (bloqueo BAJA), 113-120 (regresión sesiones + borrado solicitudes + SOLICITUD_BAJA), 121-128 (acceso solo ACTIVO + VINCULACION).
+- **Unit `:app` (Admin): 59/59** (`:app:testDebugUnitTest`). Archivos: `ExampleUnitTest` (2), `MovimientoPrecioTest` (10), `MovimientoPagoTest` (12), `MovimientoMorosidadTest` (17), `MovimientoFirestoreTest` (14), `NotificacionConfigTest` (5). Se contaron 60 anotaciones `@Test`; el runner reporta 59 ejecutados (una no computa por algún motivo; no es un fallo).
+- **Unit `:appCliente`: 9/9** (`VinculacionRepositoryTest` 1 — rechazo de Vía A sin índice; `ReservaTest` 8).
+- **Helpers de Functions: 13/13** (`node --test functions/test/ids.test.js functions/test/tokens.test.js`), solo módulos puros `ids.js`/`tokens.js`; `functions/` no tiene `node_modules` (no requiere instalación para estos tests).
+- **Compilación:** ambos módulos compilan (los unit tests compilaron todo el main + tests).
+
+### Probado y no se ejecuta (diagnósticos temporales)
+- `firestore-tests/diagnostico_alta_cliente.test.cjs` (7 tests): no forma parte del suite; reproduce el payload real del alta contra Rules locales. Se ejecuta con su propio comando (ver AGENTS.md).
+- `sessions-query-compatibility.test.cjs` (4 tests): runner que parchea reglas temporalmente.
+
+### NO probado / pendiente
+- Tests instrumentados reales (Compose) — decisión del proyecto: solo `ExampleInstrumentedTest`.
+- Pruebas en dispositivo físico recientes de los flujos de reservas del CLIENTE, de la baja unificada, notificaciones push reales y regeneración de sesiones en producción (dependen de índices/despliegue).
+
+---
+
+# 14. Errores conocidos / pendientes
+
+| # | ERROR | GRAVEDAD | CUÁNDO / REPRODUCIR | CAUSA CONOCIDA | POSIBLE SOLUCIÓN | ESTADO |
+|---|---|---|---|---|---|---|
+| A | Alta de cliente Admin → `PERMISSION_DENIED` | ALTA | Al crear un cliente (producción) en ciertos casos | **Causa principal identificada y eliminada (Sesión XX, 2026-09-01):** el seed automático de Room (`AppModule.insertarDatosPrueba`, vía `RoomDatabase.Callback.onCreate`) insertaba 20 clientes ficticios con ids 1–20; en una instalación nueva el primer cliente real recibía `idCliente=21/22` → colisión con documentos ya existentes en Firestore → `batch.set()` evaluado como `update` → Rules lo deniegan. **El seed fue ELIMINADO de `AppModule.kt`** (verificado: no existe hoy). Causa secundaria posible: documento huérfano previo (índice/ficha/privado) en el batch. El payload actual pasa las Rules locales (test de aislamiento 7/7) | Confirmar en dispositivo con BD limpia (primer cliente real → `idCliente=1` y réplica OK, logs `[DIAG alta] existencia previa -> false,false,false`); si persiste, limpiar el huérfano con aprobación; retirar los logs `[DIAG alta]` | CASI CERRADO (fix commiteado; falta verificación en dispositivo y retirar logging temporal) |
+| B | Rules desplegadas vs local | ALTA | Producción | Ruleset desplegado puede estar desactualizado (históricamente quedó obsoleto varias veces; hubo deploys autorizados verificados byte-idénticos y un deploy en el checkpoint 2026-09-0X con las claves de resumen económico que luego el desarrollador revirtió en local; el CIERRE 2026-09-03 indica que el ruleset desplegado NO tiene el acceso estricto "ACTIVO" ni la rama VINCULACION) | Reconciliar y `deploy --only firestore:rules` tras validar 143 tests | [DESCONOCIDO] estado desplegado actual; PENDIENTE |
+| C | Login Admin no valida `rol == ADMIN` | ALTA (seguridad) | Un usuario CLIENTE podría iniciar sesión en la app Admin | `iniciarSesion` (Admin) solo exige doc existente + `activo` | Validar `rol == "ADMIN"` en repositorio/login | ABIERTO |
+| D | Cambiar contraseña (Admin) es placeholder | MEDIA | CuentaScreen → "Cambiar contraseña" | Diálogo sin llamada a `FirebaseAuth.updatePassword` | Implementar updatePassword con reautenticación | ABIERTO |
+| E | Sin "eliminar sesión" ni "cancelar reserva ADMIN" en UI | MEDIA | EditarSesionScreen / SesionReservasScreen | VM tiene `eliminarSesion`; no cableado | Añadir botones/acciones | ABIERTO |
+| F | Sin pantalla "Mis reservas" del CLIENTE | MEDIA (funcional) | — | `reservasVisibles` sin consumidor | Añadir pantalla (si se aprueba) | ABIERTO |
+| G | Sincronización de resumen económico no implementada | MEDIA | Admin → Firestore solo replica período | `resumenDeCliente` sin consumidores; Rules sin claves moroso/deuda | Decidir circuito económico (§20) | ABIERTO (Fase 6 incompleta) |
+| H | Regeneración de sesiones requirió replicar el servicio antes (regresión histórica) | RESUELTO | Generar sesiones daba PERMISSION_DENIED si el servicio no estaba en Firestore | `sesiones/create` exige servicio replicado | `SesionViewModel.generarSesiones` replica el servicio (idempotente) primero | CERRADO (PRUEBA 113-115) |
+| I | Bug de edición de movimiento que reseteaba `fechaPago` | RESUELTO en código | Editar un movimiento en el perfil | Reconstrucción del objeto sin `fechaPago` | Ahora pasa por `MovimientoPago.resolver` que conserva fecha/método | CERRADO en código (falta validar en dispositivo). Matiz: apagar/encender "PAGADO" reescribe `fechaPago` a hoy |
+| J | Login Admin: sesión restaurada sin negocio | MEDIA | — | Tras registrarse, el Admin debe crear su negocio | Guard de "crea tu negocio" en la UI | Gestionado en UI (flujo obligatorio) |
+| K | `!!`, `collectAsState()`, strings hardcodeados, archivos enormes | DEUDA | En todo el código activo | Convenciones históricas | Migrar con tareas dedicadas | ABIERTO (deuda documentada; ver §21/§22) |
+| L | `EstadoCliente.MOROSO` remoto rechazado por appCliente | BAJA/consistencia | Si llegara un estado MOROSO remoto | El enum lo conserva pero no se persiste | — | Documentado |
+| M | Excepción de reservas: `reservas` update CLIENTE = false; borrado masivo batch fallaba en Rules | RESUELTO | Cascadas admin | `batch.delete` masivo fallaba (`reservaEliminadaValida` exige plazas+1) | Transacciones por sesión con reintentos (`MAX_RESERVAS_POR_SESION=498`) | CERRADO |
+| N | Aviso de "No tienes permisos para sincronizar esta ficha" | HISTÓRICO | Apareció al sincronizar ficha con el resumen económico (ruleset desplegado del 01/09 sin las claves) | En el checkpoint 2026-09-0X se DESPLEGARON las Rules con esas claves (autorizado); luego el desarrollador revirtió el ruleset local sin ellas → hoy el aviso podría reaparecer si se intentara replicar el resumen | Ver A/G; conciliar ruleset | Documentado / estado actual del ruleset desplegado [DESCONOCIDO] |
+| O | Sesiones no visibles en producción (colección vacía) | RESUELTO | appCliente no veía clases | Índices compuestos inexistentes (`sesiones(idServicio,negocioId)`, `reservas(clienteId,negocioId)`, `reservas(sesionId,negocioId)`) + bug `idSesion=0` (todas las sesiones se escribían en `sesiones/0`) | Índices creados vía API REST + fix `idSesion=0` (releer de Room con `obtenerSesionesFuturasPorServicioSync`) COMMITEADO | CERRADO en código; falta confirmar índices `READY` y regenerar sesiones en producción (logs `[DIAG sesiones]` para ello) |
+| P | Crear negocio (Admin) con `PERMISSION_DENIED` | MEDIA | Alta del negocio en producción (histórico, Sesión VI en adelante) | Hipótesis: token de sesión caducado en el momento del Batch (`esAdmin()` falla) u orfandad de docs | Probar re-login (renovar token), diff de reglas, `project_id` de la APK | ABIERTO (histórico, sin reproducir recientemente) |
+| Q | Cliente BAJA podía leer sesiones y reservar | RESUELTO | Antes de Sesión XXIV | No había bloqueo en app ni Rules (`estado != "BAJA"` era insuficiente o inexistente) | Bloqueo en app (`dadoDeBaja`, `estadoNoActivo`, ocultar card) + Rules `clientePuedeAcceder` exige `estado == "ACTIVO"` | CERRADO (PRUEBA 121-124) |
+
+---
+
+# 15. Cosas que YA se solucionaron (no reintroducir)
+
+1. **Servicios no aparecían en Firestore / alta-baja de servicios PERMISSION_DENIED** → el ruleset desplegado no tenía `match /servicios`. Se redeployó y quedó coherente. Archivos: `firestore.rules`. (No reintroducir rulesets parciales.)
+2. **`PERMISSION_DENIED` al generar sesiones** → el servicio no estaba replicado en Firestore; `SesionViewModel.generarSesiones` ahora replica el servicio antes (idempotente). PRUEBA 113-115.
+3. **Cascadas de reservas con batch fallaban** → se sustituyó por `runTransaction` por sesión con reintentos. PRUEBA 77-81.
+4. **Query admin sin `negocioId` denegada por Rules** (rules-are-not-filters) → se añadió `negocioId` a las queries de sesiones/reservas. PRUEBA 33A-33H.
+5. **`idSesion=0` rompía la réplica de sesiones** → fix local en el flujo de generación.
+6. **Baja de cliente: `CuentaScreen` inalcanzable y cliente BAJA podía reservar** → Configuración enlaza a "Mi cuenta"; bloqueo de BAJA en app (SesionesCliente/ReservaRepository/Home) y en Rules (`clientePuedeAcceder`). PRUEBA 109-112.
+7. **Acceso de REGISTRADO/ARCHIVADO** → regla definitiva solo `ACTIVO`. PRUEBA 121-124.
+8. **Edición de movimiento perdía `fechaPago`** → `MovimientoPago.resolver` (Fase 4).
+9. **Notificación duplicada SOLICITUD_BAJA/BAJA_CONFIRMADA** → IDs deterministas + `existeNotificacion` + `!exists` en Rules.
+10. **`tieneLlave` eliminado del modelo** (llave como servicio normal) con migración 12→13.
+11. **Vía B descartada y regresión de Vía A corregida** (`653f117...`): `VinculacionRepository` busca `indices_clientes/{negocioId}_{dni}` exacto y no llama a `crearFicha()` desde la entrada código+DNI. PRUEBA 6B/6C + test unitario.
+12. **Errores de sincronización de nombre/logo del negocio** resueltos con Batch en `negocios` + `negocios_publicos`.
+13. **Seed automático de Room ELIMINADO** (`AppModule.insertarDatosPrueba`, 20 clientes/18 movimientos/4 gastos vía `RoomDatabase.Callback.onCreate`): ocupaba los ids 1–20 y era la causa raíz del PERMISSION_DENIED del alta en instalaciones nuevas (colisión de `idCliente` con Firestore). Eliminado en Sesión XX. No reintroducir seeds de prueba en `onCreate`.
+14. **Límite de "1000 expresiones" en Firestore Rules** (histórico, 2026-08-24): se refactorizó todo el ruleset para eliminar `get()`/`getAfter()` redundantes sobre `clientes/{clienteId}` (caché, `resource.data`, `affectedKeys().hasOnly`). Commit histórico `63e88d7`. Al tocar Rules, evitar multiplicar lecturas por operación.
+15. **Evolución del modelo de vinculación**: "Modelo A" (`vinculaciones/{codigo}`, códigos por ficha + deep link / Vía B) fue sustituido por el modelo actual **código maestro + DNI** con `indices_clientes`/`perfiles_pendientes` (Sesiones IV–IX). No reintroducir `vinculaciones`, `codigoVinculacion`, `EnlacePendiente` ni deep links.
+16. **`PERMISSION_DENIED` al crear/generar sesiones** (Sesión XXV): causa = servicio sin replicar en Firestore (el negocio tenía `servicios` vacía); fix = `SesionViewModel.generarSesiones` replica el servicio antes (idempotente) + regresión asegurada. Ya commiteado.
+17. **Deploy autorizado de `firestore:rules`** durante el checkpoint 2026-09-0X (con las claves de resumen económico) — el ÚNICO deploy de esa tanda; nada más se desplegó (ni Functions, ni storage, ni otros).
+18. **Fecha de nacimiento "opcional" y VÍA 2 "reactivada" (checkpoint 2026-09-0X) fueron REVERTIDAS** por commits del desarrollador: hoy `fechaNacimiento` vuelve a ser obligatoria en los formularios (Admin y `CompletarPerfil`) y la VÍA 2 (`crearFicha` desde la entrada código+DNI) NO se ejecuta (índice inexistente → error fijo). Verificar antes de reintroducir.
+19. **`MenuCard.kt` sin cambios netos** (la prueba de "descripción a 2 líneas" se revirtió); `DetalleVisuales.kt` NO existe en el árbol (decidir recuperar/eliminar); `DialogoSeleccionarClientes` quedó sin uso pero NO eliminado.
+20. **Pantalla "Mis reservas" del CLIENTE fue creada y luego ELIMINADA** (working tree intermedio, Sesión XX): no existe hoy; no "recuperarla" sin decisión del propietario.
+
+---
+
+# 16. Configuración especial
+
+- **JDK/Android Studio:** usar el JDK que configura Android Studio (toolchain resolver foojay en `settings.gradle.kts`). [DESCONOCIDO] ruta JDK concreta (en `local.properties`, ignorado).
+- **`google-services.json`:** NO versionado. Presente localmente en `app/` y `appCliente/`. Si se clona el repo hay que añadirlos desde Firebase Console.
+- **Emuladores de Rules:** `firestore-tests` con proyecto de emulador `gestorpro-rules-test`. Requiere Java y `node_modules` (ya instalado).
+- **Comandos útiles:** (ver AGENTS.md, sección "Comandos del proyecto"):
+  - `.\gradlew.bat :app:assembleDebug` / `:appCliente:assembleDebug` / `assembleDebug`.
+  - `npm --prefix firestore-tests test` (Rules).
+  - `node --test functions/test/ids.test.js functions/test/tokens.test.js`.
+  - Deploy de rules: `& ".\firestore-tests\node_modules\.bin\firebase.cmd" deploy --only firestore:rules` (o storage:rules). **Requiere autorización**.
+  - `node firestore-tests/auditoria_backfill_indices.cjs` (DRY-RUN índices; no ejecutar backfill sin aprobación).
+- **Consola Firebase:** proyecto `gestorpro-50e83`. [DESCONOCIDO] estado de: bucket de Storage habilitado, plan de facturación (AGENTS indica Spark/Blaze sin activar), índices READY, Rules desplegadas, proveedores de Auth.
+- **Datos de prueba/identificadores reales:** no documentar identificadores concretos; usar placeholders.
+
+---
+
+# 17. Limitaciones del proyecto
+
+- **Cloud Functions 2ª gen sin desplegar** (requiere Blaze): notificaciones push reales, programadas, morosidad y baja confirmada automáticas NO operan.
+- **Storage:** el bucket por defecto debe habilitarse en Firebase Console para el logo (subida `putFile`); hasta entonces el logo remoto falla y el Cliente no ve el logo del Admin si no hay URL.
+- **Sesiones/reservas en producción:** dependen de índices compuestos READY y de regenerar las sesiones desde el Admin. [DESCONOCIDO] estado actual en producción.
+- **Economía:** sin reglas de negocio avanzadas (descuentos, tarifas, prorrateos, "cuarto día hábil", entidad Pago propia). El "pago" es estado+fecha en el movimiento.
+- **Fotos** de clientes locales (sin migrar a Storage).
+- **Exportación JSON** parcial (sin servicios/sesiones/reservas/solicitudes/negocio).
+- **Dos apps** comparten Auth; un email puede existir en ambos roles (riesgo de cruce si no se valida rol en login Admin).
+- **`allowBackup=false`** + migraciones destructivas pendientes de endurecer para producción.
+- **Sin minify/R8** en release; sin configuración de firmado de release diferenciada (usa el debug por defecto). [INFERIDO]
+- **Idioma:** toda la UI en español y sin `strings.xml` (solo `app_name`).
+
+---
+
+# 18. Google Play / Producción
+
+- **targetSdk 36**, minSdk 26: [CONFIRMADO]. Compatible con los requisitos actuales de Google Play en cuanto a targetSdk.
+- **Release build:** `release { isMinifyEnabled = false; proguardFiles(...) }` sin R8. NO hay configuración de `signingConfig` de release → **PENDIENTE**.
+- **AAB:** sin configuración específica de bundle; generable por Gradle. **NO COMPROBADO** en consola.
+- **Privacy Policy:** implementada y accesible en ambas apps (pantallas con contenido real; appCliente declara el push como no operativo). **PENDIENTE** publicarla/URL.
+- **Data Safety:** **NO COMPROBADO** (requiere consola).
+- **Account deletion:** no implementada como flujo específico (solo baja lógica del cliente y `FirebaseAuth`). **PENDIENTE/NO COMPROBADO** para requisitos de Google.
+- **Permisos:** `POST_NOTIFICATIONS` en appCliente; FileProvider interno. **LISTO** en manifiestos.
+- **Notificaciones (FCM):** preparadas, envío pendiente (Functions).
+- **Preparación previa a publicación (resumen):** migraciones Room sin fallback destructivo; decidir `allowBackup`; conciliar/desplegar Rules; cerrar alta PERMISSION_DENIED; validar login por rol; firmar release; completar Data Safety/eliminación de cuenta si aplica.
+
+---
+
+# 19. Plan de trabajo pendiente (orden lógico de ejecución)
+
+> Orden propuesto según dependencias; el propietario debe validar el punto 1 (decisiones de negocio) antes de programar economía.
+
+1. **Decisiones de negocio (propietario):** circuito económico definitivo (fuente de verdad, replicación a Firestore, morosidad, BAJA+deuda), appCliente económico (¿sí/no?), pantalla "Mis reservas", botones eliminar sesión / cancelar reserva ADMIN, VÍA 2 y fecha de nacimiento opcional, `EstadoCliente.MOROSO`.
+2. **Cerrar la verificación del alta ADMIN (`PERMISSION_DENIED`)**: el fix (eliminación del seed Room) ya está commiteado; probar en dispositivo con BD limpia (`[DIAG alta]` debe mostrar `existencia previa -> false,false,false`), limpiar huérfano si procede (aprobación) y **retirar los logs temporales `[DIAG alta]`**.
+3. **Auditoría/backfill de `indices_clientes`** con aprobación (DRY-RUN ya preparado).
+4. **Conciliar ruleset local vs desplegado y desplegar** tras los 143 tests (solo con autorización). Añadir a las Rules lo que se decida de economía y desplegar junto.
+5. **Endurecer Room para producción**: quitar `fallbackToDestructiveMigration`, revisar migraciones y `allowBackup`.
+6. **Completar funciones de ADMIN sin UI/seguridad**: validar rol ADMIN en login, cambiar contraseña real, eliminar sesión, cancelar reserva admin, y retirar logs `[DIAG sesiones]`/`ClasesDiagnostico` al confirmar regeneración.
+7. **Confirmar producción de sesiones**: índices `READY`, regenerar sesiones, verificar que appCliente las ve; comprobar reservas reales de cliente (reservar/cancelar en dispositivo).
+8. **Decidir y, si procede, cerrar la sincronización económica** (Fase 6) replicando lo necesario a `clientes/{id}` (o colección) con Rules + tests, o descartar el helper sin uso.
+9. **Blaze + despliegue de infraestructura** (cuando el propietario active facturación): crear bucket Storage y probar logo; crear índice `notificaciones(estado, fechaProgramada)`; `npm install` en `functions/`; `deploy --only functions`; desplegar `storage.rules`; probar FCM real y notificaciones automáticas.
+10. **Limpieza y calidad:** retirar logs, borrar basura versionada (con confirmación), opcionalmente mover strings a `strings.xml`, unificar botones restantes, decidir `DetalleVisuales.kt`.
+11. **Limpieza legacy** (tarea dedicada): decidir eliminación de `Clase`/`SesionClase`/`ServicioItem`/`MovimientoItem`/`ResumenCard`/`DialogoSeleccionarClientes` y de la tabla Room `solicitud`.
+12. **Preparación de publicación:** firmar release, pruebas integrales admin+cliente (estados, morosidad, baja, reservas, notificaciones), Data Safety/eliminación de cuenta, generar AAB y publicar.
+
+---
+
+# 20. Preguntas abiertas / decisiones pendientes que bloquean programación
+
+Las hereda la documentación (AGENTS.md) y siguen abiertas [INFERIDO/no decidido en el código]:
+1. **Economía:** fuente de verdad del movimiento (Room, Firestore, ambas); si se replican `moroso`/`deuda`/`fechaEntradaMorosidad` (o colección `movimientos` completa) para Functions; regla exacta de entrada/salida de morosidad ("cuarto día hábil"); pago como entidad o estado+fecha; tarifas/descuentos/altas/prorrateos.
+2. **BAJA + deuda:** ¿basta BAJA + movimiento PENDIENTE o se necesita estado especial? ¿Impacto en notificaciones?
+3. **appCliente economía:** módulo completo o solo estado derivado.
+4. **Reservas:** pantalla "Mis reservas" y cancelación admin.
+5. **VÍA 2 de vinculación:** reactivar (con fecha de nacimiento opcional) o eliminar el código conservado.
+6. **Fotos:** migrar a Storage.
+7. **Backfill de índices** (requiere aprobación explícita).
+8. **Estado actual del proyecto Firebase en consola** (plan, bucket, índices, rules desplegadas, FCM): [DESCONOCIDO] desde el repositorio.
+
+---
+
+# 21. Instrucciones para la nueva IA
+
+1. **Lee primero este `CONTEXTO_PROYECTO.md` y después `AGENTS.md`** (ambos son complementarios; AGENTS.md tiene el histórico y las reglas, este informe el estado verificado). Si necesitas el "por qué" de una decisión o corrección antigua, consulta el **Anexo A** (índice de `CONVERSACION_EXPORTADA.md`) y salta a la sesión indicada.
+2. **No asumas que las decisiones existentes son errores.** Consulta §10 (decisiones) y §11 (reglas) antes de "mejorar" algo.
+3. **No hagas refactorizaciones masivas ni cambios de arquitectura** (MVVM + repositorios, dos apps, sin capa use-case).
+4. **Verifica siempre contra el árbol actual** (haz `git status`/`git log` y comprueba AGENTS.md, que puede estar desactualizado).
+5. **Antes de tocar `build.gradle.kts`, `gradle/libs.versions.toml`, `firestore.rules`, `storage.rules`, `functions/` o dependencias: avisa y justifica.**
+6. **Respeta los identificadores reales:** colecciones, campos, tipos, IDs deterministas (`baja_{...}`, `baja_confirmada_{...}`, `solicitud_baja_{...}`, `vinculacion_{...}`, `reservas/{clienteId}_{sesionId}`, `indices_clientes/{negocioId}_{dni}`). No renombrar.
+7. **No reintroduzcas** la Vía B/deep links, ni `tieneLlave`, ni `clientesPermitidos`, ni borrados masivos en batch de reservas, ni el acceso `!= "BAJA"`.
+8. **No elimines** `ui/clases/*`, entidades `Clase`/`SesionClase`, la tabla Room `solicitud`, `TipoSolicitud.CLASE`, ni componentes "sin uso" sin tarea específica.
+9. **No despliegues** Rules/Functions/Storage sin autorización; valida siempre antes con los tests (`npm --prefix firestore-tests test`).
+10. **Tras cambios importantes, ejecuta**: unit tests de ambos módulos, tests de Rules, y compila `assembleDebug`.
+11. **No documentes identificadores reales** (UIDs, códigos) en el repositorio.
+12. **Respeta el español** en código/comentarios/mensajes.
+13. **Si vas a corregir el login Admin por rol, o a desplegar Rules, o a activar Blaze/Storage, para y confirma con el propietario.**
+14. **Para tareas de economía, no programes hasta que el propietario responda las decisiones de §20.1/§20.2.**
+
+---
+
+# 22. RESUMEN PARA PEGAR AL INICIO DE UNA NUEVA CONVERSACIÓN
+
+> Copia este bloque como contexto inicial mínimo.
+
+```
+PROYECTO: GestorPro (Android, español). Sistema de gestión de gimnasio con DOS apps
+independientes sobre el MISMO Firebase (gestorpro-50e83):
+  :app        = GestorPro Admin  (com.roberto.gestorpro, rol ADMIN,  Room + Firestore write-through + Storage)
+  :appCliente = GestorPro Cliente (com.roberto.gestorpro.cliente, rol CLIENTE, Firestore directo + DataStore caché)
+
+STACK: Kotlin 2.2.10 · AGP 9.1.1 · Gradle 9.3.1 · Compose BOM 2026.02.01 (M3) · Nav 2.9.3 ·
+Hilt 2.60.1 · Room 2.8.4 (Admin) · DataStore 1.1.7 · Coil 3.3.0 · Gson 2.11.0 (Admin) ·
+Firebase BOM 34.16.0 · compile/target 36 · min 26 · Java 11. Versiones en gradle/libs.versions.toml.
+
+ARQUITECTURA: MVVM + repositorios (sin capa use-case). UI Compose -> ViewModel (StateFlow) ->
+Repository -> (Room DAO [Admin] y/o data/firebase/*RemotoRepository -> Firestore). 1 sola Activity por app.
+Navegación Compose centralizada en navigation/{Routes,AppNavigation}.kt por app. Hilt en di/AppModule.kt.
+
+ESTADO REAL (verificado 2026-09-03): working tree LIMPIO, HEAD=60cf834 "mejoras y correcciones".
+Compila. Tests HOY: :app unit 59/59, :appCliente 9/9, Rules Firestore/Storage 143/143,
+Functions helpers 13/13. AGENTS.md puede estar desactualizado; contrastar con el árbol.
+
+MODELO DE NEGOCIO: Cliente -> Servicio (catálogo con precio) -> Sesión (programación, horaDesdeReserva)
+-> Reserva (documentId reservas/{clienteId}_{sesionId}, plazas±1 atómicas). Vinculación del cliente por
+CÓDIGO MAESTRO + DNI con indices_clientes/{negocioId}_{dni} (VÍA 1 activa; VÍA 2 conservada sin ejecutar;
+Vía B/deep links DESCARTADA). Acceso del cliente SOLO con estado ACTIVO; morosidad = flag, no estado.
+Room Admin v15 (migraciones 11->12->13->14->15 + fallbackToDestructiveMigration PENDIENTE de retirar).
+Legacy TRANSITORIO no eliminar: ui/clases/*, Clase/SesionClase, tabla Room solicitud, TipoSolicitud.CLASE.
+
+IMPORTANTE: login Admin NO valida rol==ADMIN (riesgo abierto); alta Admin PERMISSION_DENIED: causa raíz
+(seed Room ids 1-20) ELIMINADA y commiteada, falta verificación en dispositivo + retirar logs [DIAG alta]
+(logs temporales también: [DIAG sesiones]/ClasesDiagnostico); Cloud Functions 2ª gen en
+functions/ SIN desplegar (requiere Blaze) => FCM real y notificaciones automáticas NO operan; Storage
+bucket pendiente; Economía Fase 6 incompleta (MovimientoRemotoRepository/resumenDeCliente SIN cablear;
+solo se replica el período fechaInicioActual/fechaFinActual; resumen moroso/deuda NO va a clientes ni Rules);
+cambiar contraseña Admin es placeholder; sin botón eliminar sesión ni
+cancelar reserva admin; sin pantalla "Mis reservas" del cliente (VM preparado).
+
+PRÓXIMO PASO RECOMENDADO (requiere al propietario): 1) decidir circuito económico + VÍA 2 + reservas
+(§20); 2) verificar fix del alta en dispositivo y retirar logs [DIAG alta]; 3) reconciliar y desplegar
+firestore.rules local (143 tests) tras autorización; 4) endurecer Room (sin fallback destructivo) y
+allowBackup; 5) activar Blaze -> bucket/índice/Functions/FCM. NO hacer refactorizaciones masivas ni
+cambiar decisiones marcadas en CONTEXTO_PROYECTO.md §10/§11 sin consultar. Responder SIEMPRE en español.
+Histórico completo por sesiones: CONVERSACION_EXPORTADA.md (índice en Anexo A de CONTEXTO_PROYECTO.md).
+```
+
+---
+
+# 23. Verificación del informe frente a las preguntas objetivo
+
+| Pregunta | ¿Respondida? |
+|---|---|
+| ¿Qué estamos construyendo? | Sí (§1) |
+| ¿Para quién? | Sí (§1) |
+| ¿Qué funcionalidades tiene? | Sí (§8) |
+| ¿Qué está terminado / falta? | Sí (§8, §9) |
+| ¿Cómo está construido? | Sí (§3, §4) |
+| ¿Qué tecnologías? | Sí (§2) |
+| ¿Cómo funcionan los datos? | Sí (§7) |
+| ¿Cómo funciona Firebase? | Sí (§7, §12) |
+| ¿Cómo funciona la autenticación? | Sí (§6) |
+| ¿Cómo funcionan las notificaciones? | Sí (§12) |
+| ¿Qué errores existen? | Sí (§14) |
+| ¿Qué problemas ya se solucionaron? | Sí (§15) |
+| ¿Qué decisiones no deben modificarse? | Sí (§10, §11) |
+| ¿Qué pruebas se han realizado / faltan? | Sí (§13) |
+| ¿Qué falta antes de producción/Google Play? | Sí (§18, §19) |
+| ¿Cuál es el siguiente paso exacto? | Sí (§19, §22) |
+
+---
+
+*Anexo de hallazgos menores de higiene (documentados, sin acción en este informe): archivos raíz `build_*.txt`, `files.txt`, `structure.txt`, `app_kt_files.txt`, `conversacionEstilo.md`, `EXPLICACION_BASE_DE_DATOS.html`, `AI_RULES.md`, `AUDITORIA_PROYECTO_MIGRACION_KMP.md`, `firestore-debug.log` y `firestore-tests/firestore-debug.log` están versionados o presentes como basura histórica; `AñadirClienteScreen.kt` contiene "ñ" en el nombre de archivo; solo hay `app_name` en los `strings.xml`; hay 0 llamadas a `stringResource`.*
+
+---
+
+# Anexo A — Índice cronológico de `CONVERSACION_EXPORTADA.md` (Sesiones I–XXXV)
+
+> La crónica completa (2443 líneas) está en `CONVERSACION_EXPORTADA.md`. Este índice permite a la nueva IA saltar al detalle de una decisión/corrección concreta sin releerlo todo. **Los checkpoints citan working trees intermedios; hoy todo está commiteado en `master` (HEAD `60cf834`).** La numeración de sesiones no es estrictamente correlativa (hay dos bloques "Sesión XX" y saltos).
+
+| Sesión | Fecha | Contenido clave (línea inicial aprox. en el archivo) |
+|---|---|---|
+| (I) | 2026-09-01* | Análisis "límite 1000 expresiones" del ruleset del Modelo A de vinculación (histórico) — l.1 |
+| II | 2026-08-24 | Refactor de `firestore.rules` que eliminó el límite de 1000 expresiones; 9/9; deploy; creación de `firebase.json`/`.firebaserc` — l.181 |
+| III | 2026-08-24 | Autenticación Firebase real implementada y probada en dispositivo (Xiaomi/MIUI) — l.258 |
+| IV | 2026-08-25 | Diseño definitivo de vinculación (código maestro + enlace individual / Vía A + Vía B) — l.345 |
+| V | 2026-08-25 | Vinculación implementada y desplegada; Vía B (deep link `gestorpro://vincular/{token}`) — l.526 |
+| VI | 2026-08-26 | Cambio de PC; fotos galería/cámara; recuperación de contraseña; fix de ruta de Vía B (doble query); diagnóstico "crear negocio PERMISSION_DENIED" — l.630 |
+| VII | 2026-08-27 | **Vía B DESCARTADA**; rediseño flujo código maestro + DNI; colección `indices_clientes`; auditoría DRY-RUN de backfill (2 índices) — l.739 |
+| VIII | 2026-08-27 | **Split en dos apps** (`:app` Admin + `:appCliente`); Rules reescritas (16/16) — l.894 |
+| IX | 2026-08-27 | VÍA 1 funcional: declaración temporal `{dni, negocioId}` en `perfiles_pendientes` + lectura de ficha (18/18) — l.983 |
+| X | 2026-08-28 | Flujo cliente sin vínculo + VÍA 2; sync nombre de negocio; logo con Storage (bucket pendiente) — l.1078 |
+| XI | 2026-08-28 | **Modelo Servicios/Sesiones/Reservas** (Room + Firestore + Rules; tests 33→76) — l.1207 |
+| XII | 2026-08-29 | Sync `serviciosContratados`; pantalla "Clases de hoy"; redeploy Rules (byte-idénticas); cascadas admin; crash no aislado — l.1334 |
+| XIII | 2026-08-29 | Fix PERMISSION_DENIED en cascadas: queries admin SIN `negocioId` (rules-are-not-filters); PRUEBA 33A–33H (90/90) — l.1406 |
+| XIV | 2026-08-29 | Auditoría de solo lectura de appCliente (estado cliente, fechas, plan de reservas) — l.1485 |
+| XV–XVII | 2026-08-30 | Sync de períodos (`fechaInicioActual`/`fechaFinActual`); card Home validado; corrección Vía A (regresión `653f117`) — l.1558 |
+| XVIII | 2026-08-31 | Estabilización: diagnóstico alta Admin PERMISSION_DENIED (test de aislamiento `diagnostico_alta_cliente.test.cjs` 7/7, logs `[DIAG alta]`); selector de servicio en movimiento; DatePicker CompletarPerfil — l.1624 |
+| XIX | 2026-08-31 | `horaDesdeReserva` (Room v12, Rules, appCliente); **índices compuestos creados** en producción; "Gestionar sesiones" navega a edición — l.1730 |
+| XX-a | 2026-09-01 | Apertura GLOBAL de reservas (antes por día) + **bug `idSesion=0`** corregido + logging `[DIAG sesiones]` — l.1827 |
+| XX-b | 2026-09-01 | **Eliminación del seed Room** (causa raíz del alta); diagnóstico de réplica de sesiones (los fixes NO estaban commiteados) — l.1923 |
+| XXI–XXIV | 2026-09-01 | Fase D notificaciones ADMIN; Fase E Cloud Functions local (sin Blaze); solicitudes de baja; auditoría y corrección del flujo de BAJA (123/123) — l.1977 |
+| XXV–XXVII | 2026-09-02 | Fix PERMISSION_DENIED al generar sesiones (replicar servicio antes); SolicitudesScreen (búsqueda/borrado); aviso morosidad Home; SOLICITUD_BAJA y BAJA_CONFIRMADA corregidas (131/131); **diagnóstico ECONOMÍA** (10 decisiones pendientes) — l.2028 |
+| XXVIII–XXXV | 2026-09-02 | **Economía Fases 1–5**: llave como servicio normal; precio en servicios; movimientos multi-servicio (`MovimientoPrecio`); pagos (`MovimientoPago`, fix de `fechaPago`); morosidad en Room v15 (`MovimientoMorosidad`); selector individual de notificación (135/135; unit 45/45) — l.2175 |
+| Checkpoint 2026-09-0X | (sept. 2026) | Economía Fase 6 (movimientos/resumen a Firestore, 144 tests) + correcciones alta/VÍAs + política de privacidad + unificación de botones — **parcialmente REVERTIDO por el desarrollador** — l.2286 |
+| CIERRE 2026-09-03 | 2026-09-03 | **Acceso solo ACTIVO** + notificación VINCULACION + texto "Actividades" (143/143) — l.2337 |
+
+\* La cabecera del archivo fecha la Sesión I como "2026-09-01" (typo; por el orden corresponde al 2026-08-24).
+
+**Matices importantes que la crónica aporta y este informe incorpora:**
+1. El root cause del alta Admin (`PERMISSION_DENIED`) fue el **seed Room** (ids 1–20), no solo "documentos huérfanos"; el seed se eliminó.
+2. La **Fase 6 de economía** se implementó completa (resumen `moroso`/`deuda` en `clientes/{id}` + 144 tests + deploy autorizado de Rules) y luego el desarrollador la **revirtió parcialmente**: hoy `MovimientoRemotoRepository`/`resumenDeCliente` existen pero sin cablear, y las Rules locales no admiten esas claves.
+3. El ruleset desplegado pasó por varios deploys históricos (algunos verificados byte-idénticos); el último deploy conocido fue en el checkpoint 2026-09-0X. El estado DESPLEGADO actual frente al local (143 tests) es **[DESCONOCIDO]** y debe reconciliarse antes de producción.
+4. Varias tandas (fecha de nacimiento opcional, VÍA 2 reactivada, botones, `DetalleVisuales.kt`, pantalla "Mis reservas") fueron creadas y luego **revertidas por commits del desarrollador**; el árbol actual es la única verdad.
