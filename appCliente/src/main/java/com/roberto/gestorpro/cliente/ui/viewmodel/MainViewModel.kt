@@ -33,6 +33,29 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
+ * TipoResultadoVinculacion
+ * ------------------------
+ * Resultado del intento de vincularse:
+ *  - VINCULADO: la cuenta quedó vinculada (VÍA 1 o VÍA 2);
+ *  - NECESITA_PERFIL: no hay ficha ni perfil pendiente completo → la UI debe
+ *    invitar a registrarse primero (no es un error);
+ *  - ERROR: fallo real (validación, permisos, red…).
+ */
+enum class TipoResultadoVinculacion {
+    VINCULADO, NECESITA_PERFIL, ERROR
+}
+
+/**
+ * ResultadoVinculacionUI
+ * ----------------------
+ * Resultado que el ViewModel expone a las pantallas del flujo de vinculación.
+ */
+data class ResultadoVinculacionUI(
+    val tipo: TipoResultadoVinculacion,
+    val mensaje: String? = null
+)
+
+/**
  * MainViewModel
  * -------------
  * ✔ TIPO: ViewModel de Hilt
@@ -132,7 +155,7 @@ class MainViewModel @Inject constructor(
      * --------------
      * Decide la pantalla inicial: sin sesión → Login; con sesión y con ficha
      * vinculada → Home; con sesión y perfil pendiente guardado → Home sin
-     * vincular; sin perfil → pantalla inicial de vinculación.
+     * vincular; sin perfil → pantalla de elección inicial.
      * Con sesión ya existente refresca los datos públicos del negocio desde
      * Firestore antes de decidir (si la lectura falla se mantiene la caché).
      */
@@ -149,13 +172,13 @@ class MainViewModel @Inject constructor(
      * ---------------------
      * Tras login/registro: si ya tiene ficha → Home; si tiene perfil pendiente
      * guardado → Home sin vincular (no debe volver a pedir el formulario); si
-     * aún no tiene perfil → pantalla inicial de vinculación.
+     * aún no tiene perfil → pantalla de elección ("¿Cómo quieres empezar?").
      */
     suspend fun destinoTrasAutenticar(): String {
         val id = preferencesRepository.idCliente.first()
         if (id != null) return Routes.HOME
         val dni = preferencesRepository.dniPendiente.first()
-        return if (dni == null) Routes.INICIO else Routes.HOME
+        return if (dni == null) Routes.ELECCION else Routes.HOME
     }
 
     /**
@@ -291,10 +314,8 @@ class MainViewModel @Inject constructor(
         if (!perfil.telefono.matches(Regex("[6789]\\d{8}"))) {
             return "El teléfono debe tener 9 dígitos empezando por 6, 7, 8 o 9"
         }
-        if (perfil.fechaNacimiento <= 0L) {
-            return "Selecciona la fecha de nacimiento"
-        }
-        if (perfil.fechaNacimiento > System.currentTimeMillis()) {
+        val fechaNacimiento = perfil.fechaNacimiento
+        if (fechaNacimiento != null && fechaNacimiento > System.currentTimeMillis()) {
             return "La fecha de nacimiento no puede ser futura"
         }
         if (perfil.foto.isBlank()) {
@@ -316,22 +337,43 @@ class MainViewModel @Inject constructor(
     /**
      * vincularConCodigoYDNI
      * ---------------------
-     * Ejecuta la vinculación por código maestro + DNI (VÍA A sobre una ficha
-     * creada previamente por el ADMIN).
+     * Ejecuta la vinculación por código maestro + DNI:
+     *  - VÍA 1: vincula el UID a una ficha existente creada por el centro;
+     *  - VÍA 2: si no existe ficha pero hay perfil pendiente completo, crea la
+     *    ficha con los datos de ese perfil.
+     * Si NO existe ficha ni perfil completo devuelve NECESITA_PERFIL para que la
+     * pantalla invite al registro (no se crea ninguna ficha vacía).
      * El perfil pendiente es la fuente de verdad en Firestore: el repositorio
      * lo lee directamente. Ante un fallo NO se borra el perfil pendiente (ni en
      * Firestore ni en el estado local) para no perder los datos del usuario.
      */
-    suspend fun vincularConCodigoYDNI(codigoMaestro: String, dni: String): String? {
-        if (codigoMaestro.isBlank()) return "Introduce el código maestro"
+    suspend fun vincularConCodigoYDNI(codigoMaestro: String, dni: String): ResultadoVinculacionUI {
+        if (codigoMaestro.isBlank()) {
+            return ResultadoVinculacionUI(
+                TipoResultadoVinculacion.ERROR,
+                "Introduce el código maestro"
+            )
+        }
         if (!dni.matches(Regex("\\d{8}[A-Za-z]"))) {
-            return "El DNI debe tener 8 dígitos y una letra"
+            return ResultadoVinculacionUI(
+                TipoResultadoVinculacion.ERROR,
+                "El DNI debe tener 8 dígitos y una letra"
+            )
         }
 
         _operandoRemoto.value = true
         try {
             val resultado = vinculacionRepository.vincularConCodigoYDNI(codigoMaestro, dni)
-            if (!resultado.exito) return resultado.mensaje
+            if (!resultado.exito) {
+                return ResultadoVinculacionUI(
+                    tipo = if (resultado.requiereCompletarPerfil) {
+                        TipoResultadoVinculacion.NECESITA_PERFIL
+                    } else {
+                        TipoResultadoVinculacion.ERROR
+                    },
+                    mensaje = resultado.mensaje
+                )
+            }
 
             resultado.clienteId?.let { preferencesRepository.setIdCliente(it) }
             resultado.negocioId?.let {
@@ -347,7 +389,7 @@ class MainViewModel @Inject constructor(
             _cliente.value = resultado.clienteId?.let { clienteRepository.leerFicha(it) }
             // Tras vincularse, registra el token FCM del dispositivo.
             dispositivoRepository.registrarTokenActual()
-            return null
+            return ResultadoVinculacionUI(TipoResultadoVinculacion.VINCULADO)
         } finally {
             _operandoRemoto.value = false
         }
@@ -487,7 +529,7 @@ class MainViewModel @Inject constructor(
         telefono: String,
         email: String?,
         foto: String,
-        fechaNacimiento: Long
+        fechaNacimiento: Long?
     ): String? {
         val id = preferencesRepository.idCliente.first() ?: return "Sin ficha vinculada"
         if (nombre.isBlank() || apellidos.isBlank()) {
@@ -499,7 +541,7 @@ class MainViewModel @Inject constructor(
         if (!telefono.matches(Regex("[6789]\\d{8}"))) {
             return "El teléfono debe tener 9 dígitos empezando por 6, 7, 8 o 9"
         }
-        if (fechaNacimiento > System.currentTimeMillis()) {
+        if (fechaNacimiento != null && fechaNacimiento > System.currentTimeMillis()) {
             return "La fecha de nacimiento no puede ser futura"
         }
 

@@ -97,7 +97,7 @@ fun CuentaScreen(
         estadoBaja -> "Ya estás dado de baja"
         tienePendiente -> "Solicitud de baja pendiente de revisión"
         ultimaRechazada -> "Tu solicitud fue rechazada. Puedes volver a solicitarla."
-        else -> "Solicitar la baja del gimnasio"
+        else -> "Solicitar la baja del centro"
     }
 
     Scaffold(
@@ -231,7 +231,7 @@ fun CuentaScreen(
             },
             text = {
                 Text(
-                    "¿Seguro que quieres solicitar la baja del gimnasio? " +
+                    "¿Seguro que quieres solicitar la baja del centro? " +
                         "La solicitud quedará pendiente de revisión por el administrador " +
                         "y seguirás activo hasta que se confirme."
                 )
@@ -275,7 +275,7 @@ fun CuentaScreen(
                 Text(
                     "Ya tienes una solicitud de baja pendiente de revisión. " +
                         "El administrador la aceptará o la rechazará. " +
-                        "Mientras tanto sigues activo en el gimnasio."
+                        "Mientras tanto sigues activo en el centro."
                 )
             },
             confirmButton = {

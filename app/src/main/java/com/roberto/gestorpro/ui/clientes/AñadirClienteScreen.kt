@@ -79,7 +79,6 @@ import com.roberto.gestorpro.ui.components.AppDialogTextButton
 import com.roberto.gestorpro.ui.components.AppNavigationBackButton
 import com.roberto.gestorpro.ui.components.AppPrimaryButton
 import com.roberto.gestorpro.ui.components.AppSecondaryButton
-import com.roberto.gestorpro.ui.components.AppTextLinkButton
 import com.roberto.gestorpro.ui.components.BotonSelectorFoto
 import com.roberto.gestorpro.ui.utils.crearFotoTemporal
 import com.roberto.gestorpro.ui.utils.guardaFotoEnInterna
@@ -623,9 +622,10 @@ fun AñadirClienteScreen(
      * del negocio. Así el usuario no llega nunca a un error de Firestore al guardar.
      */
     if (idCliente == null && negocioOk == false) {
+        // El alta del negocio ahora se hace desde Mi negocio (flujo único);
+        // la pantalla independiente "Crear negocio en la nube" ya no se ofrece.
         SinNegocioContenido(
-            onCrearNegocio = { navController.navigate(Routes.CREAR_NEGOCIO) },
-            onConfigurarNegocio = { navController.navigate(Routes.MINEGOCIO) }
+            onCrearNegocio = { navController.navigate(Routes.MINEGOCIO) }
         )
         return@Scaffold
     }
@@ -1054,7 +1054,8 @@ fun AñadirClienteScreen(
                 errorDni = !esDniValido(dni)
                 errorTelefono = !esTelefonoValido(telefono)
                 errorEmail = email.isNotBlank() && !esEmailValido(email)
-                errorFechaNacimiento = fechaNacimiento == null
+                // La fecha de nacimiento es OPCIONAL: no produce error si no se elige.
+                errorFechaNacimiento = false
                 errorFoto = foto.isBlank()
 
                 val hayErrores =
@@ -1063,7 +1064,6 @@ fun AñadirClienteScreen(
                         errorDni ||
                         errorTelefono ||
                         errorEmail ||
-                        errorFechaNacimiento ||
                         errorFoto
 
                 // GUARD DE CARGA EN EDICIÓN: si estamos modificando un cliente pero los datos
@@ -1091,7 +1091,7 @@ fun AñadirClienteScreen(
                                 telefono = telefono,
                                 email = email,
                                 foto = foto,
-                                fechaNacimiento = fechaNacimiento!!,
+                                fechaNacimiento = fechaNacimiento,
                                 fechaRegistro = original.fechaRegistro,
                                 fechaAlta = original.fechaAlta,
                                 fechaBaja = if (esActivo) {
@@ -1136,7 +1136,7 @@ fun AñadirClienteScreen(
                                 telefono = telefono,
                                 email = email,
                                 foto = foto,
-                                fechaNacimiento = fechaNacimiento!!,
+                                fechaNacimiento = fechaNacimiento,
                                 fechaAlta = if (esActivo) System.currentTimeMillis() else null,
                                 fechaBaja = if (esActivo) null else System.currentTimeMillis(),
                                 estado = if (esActivo) EstadoCliente.ACTIVO else EstadoCliente.BAJA,
@@ -1383,13 +1383,12 @@ private fun esEmailValido(email: String): Boolean {
  * SinNegocioContenido
  * -------------------
  * Pantalla de bloqueo del alta de clientes cuando el administrador todavía no
- * tiene creado su negocio. Muestra el motivo y ofrece la navegación a la
- * creación o configuración del negocio.
+ * tiene creado su negocio. Muestra el motivo y lleva a "Mi negocio", donde se
+ * crea el negocio en un único flujo (nombre + logo + código maestro).
  */
 @Composable
 private fun SinNegocioContenido(
-    onCrearNegocio: () -> Unit,
-    onConfigurarNegocio: () -> Unit
+    onCrearNegocio: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -1421,14 +1420,9 @@ private fun SinNegocioContenido(
         )
         Spacer(modifier = Modifier.size(24.dp))
         AppPrimaryButton(
-            text = "Crear negocio",
+            text = "Crear mi negocio",
             onClick = onCrearNegocio,
             fullWidth = false
-        )
-        Spacer(modifier = Modifier.size(8.dp))
-        AppTextLinkButton(
-            text = "Ir a la configuración del negocio",
-            onClick = onConfigurarNegocio
         )
     }
 }

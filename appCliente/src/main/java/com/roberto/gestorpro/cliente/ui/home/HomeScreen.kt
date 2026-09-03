@@ -95,7 +95,7 @@ fun HomeScreen(
                 if (logoNegocio.isNotBlank()) {
                     AsyncImage(
                         model = logoNegocio,
-                        contentDescription = "Logo del gimnasio",
+                        contentDescription = "Logo del centro",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .size(96.dp)
@@ -110,17 +110,14 @@ fun HomeScreen(
                     fontWeight = FontWeight.Bold
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = if (vinculado) {
-                        nombreNegocio.ifBlank { "Tu gimnasio" }
-                    } else {
-                        "Todavía no estás vinculado a un gimnasio"
-                    },
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (vinculado) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = nombreNegocio.ifBlank { "Tu centro" },
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -132,9 +129,9 @@ fun HomeScreen(
                         .padding(16.dp),
                     shape = RoundedCornerShape(20.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    border = BorderStroke(1.dp, Color(0xFFE57373)),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer
+                        containerColor = Color(0xFFFFCDD2)
                     )
                 ) {
                     Column(
@@ -144,7 +141,7 @@ fun HomeScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "No estás vinculado con tu gimnasio",
+                            text = "No estás vinculado.",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onErrorContainer,
@@ -152,14 +149,14 @@ fun HomeScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Vincula tu cuenta para acceder a las funciones de tu gimnasio.",
+                            text = "Vincula tu cuenta para acceder a las funciones de tu centro.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onErrorContainer,
                             textAlign = TextAlign.Center
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         AppPrimaryButton(
-                            text = "Vincular gimnasio",
+                            text = "Vincular centro",
                             onClick = { navController.navigate(Routes.INICIO) },
                             fullWidth = false
                         )

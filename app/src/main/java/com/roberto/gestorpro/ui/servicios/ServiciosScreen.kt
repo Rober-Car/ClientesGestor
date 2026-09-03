@@ -46,6 +46,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.roberto.gestorpro.data.entity.ServicioEntity
@@ -55,6 +56,7 @@ import com.roberto.gestorpro.ui.components.AppDialogTextButton
 import com.roberto.gestorpro.ui.components.AppNavigationBackButton
 import com.roberto.gestorpro.ui.components.AppSecondaryButton
 import com.roberto.gestorpro.ui.components.AppSemanticButton
+import com.roberto.gestorpro.ui.viewmodel.PlazasHoyServicio
 import com.roberto.gestorpro.ui.viewmodel.ServicioViewModel
 
 /**
@@ -74,12 +76,20 @@ fun ServiciosScreen(
     val error by viewModel.error.collectAsStateWithLifecycle()
     val errorSincronizacion by viewModel.errorSincronizacion.collectAsStateWithLifecycle()
     val servicioSinSincronizar by viewModel.servicioSinSincronizar.collectAsStateWithLifecycle()
+    val plazasHoy by viewModel.plazasHoyPorServicio.collectAsStateWithLifecycle()
 
     var servicioDarDeBaja by remember { mutableStateOf<ServicioEntity?>(null) }
     var servicioEliminar by remember { mutableStateOf<ServicioEntity?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.cargarServicios()
+    }
+
+    // Refresca las plazas de hoy de los servicios al entrar y al volver de
+    // otras pantallas (reservas de appCliente), para mostrar datos reales.
+    LifecycleResumeEffect(Unit) {
+        viewModel.cargarPlazasDeHoy()
+        onPauseOrDispose { }
     }
 
     Scaffold(
@@ -197,6 +207,7 @@ fun ServiciosScreen(
                         items(activos, key = { it.idServicio }) { servicio ->
                             ServicioCard(
                                 servicio = servicio,
+                                plazas = plazasHoy[servicio.idServicio],
                                 onEntrar = {
                                     navController.navigate(Routes.detalleServicio(servicio.idServicio))
                                 },
@@ -218,6 +229,7 @@ fun ServiciosScreen(
                         items(inactivos, key = { it.idServicio }) { servicio ->
                             ServicioCard(
                                 servicio = servicio,
+                                plazas = plazasHoy[servicio.idServicio],
                                 onEntrar = {
                                     navController.navigate(Routes.detalleServicio(servicio.idServicio))
                                 },
@@ -350,6 +362,7 @@ private fun formatearPrecioServicio(precio: Double): String {
 @Composable
 private fun ServicioCard(
     servicio: ServicioEntity,
+    plazas: PlazasHoyServicio?,
     onEntrar: () -> Unit,
     onEditar: () -> Unit,
     onDarDeBaja: () -> Unit,
@@ -403,6 +416,15 @@ private fun ServicioCard(
                             color = Color.Gray,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (plazas != null && plazas.capacidad > 0) {
+                        Text(
+                            text = "${plazas.reservadas}/${plazas.capacidad} plazas",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colorPrimario,
+                            maxLines = 1
                         )
                     }
                 }

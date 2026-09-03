@@ -38,15 +38,17 @@ import com.roberto.gestorpro.cliente.ui.components.AppNavigationBackButton
 import com.roberto.gestorpro.cliente.ui.components.AppPrimaryButton
 import com.roberto.gestorpro.cliente.ui.components.AppSecondaryButton
 import com.roberto.gestorpro.cliente.ui.viewmodel.MainViewModel
+import com.roberto.gestorpro.cliente.ui.viewmodel.TipoResultadoVinculacion
 import kotlinx.coroutines.launch
 
 /**
  * InicioScreen
  * ------------
- * Pantalla "¿Tu gimnasio ya te ha registrado?" del CLIENTE autenticado pero
- * sin ficha vinculada. Ofrece:
- *  - código maestro + DNI + Continuar (VÍA 1 o VÍA 2);
- *  - "No tengo código" → completar perfil (VÍA 2).
+ * Pantalla de vinculación del CLIENTE al centro: introduce el código maestro
+ * y su DNI y pulsa "Continuar". La aplicación decide automáticamente la vía:
+ *  - VÍA 1: el centro ya creó la ficha → se vincula a ella;
+ *  - VÍA 2: sin ficha pero con perfil pendiente completo → se crea la ficha.
+ * También ofrece "No tengo vinculación" para entrar al Home sin vincular.
  */
 @Composable
 fun InicioScreen(
@@ -59,6 +61,7 @@ fun InicioScreen(
     var codigo by rememberSaveable { mutableStateOf("") }
     var dni by rememberSaveable { mutableStateOf("") }
     var mensajeError by rememberSaveable { mutableStateOf("") }
+    var necesitaRegistro by rememberSaveable { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     Scaffold(
@@ -84,7 +87,7 @@ fun InicioScreen(
                     AppNavigationBackButton(onClick = { navController.popBackStack() })
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "Vincularme a un gimnasio",
+                        text = "Vincularme al centro",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -93,19 +96,12 @@ fun InicioScreen(
             }
 
             Text(
-                text = "¿Tu gimnasio ya te ha registrado?",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
+                text = "Introduce el código maestro de tu centro y tu DNI " +
+                    "para vincular tu cuenta.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
-            )
-
-            Text(
-                text = "Introduce el código maestro de tu gimnasio y tu DNI. " +
-                    "Si tu gimnasio ya te registró, vincularemos tu cuenta a tu ficha. " +
-                    "Si no, la crearemos con tus datos.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             OutlinedTextField(
@@ -113,6 +109,7 @@ fun InicioScreen(
                 onValueChange = {
                     codigo = it
                     mensajeError = ""
+                    necesitaRegistro = false
                 },
                 label = { Text("Código maestro") },
                 singleLine = true,
@@ -124,13 +121,31 @@ fun InicioScreen(
                 onValueChange = {
                     dni = it.uppercase()
                     mensajeError = ""
+                    necesitaRegistro = false
                 },
                 label = { Text("DNI") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
 
-            if (mensajeError.isNotBlank()) {
+            if (necesitaRegistro) {
+                Spacer(modifier = Modifier.size(8.dp))
+                Text(
+                    text = mensajeError.ifBlank {
+                        "No encontramos una ficha con este DNI. Comprueba con tu " +
+                            "centro o regístrate primero."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.size(12.dp))
+                AppSecondaryButton(
+                    text = "Registrarme",
+                    onClick = { navController.navigate(Routes.COMPLETAR_PERFIL) },
+                    enabled = !operandoRemoto
+                )
+            } else if (mensajeError.isNotBlank()) {
                 Text(
                     text = mensajeError,
                     color = MaterialTheme.colorScheme.error,
@@ -142,15 +157,24 @@ fun InicioScreen(
                 text = "Continuar",
                 onClick = {
                     mensajeError = ""
+                    necesitaRegistro = false
                     scope.launch {
                         mainViewModel.limpiarMensaje()
-                        val error = mainViewModel.vincularConCodigoYDNI(codigo, dni)
-                        if (error == null) {
-                            navController.navigate(Routes.HOME) {
-                                popUpTo(0) { inclusive = true }
+                        val resultado = mainViewModel.vincularConCodigoYDNI(codigo, dni)
+                        when (resultado.tipo) {
+                            TipoResultadoVinculacion.VINCULADO -> {
+                                navController.navigate(Routes.HOME) {
+                                    popUpTo(0) { inclusive = true }
+                                }
                             }
-                        } else {
-                            mensajeError = error
+                            TipoResultadoVinculacion.NECESITA_PERFIL -> {
+                                necesitaRegistro = true
+                                mensajeError = resultado.mensaje ?: ""
+                            }
+                            TipoResultadoVinculacion.ERROR -> {
+                                mensajeError = resultado.mensaje
+                                    ?: "No se pudo completar la vinculación. Inténtalo de nuevo"
+                            }
                         }
                     }
                 },
@@ -160,7 +184,9 @@ fun InicioScreen(
             AppSecondaryButton(
                 text = "No tengo vinculación",
                 onClick = {
-                    navController.navigate(Routes.COMPLETAR_PERFIL)
+                    navController.navigate(Routes.HOME) {
+                        popUpTo(0) { inclusive = true }
+                    }
                 },
                 enabled = !operandoRemoto
             )

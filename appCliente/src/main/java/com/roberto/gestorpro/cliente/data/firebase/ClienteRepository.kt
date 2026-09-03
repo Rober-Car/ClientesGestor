@@ -47,7 +47,7 @@ class ClienteRepository @Inject constructor(
             telefono = datos["telefono"] as? String ?: "",
             email = datos["email"] as? String,
             foto = datos["foto"] as? String ?: "",
-            fechaNacimiento = fechaEnMilisegundos(datos["fechaNacimiento"]) ?: 0L,
+            fechaNacimiento = fechaEnMilisegundos(datos["fechaNacimiento"]),
             fechaRegistro = fechaEnMilisegundos(datos["fechaRegistro"]) ?: 0L,
             fechaAlta = fechaEnMilisegundos(datos["fechaAlta"]),
             fechaBaja = fechaEnMilisegundos(datos["fechaBaja"]),
@@ -85,7 +85,7 @@ class ClienteRepository @Inject constructor(
         telefono: String,
         email: String?,
         foto: String,
-        fechaNacimiento: Long
+        fechaNacimiento: Long?
     ): ResultadoAutenticacion {
         return try {
             db.collection(COLECCION_CLIENTES)

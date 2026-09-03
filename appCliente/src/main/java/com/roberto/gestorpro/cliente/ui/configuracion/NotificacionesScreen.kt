@@ -131,7 +131,7 @@ fun NotificacionesScreen(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Recibir avisos del gimnasio",
+                            text = "Recibir avisos del centro",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

@@ -50,10 +50,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
-import com.roberto.gestorpro.navigation.Routes
 import com.roberto.gestorpro.ui.components.AppNavigationBackButton
 import com.roberto.gestorpro.ui.components.AppPrimaryButton
-import com.roberto.gestorpro.ui.components.AppSecondaryButton
 import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
 import java.io.File
@@ -104,6 +102,7 @@ fun MiNegocioScreen(
      */
     val nombreActual by mainViewModel.nombreNegocio.collectAsStateWithLifecycle()
     val logoActual by mainViewModel.logoNegocio.collectAsStateWithLifecycle()
+    val operandoRemoto by mainViewModel.operandoRemoto.collectAsStateWithLifecycle()
 
     /**
      * negocioEnNube / codigoMaestroRemoto / mensajeRemoto
@@ -375,105 +374,120 @@ fun MiNegocioScreen(
             }
 
             /**
-             * Sección de sincronización con la nube
-             * ------------------------------------
-             * ✔ TIPO: bloque condicional + Composable (Column)
-             * Es el modo dual remoto: sin negocio muestra el acceso al alta
-             * (CrearNegocioScreen) y con negocio permite editar el código
-             * maestro, que no afecta a clientes ya vinculados.
+             * Estado remoto del negocio (modo dual)
+             * --------------------------------------
+             * null = comprobando, false = todavía no existe (alta inicial),
+             * true = ya existe (edición). Se usa para decidir si el botón de
+             * guardar crea o actualiza el negocio, sin pantallas separadas.
              */
-            Text(
-                text = "Sincronización en la nube",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-
             when (negocioEnNube) {
-                null -> {
-                    Text(
-                        text = "Comprobando estado del negocio…",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-                false -> {
-                    Text(
-                        text = "Aún no has creado tu negocio en la nube. " +
-                            "Créalo para poder vincular clientes.",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    AppPrimaryButton(
-                        text = "Crear negocio en la nube",
-                        onClick = { navController.navigate(Routes.CREAR_NEGOCIO) }
-                    )
-                }
-                else -> {
-                    OutlinedTextField(
-                        value = codigoMaestro,
-                        onValueChange = { codigoMaestro = it },
-                        label = { Text("Código maestro") },
-                        supportingText = {
-                            Text("Lo usan tus clientes para vincularse; cambiarlo no afecta a los ya vinculados")
-                        },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    if (mensajeRemoto.isNotBlank()) {
-                        Text(
-                            text = mensajeRemoto,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-
-                    AppSecondaryButton(
-                        text = "Guardar código maestro",
-                        onClick = {
-                            alcance.launch {
-                                mensajeRemoto =
-                                    mainViewModel.guardarCodigoMaestro(codigoMaestro)
-                                        ?: ""
-                            }
-                        },
-                        enabled = codigoMaestro.isNotBlank()
-                    )
-                }
+                null -> Text(
+                    text = "Comprobando estado del negocio…",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                false -> Text(
+                    text = "Aún no has creado tu negocio en la nube. " +
+                        "Al pulsar Guardar se creará con el nombre, el logo y el " +
+                        "código maestro indicados, y podrás vincular clientes.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                else -> Text(
+                    text = "Tu negocio ya está creado en la nube. Guardar actualiza " +
+                        "el nombre, el logo y el código maestro (cambiarlo no afecta " +
+                        "a los clientes ya vinculados).",
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
 
             /**
-             * Button de Guardar cambios
-             * -------------------------
-             * ✔ TIPO: función @Composable (Button)
-             * Es el botón que persiste nombre y logo. El nombre se guarda siempre
-             * en DataStore y, si el negocio ya existe en la nube, se sincroniza en
-             * Firestore (negocios/{id} + negocios_publicos/{id}). El logo, si es un
-             * archivo local recién elegido, se sube a Firebase Storage y se guarda
-             * su URL remota en Firestore + DataStore; si ya es una URL (sin cambios)
-             * solo se conserva en DataStore.
+             * Código maestro (siempre visible)
+             * --------------------------------
+             * En el alta inicial es el código con el que se creará el negocio en
+             * la nube; una vez creado, el mismo campo permite modificarlo.
+             */
+            OutlinedTextField(
+                value = codigoMaestro,
+                onValueChange = { codigoMaestro = it },
+                label = { Text("Código maestro") },
+                supportingText = {
+                    Text(
+                        if (negocioEnNube == false) {
+                            "Lo usarán tus clientes para vincularse"
+                        } else {
+                            "Lo usan tus clientes para vincularse; cambiarlo no afecta a los ya vinculados"
+                        }
+                    )
+                },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            if (mensajeRemoto.isNotBlank()) {
+                Text(
+                    text = mensajeRemoto,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+
+            /**
+             * Button de Guardar (crear o actualizar)
+             * ---------------------------------------
+             * Si el negocio NO existe en la nube lo crea (Batch de negocios/{id},
+             * negocios_publicos/{id} y usuarios/{uid}.negocioId) y guarda el
+             * nombre en DataStore. Si ya existe, actualiza nombre, código maestro
+             * y logo en los dos documentos remotos. Un logo local nuevo se sube a
+             * Firebase Storage y guarda su URL; una URL existente solo se conserva.
              */
             AppPrimaryButton(
-                text = "Guardar cambios",
+                text = when (negocioEnNube) {
+                    true -> "Guardar cambios"
+                    else -> "Crear negocio"
+                },
                 onClick = {
                     alcance.launch {
                         mensajeRemoto = ""
-                        val error = when (negocioEnNube) {
-                            true -> {
-                                val eNombre = mainViewModel.sincronizarNombreNegocio(nombre)
-                                if (eNombre != null) {
-                                    eNombre
-                                } else if (logo.isNotBlank() && !esUrlLogo(logo)) {
-                                    mainViewModel.sincronizarLogoNegocio(logo)
-                                } else {
-                                    mainViewModel.guardarLogoNegocio(logo)
-                                    null
-                                }
+                        val estadoNegocio = negocioEnNube ?: return@launch
+                        if (nombre.isBlank()) {
+                            mensajeRemoto = "El nombre del negocio no puede estar vacío"
+                            return@launch
+                        }
+                        if (codigoMaestro.isBlank()) {
+                            mensajeRemoto = "El código maestro no puede estar vacío"
+                            return@launch
+                        }
+
+                        var error: String? = null
+                        if (estadoNegocio) {
+                            // Edición: sincroniza nombre y código maestro.
+                            val eNombre = mainViewModel.sincronizarNombreNegocio(nombre)
+                            error = if (eNombre != null) {
+                                eNombre
+                            } else {
+                                mainViewModel.guardarCodigoMaestro(codigoMaestro)
                             }
-                            else -> {
-                                mainViewModel.guardarNombreNegocio(nombre)
-                                mainViewModel.guardarLogoNegocio(logo)
-                                null
+                        } else {
+                            // Alta inicial: crea el negocio en la nube y deja el
+                            // estado en "ya existe" para poder reintentar el logo.
+                            val eCrear = mainViewModel.crearNegocio(nombre, codigoMaestro)
+                            if (eCrear != null) {
+                                error = eCrear
+                            } else {
+                                negocioEnNube = true
                             }
                         }
+
+                        // El logo se procesa solo si el nombre/código terminaron bien.
+                        if (error == null) {
+                            if (logo.isBlank()) {
+                                mainViewModel.guardarLogoNegocio("")
+                            } else if (esUrlLogo(logo)) {
+                                mainViewModel.guardarLogoNegocio(logo)
+                            } else {
+                                error = mainViewModel.sincronizarLogoNegocio(logo)
+                            }
+                        }
+
                         if (error != null) {
                             mensajeRemoto = error
                         } else {
@@ -481,6 +495,10 @@ fun MiNegocioScreen(
                         }
                     }
                 },
+                enabled = negocioEnNube != null &&
+                    !operandoRemoto &&
+                    nombre.isNotBlank() &&
+                    codigoMaestro.isNotBlank(),
                 fullWidth = false,
                 modifier = Modifier
                     .fillMaxWidth(0.7f)

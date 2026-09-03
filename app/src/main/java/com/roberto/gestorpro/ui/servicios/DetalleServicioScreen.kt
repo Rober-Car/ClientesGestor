@@ -159,7 +159,6 @@ fun DetalleServicioScreen(
                             )
                         }
                         FilaDatoDetalle("Descripción", s.descripcion.ifBlank { "Sin descripción" })
-                        FilaDatoDetalle("Estado", if (s.activo) "ACTIVO" else "DE BAJA")
                     }
                 }
 

@@ -42,6 +42,10 @@ class SesionRepository @Inject constructor(
         return sesionDao.obtenerSesionPorId(idSesion)
     }
 
+    suspend fun obtenerSesionesEntre(inicio: Long, fin: Long): List<SesionEntity> {
+        return sesionDao.obtenerSesionesEntre(inicio, fin)
+    }
+
     suspend fun eliminarSesionesFuturasPorServicio(idServicio: Int, desde: Long) {
         sesionDao.eliminarSesionesFuturasPorServicio(idServicio, desde)
     }

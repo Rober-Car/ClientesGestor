@@ -17,7 +17,9 @@ data class Cliente(
     val telefono: String,
     val email: String?,
     val foto: String,
-    val fechaNacimiento: Long,
+
+    /** Fecha de nacimiento OPCIONAL de la ficha (null si no se introdujo). */
+    val fechaNacimiento: Long?,
     val fechaRegistro: Long,
     val fechaAlta: Long?,
     val fechaBaja: Long?,

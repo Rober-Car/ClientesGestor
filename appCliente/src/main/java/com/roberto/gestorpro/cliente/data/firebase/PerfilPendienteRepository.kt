@@ -10,6 +10,7 @@ import javax.inject.Singleton
  * ---------------
  * ✔ TIPO: data class
  * Datos personales de un CLIENTE registrado que aún no pertenece a un negocio.
+ * fechaNacimiento es OPCIONAL: null cuando el cliente no introdujo fecha.
  */
 data class PerfilPendiente(
     val nombre: String,
@@ -18,7 +19,7 @@ data class PerfilPendiente(
     val telefono: String,
     val email: String?,
     val foto: String,
-    val fechaNacimiento: Long
+    val fechaNacimiento: Long? = null
 )
 
 /**
@@ -119,7 +120,7 @@ class PerfilPendienteRepository @Inject constructor(
                 telefono = documento.getString("telefono") ?: "",
                 email = documento.getString("email"),
                 foto = documento.getString("foto") ?: "",
-                fechaNacimiento = documento.getLong("fechaNacimiento") ?: 0L
+                fechaNacimiento = documento.getLong("fechaNacimiento")
             )
         } catch (_: Exception) {
             null

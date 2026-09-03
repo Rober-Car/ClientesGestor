@@ -118,7 +118,7 @@ class SesionesClienteViewModel @Inject constructor(
                 val negocioId = preferencesRepository.negocioId.first()
                     ?: ficha.negocioId.takeIf { it.isNotBlank() }
                     ?: run {
-                        _error.value = "No se pudo identificar tu gimnasio"
+                        _error.value = "No se pudo identificar tu centro"
                         return@launch
                     }
                 val sesionesReservadas = reservaRepository

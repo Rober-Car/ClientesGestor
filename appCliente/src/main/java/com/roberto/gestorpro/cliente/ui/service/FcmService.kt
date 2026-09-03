@@ -74,7 +74,7 @@ class FcmService : FirebaseMessagingService() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 canal,
-                "Notificaciones del gimnasio",
+                "Notificaciones del centro",
                 NotificationManager.IMPORTANCE_HIGH
             )
             val gestor = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

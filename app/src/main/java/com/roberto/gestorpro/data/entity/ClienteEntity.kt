@@ -53,7 +53,12 @@ data class ClienteEntity(
     val telefono: String,
     val email: String? = null,
     val foto: String,
-    val fechaNacimiento: Long,
+
+    /**
+     * fechaNacimiento: opcional. null cuando el administrador crea un cliente
+     * sin introducir fecha de nacimiento (no se usa ninguna fecha ficticia).
+     */
+    val fechaNacimiento: Long? = null,
     val fechaRegistro: Long = System.currentTimeMillis(),
     val fechaAlta: Long? = null,
     val fechaBaja: Long? = null,

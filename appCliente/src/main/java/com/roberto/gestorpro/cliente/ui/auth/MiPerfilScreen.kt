@@ -216,7 +216,7 @@ fun MiPerfilScreen(
                     FilaDatoPerfilCliente(
                         icono = Icons.Default.DateRange,
                         etiqueta = "Fecha de nacimiento",
-                        valor = datos.fechaNacimiento.let { formatearFecha(it) },
+                        valor = formatearFecha(datos.fechaNacimiento),
                         color = Color(0xFFFB8C00)
                     )
                 }
@@ -245,7 +245,7 @@ private data class DatosPerfilMostrar(
     val telefono: String,
     val email: String?,
     val foto: String,
-    val fechaNacimiento: Long,
+    val fechaNacimiento: Long?,
     val estadoTexto: String?
 ) {
     companion object {
@@ -312,8 +312,8 @@ private fun FilaDatoPerfilCliente(
     }
 }
 
-private fun formatearFecha(millis: Long): String {
-    if (millis <= 0L) return "Sin especificar"
+private fun formatearFecha(millis: Long?): String {
+    if (millis == null || millis <= 0L) return "Sin especificar"
     return try {
         java.time.Instant.ofEpochMilli(millis)
             .atZone(java.time.ZoneId.systemDefault())

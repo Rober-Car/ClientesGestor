@@ -76,7 +76,7 @@ fun PoliticaPrivacidadScreen(
 
                 SeccionPrivacidad("1. Responsable del tratamiento") {
                     Text(
-                        "GestPro es una aplicación de gestión de un gimnasio.\n\n" +
+                        "GestPro es una aplicación de gestión de un centro.\n\n" +
                             "Responsable del tratamiento: Roberto Carlos Salvador Martin.\n" +
                             "NIF: 48910659D.\n" +
                             "Domicilio: Avenida de Huelva, 6, 21830 Bonares (Huelva), España.\n" +
@@ -86,7 +86,7 @@ fun PoliticaPrivacidadScreen(
 
                 SeccionPrivacidad("2. Qué datos tratamos") {
                     Text(
-                        "Cuando te das de alta o utilizas la aplicación como cliente del gimnasio " +
+                        "Cuando te das de alta o utilizas la aplicación como cliente del centro " +
                             "tratamos los siguientes datos:\n\n" +
                             "• Datos de identificación: nombre, apellidos y DNI.\n" +
                             "• Datos de contacto: teléfono y correo electrónico.\n" +
@@ -94,9 +94,9 @@ fun PoliticaPrivacidadScreen(
                             "• Fotografía: se guarda como archivo en tu propio dispositivo y se " +
                             "asocia a tu ficha. En esta versión las fotografías no se suben a " +
                             "servicios de almacenamiento en la nube.\n" +
-                            "• Datos de tu relación con el gimnasio: negocio al que estás vinculado, " +
+                            "• Datos de tu relación con el centro: negocio al que estás vinculado, " +
                             "servicios contratados, sesiones y reservas, y estado de tu ficha.\n" +
-                            "• Datos económicos de tu cuenta con el gimnasio: cuotas y movimientos, " +
+                            "• Datos económicos de tu cuenta con el centro: cuotas y movimientos, " +
                             "importes, estado de pago, fecha y método de pago, y deuda pendiente. " +
                             "No se almacenan números de tarjeta ni datos bancarios.\n" +
                             "• Solicitudes de baja y su estado.\n" +
@@ -112,12 +112,12 @@ fun PoliticaPrivacidadScreen(
                 SeccionPrivacidad("3. Para qué utilizamos tus datos") {
                     Text(
                         "Utilizamos los datos para:\n\n" +
-                            "• Gestionar tu relación con el gimnasio: alta, servicios contratados, " +
+                            "• Gestionar tu relación con el centro: alta, servicios contratados, " +
                             "sesiones, reservas y estado de tu ficha.\n" +
-                            "• Gestionar las cuotas y cobros del gimnasio: movimientos, importes, " +
+                            "• Gestionar las cuotas y cobros del centro: movimientos, importes, " +
                             "estado, fecha y método de pago y deuda.\n" +
                             "• Gestionar las solicitudes de baja.\n" +
-                            "• Enviarte notificaciones relacionadas con tu relación con el gimnasio " +
+                            "• Enviarte notificaciones relacionadas con tu relación con el centro " +
                             "(por ejemplo, recordatorios o avisos), si las has autorizado en tu " +
                             "dispositivo.\n" +
                             "• Atender solicitudes y consultas y, en su caso, cumplir obligaciones " +
@@ -130,9 +130,9 @@ fun PoliticaPrivacidadScreen(
                 SeccionPrivacidad("4. Base jurídica") {
                     Text(
                         "Tratamos tus datos porque es necesario para la relación de servicios " +
-                            "que mantienes con el gimnasio (por ejemplo, gestionar tu alta, tus " +
+                            "que mantienes con el centro (por ejemplo, gestionar tu alta, tus " +
                             "servicios, tus reservas y tus pagos) y por el interés legítimo del " +
-                            "gimnasio en gestionar y administrar correctamente esa relación.\n\n" +
+                            "centro en gestionar y administrar correctamente esa relación.\n\n" +
                             "Cuando te enviamos notificaciones a tu dispositivo tratamos los datos " +
                             "con tu consentimiento, que puedes retirar en cualquier momento " +
                             "desactivando las notificaciones en tu dispositivo o en la aplicación.\n\n" +
@@ -146,7 +146,7 @@ fun PoliticaPrivacidadScreen(
                         "Los datos se almacenan de forma segura en servicios en la nube de " +
                             "Google (Firebase) y, en parte, en tu propio dispositivo. Las " +
                             "comunicaciones con los servidores se realizan de forma cifrada y el " +
-                            "acceso está limitado a quien gestiona el gimnasio y a ti mismo según " +
+                            "acceso está limitado a quien gestiona el centro y a ti mismo según " +
                             "tu rol. No se comparten los datos con terceros para publicidad."
                     )
                 }

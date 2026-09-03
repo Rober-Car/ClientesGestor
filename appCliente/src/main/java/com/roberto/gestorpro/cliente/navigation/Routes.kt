@@ -15,9 +15,19 @@ object Routes {
     /**
      * INICIO
      * ------
-     * Pantalla "¿Tu gimnasio ya te ha registrado?" (código maestro + DNI).
+     * Pantalla de vinculación (código maestro + DNI). Se llega desde la
+     * elección inicial, desde "Vincular gimnasio" del Home o tras completar
+     * el registro.
      */
     const val INICIO = "inicio"
+
+    /**
+     * ELECCION
+     * --------
+     * Primera pantalla del CLIENTE autenticado sin ficha ni perfil pendiente:
+     * decide entre "Vincularme al centro" (código + DNI) o "Registrarme".
+     */
+    const val ELECCION = "eleccion_inicio"
 
     /**
      * COMPLETAR_PERFIL

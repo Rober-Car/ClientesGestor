@@ -152,7 +152,7 @@ fun ClasesScreen(
                 )
                 noVinculado -> MensajeClases(
                     modifier = Modifier.fillMaxWidth().weight(1f),
-                    texto = "No estás vinculado con tu gimnasio.\n" +
+                    texto = "No estás vinculado con tu centro.\n" +
                         "Debes vincularte para poder ver las clases."
                 )
                 error != null -> ErrorClases(
@@ -162,13 +162,13 @@ fun ClasesScreen(
                 )
                 dadoDeBaja -> MensajeClases(
                     modifier = Modifier.fillMaxWidth().weight(1f),
-                    texto = "Has sido dado de baja del gimnasio.\n" +
+                    texto = "Has sido dado de baja del centro.\n" +
                         "Ya no puedes reservar clases."
                 )
                 estadoNoActivo -> MensajeClases(
                     modifier = Modifier.fillMaxWidth().weight(1f),
                     texto = "Tu cuenta aún no está activa.\n" +
-                        "Cuando el gimnasio la active podrás ver y reservar actividades."
+                        "Cuando el centro la active podrás ver y reservar actividades."
                 )
                 sinServicios -> MensajeClases(
                     modifier = Modifier.fillMaxWidth().weight(1f),

@@ -104,7 +104,7 @@ fun EditarPerfilScreen(
             if (telefono.isBlank()) telefono = c.telefono
             if (email.isBlank()) email = c.email ?: ""
             if (foto.isBlank()) foto = c.foto
-            if (fechaNacimiento.isBlank() && c.fechaNacimiento > 0L) {
+            if (fechaNacimiento.isBlank() && c.fechaNacimiento != null && c.fechaNacimiento > 0L) {
                 fechaNacimiento = formatearFechaEditar(c.fechaNacimiento)
             }
         } else {
@@ -115,7 +115,7 @@ fun EditarPerfilScreen(
             if (telefono.isBlank()) telefono = p.telefono
             if (email.isBlank()) email = p.email ?: ""
             if (foto.isBlank()) foto = p.foto
-            if (fechaNacimiento.isBlank() && p.fechaNacimiento > 0L) {
+            if (fechaNacimiento.isBlank() && p.fechaNacimiento != null && p.fechaNacimiento > 0L) {
                 fechaNacimiento = formatearFechaEditar(p.fechaNacimiento)
             }
         }
@@ -174,9 +174,9 @@ fun EditarPerfilScreen(
             Text(
                 text = if (vinculado) {
                     "Solo puedes modificar tus datos personales. El DNI y los " +
-                        "datos de tu gimnasio no se pueden cambiar desde aquí."
+                        "datos de tu centro no se pueden cambiar desde aquí."
                 } else {
-                    "Todavía no estás vinculado a un gimnasio. Puedes modificar " +
+                    "Todavía no estás vinculado a un centro. Puedes modificar " +
                         "tus datos, incluido el DNI; al vincularlo, el DNI quedará bloqueado."
                 },
                 style = MaterialTheme.typography.bodyMedium,
@@ -309,7 +309,11 @@ fun EditarPerfilScreen(
                 onClick = {
                     mensajeError = ""
                     scope.launch {
-                        val fechaMillis = fechaNacimientoEditarMillis(fechaNacimiento)
+                        // Fecha opcional: si el campo está vacío se guarda null
+                        // (sin fechas ficticias). El texto "dd/MM/aaaa" se convierte
+                        // a epoch; un valor no válido se trata como sin fecha.
+                        val fechaMillis: Long? =
+                            fechaNacimientoEditarMillis(fechaNacimiento).takeIf { it > 0L }
                         val error = if (vinculado) {
                             mainViewModel.actualizarMisDatosPersonales(
                                 nombre = nombre.trim(),

@@ -2441,3 +2441,62 @@ actividades. La morosidad es un flag (`moroso`), NO un estado: un ACTIVO con deu
    regenerar sesiones/índices, diagnóstico `[DIAG alta]`.
 
 
+
+# ACTUALIZACIÓN 2026-09-03 (CHECKPOINT DE REANUDACIÓN) — DOCUMENTACIÓN MODELO ECONÓMICO DEFINITIVO + TANDAS PREVIAS appCliente/Admin
+
+## Qué se ha hecho en esta conversación (hasta este checkpoint)
+
+1) Tanda ADMIN (correcciones de prueba real, revisadas por el propietario): flujo único de negocio
+   en MiNegocioScreen (crear/editar), fecha de nacimiento opcional (Room v16 + MIGRACION_15_16),
+   plazas "X/Y" (hoy) en cards de servicios, eliminación del texto "Estado" en el detalle,
+   investigación (sin cambios) de notificaciones `leida`.
+2) Tanda appCliente (fecha opcional, teclado teléfono, VÍA 2 reactivada): PerfilPendiente/
+   Cliente nullable, CompletarPerfil sin fecha obligatoria, VinculacionRepository ejecuta VÍA 2
+   cuando hay perfil completo y no existe ficha.
+3) Tanda appCliente (UX vinculación): pantalla inicial "¿Cómo quieres empezar?" (EleccionInicioScreen),
+   InicioScreen = pantalla código+DNI con "No tengo vinculación" -> Home sin vincular, tras
+   "Registrarme > Guardar" se navega a código+DNI (se eliminó la auto-continuación de VÍA 2),
+   fallback defensivo "Registrarme" si no hay ficha ni perfil.
+4) Tanda appCliente (visual/textos): Home sin vinculado sin subtítulo "Todavía no estás vinculado…",
+   card exacta "No estás vinculado." con fondo rojo pastel 0xFFFFCDD2 y borde 0xFFE57373,
+   botón "Vincular centro", sustitución visible "gimnasio" -> "centro" en pantallas/mensajes del Cliente.
+5) Tanda EXCLUSIVAMENTE DOCUMENTAL (esta): decisiones económicas definitivas reflejadas en AGENTS.md
+   (bloque «Modelo económico definitivo» + HOJA DE RUTA §1/§3/§4/§6/§7/§8/§10) y en CONTEXTO_PROYECTO.md
+   (bloque «§24 Modelo económico definitivo» + §8.5/§9/§14-G/§19/§20/§21/§22). No se tocó código,
+   Rules, Functions, modelos, UI ni tests.
+
+## Árbol actual (sin commit)
+- Working tree con 37 cambios SIN commit (git status): AGENTS.md, CONTEXTO_PROYECTO.md y los
+  cambios de las tandas 1-4 anteriores (Admin + appCliente + test VinculacionRepositoryTest.kt)
+  más el archivo nuevo `appCliente/.../ui/auth/EleccionInicioScreen.kt`. NO revertir.
+- HEAD del desarrollador previo: `7eb558c "Contexto del proyecto"` (ver git log).
+
+## Verificación realizada por tanda (todas OK en su momento)
+- Admin: `:app:compileDebugKotlin`, `:app:testDebugUnitTest`, `:app:assembleDebug`.
+- appCliente: `:appCliente:compileDebugKotlin`, `:appCliente:testDebugUnitTest`, `:appCliente:assembleDebug`.
+- La tanda documental no compila (no cambia código); se verificó internamente la coherencia
+  AGENTS.md vs CONTEXTO_PROYECTO.md sobre deuda/morosidad/pago/período/BAJA+deuda/eliminación/
+  Firestore/Cliente/estados.
+
+## Decisiones económicas definitivas (documentadas, NO código)
+Reflejadas en AGENTS.md «Modelo económico definitivo» y CONTEXTO_PROYECTO.md §24:
+Room = fuente de verdad + réplica remota `movimientos/{id}`; pago = estado+fechaPago+metodoPago
+(sin entidad Pago); creación manual por ADMIN; deuda = suma de PENDIENTES; MOROSO si hay deuda
+o si ACTIVO supera su período (día siguiente a fechaFin, sin días hábiles/"cuarto día hábil");
+BAJA no elimina deuda; eliminación con confirmación Room+Firestore con recálculo; resumen remoto
+(moroso/deuda/fechaEntradaMorosidad/fechas) para procesos futuros/Functions; CLIENTE sin economía;
+morosidad = flag (no estado MOROSO persistido); ACTIVO+moroso accede; sin descuentos automáticos;
+precio final editable que no cambia históricos; Functions: automatizaciones futuras siguen DECISIÓN PENDIENTE.
+
+## Para REANUDAR (otro PC, desde aquí)
+1. Commit agrupado del working tree (37 cambios) y limpieza de basura conocida.
+2. ECONOMÍA (próxima implementación, con decisiones cerradas §24): cablear réplica
+   `movimientos/{id}` + resumen `moroso`/`deuda`/`fechaEntradaMorosidad` en `clientes/{id}` +
+   Rules/tests. Avisar antes de tocar Rules y validar con `npm --prefix firestore-tests test`.
+3. Conciliar/desplegar `firestore.rules` local (143 tests) frente al desplegado (solo autorizado).
+4. Probar en dispositivo el flujo appCliente: elección inicial -> VÍA1 (ficha Admin) y
+   "Registrarme -> Guardar -> código+DNI" (VÍA2); "No tengo vinculación" -> Home sin vincular;
+   colores/ textos del Home no vinculado ("centro").
+5. Pendientes previos sin cerrar: logs `[DIAG alta]`/`[DIAG sesiones]`/`ClasesDiagnostico`,
+   regenerar sesiones y confirmar índices, VÍA2/fecha nacimiento y pantalla elección a validar,
+   `DetalleVisuales.kt`, cambios de texto/UI de Home, unificación de botones restante.

@@ -17,6 +17,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.roberto.gestorpro.cliente.ui.auth.CuentaScreen
 import com.roberto.gestorpro.cliente.ui.auth.CompletarPerfilScreen
+import com.roberto.gestorpro.cliente.ui.auth.EleccionInicioScreen
 import com.roberto.gestorpro.cliente.ui.configuracion.ConfiguracionScreen
 import com.roberto.gestorpro.cliente.ui.configuracion.InformacionLegalScreen
 import com.roberto.gestorpro.cliente.ui.configuracion.PoliticaPrivacidadScreen
@@ -79,12 +80,16 @@ fun AppNavigation() {
             RecuperarPasswordScreen(navController)
         }
 
+        composable(Routes.ELECCION) {
+            EleccionInicioScreen(navController)
+        }
+
         composable(Routes.INICIO) {
-            InicioScreen(navController)
+            InicioScreen(navController, mainViewModel)
         }
 
         composable(Routes.COMPLETAR_PERFIL) {
-            CompletarPerfilScreen(navController)
+            CompletarPerfilScreen(navController, mainViewModel)
         }
 
         composable(Routes.HOME) {

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
@@ -50,6 +51,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -117,7 +119,7 @@ fun CompletarPerfilScreen(
         if (telefono.isBlank()) telefono = p.telefono
         if (email.isBlank()) email = p.email ?: ""
         if (foto.isBlank()) foto = p.foto
-        if (fechaNacimientoMillis == null && p.fechaNacimiento > 0L) {
+        if (fechaNacimientoMillis == null && p.fechaNacimiento != null && p.fechaNacimiento > 0L) {
             fechaNacimientoMillis = p.fechaNacimiento
         }
     }
@@ -174,7 +176,7 @@ fun CompletarPerfilScreen(
 
             Text(
                 text = "Tus datos se guardarán temporalmente hasta que te vincules " +
-                    "a un gimnasio con su código maestro.",
+                    "a un centro con su código maestro.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -280,6 +282,7 @@ fun CompletarPerfilScreen(
                 onValueChange = { telefono = it },
                 label = { Text("Teléfono *") },
                 singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -298,12 +301,12 @@ fun CompletarPerfilScreen(
             OutlinedTextField(
                 value = fechaNacimientoMillis?.let(::formatearFechaCompletarPerfil) ?: "",
                 onValueChange = {},
-                label = { Text("Fecha de nacimiento *") },
+                label = { Text("Fecha de nacimiento") },
                 leadingIcon = {
                     Icon(Icons.Default.DateRange, contentDescription = null)
                 },
                 supportingText = {
-                    Text("Toca para abrir el calendario")
+                    Text("Opcional. Toca para abrir el calendario")
                 },
                 singleLine = true,
                 readOnly = true,
@@ -345,16 +348,17 @@ fun CompletarPerfilScreen(
                             telefono = telefono.trim(),
                             email = email.trim().ifBlank { null },
                             foto = foto,
-                            fechaNacimiento = fechaNacimientoMillis ?: 0L
+                            fechaNacimiento = fechaNacimientoMillis
                         )
                         val error = mainViewModel.guardarPerfilPendiente(perfil)
                         if (error != null) {
                             mensajeError = error
                         } else {
-                            // El perfil queda guardado en perfiles_pendientes/{uid};
-                            // el cliente NO está vinculado todavía. Se va al Home
-                            // sin vincular (sin buscar ficha ni ejecutar vinculación).
-                            navController.navigate(Routes.HOME) {
+                            // El perfil queda guardado en perfiles_pendientes/{uid}.
+                            // NO se crea la ficha ni se vincula automáticamente: se
+                            // lleva al cliente a la pantalla de vinculación para que
+                            // introduzca código maestro + DNI (VÍA 1 o VÍA 2).
+                            navController.navigate(Routes.INICIO) {
                                 popUpTo(0) { inclusive = true }
                             }
                         }
@@ -362,7 +366,7 @@ fun CompletarPerfilScreen(
                 },
                 enabled = !operandoRemoto &&
                     nombre.isNotBlank() && apellidos.isNotBlank() && dni.isNotBlank() &&
-                    telefono.isNotBlank() && fechaNacimientoMillis != null && foto.isNotBlank()
+                    telefono.isNotBlank() && foto.isNotBlank()
             )
 
             if (operandoRemoto) {

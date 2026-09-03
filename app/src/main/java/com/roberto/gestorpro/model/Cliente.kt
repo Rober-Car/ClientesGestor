@@ -23,7 +23,7 @@ data class Cliente(
     val email: String?,
     val dni: String,
     val foto: String,
-    val fechaNacimiento: Long,
+    val fechaNacimiento: Long?,
     val estado: EstadoCliente,
     val observaciones: String?,
     val serviciosContratados: List<Int> = emptyList(),

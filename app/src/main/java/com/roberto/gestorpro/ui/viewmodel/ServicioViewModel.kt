@@ -9,6 +9,8 @@ import com.roberto.gestorpro.data.firebase.ReservaRemotoRepository
 import com.roberto.gestorpro.data.firebase.ServicioRemotoRepository
 import com.roberto.gestorpro.data.repository.ReservaRepository
 import com.roberto.gestorpro.data.repository.ServicioRepository
+import com.roberto.gestorpro.data.repository.SesionRepository
+import com.roberto.gestorpro.data.firebase.SesionRemotoRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,7 +33,9 @@ class ServicioViewModel @Inject constructor(
     private val servicioRepository: ServicioRepository,
     private val reservaRepository: ReservaRepository,
     private val servicioRemotoRepository: ServicioRemotoRepository,
-    private val reservaRemotoRepository: ReservaRemotoRepository
+    private val reservaRemotoRepository: ReservaRemotoRepository,
+    private val sesionRepository: SesionRepository,
+    private val sesionRemotoRepository: SesionRemotoRepository
 ) : ViewModel() {
 
     private val _activos = MutableStateFlow<List<ServicioEntity>>(emptyList())
@@ -70,6 +74,18 @@ class ServicioViewModel @Inject constructor(
     val servicioSinSincronizar: StateFlow<PendienteServicio?> = _servicioSinSincronizar.asStateFlow()
 
     /**
+     * _plazasHoyPorServicio / plazasHoyPorServicio
+     * --------------------------------------------
+     * Resumen agregado de las sesiones de HOY de cada servicio
+     * (idServicio -> PlazasHoyServicio). Sirve para mostrar en el card del
+     * servicio cuántas plazas hay reservadas frente a la capacidad total de
+     * hoy sin tocar la lógica de reservas existente.
+     */
+    private val _plazasHoyPorServicio = MutableStateFlow<Map<Int, PlazasHoyServicio>>(emptyMap())
+    val plazasHoyPorServicio: StateFlow<Map<Int, PlazasHoyServicio>> =
+        _plazasHoyPorServicio.asStateFlow()
+
+    /**
      * cargarServicios
      * ---------------
      * Observa en tiempo real los servicios activos e inactivos.
@@ -80,6 +96,47 @@ class ServicioViewModel @Inject constructor(
         }
         viewModelScope.launch {
             servicioRepository.obtenerServiciosInactivos().collect { _inactivos.value = it }
+        }
+    }
+
+    /**
+     * cargarPlazasDeHoy
+     * -----------------
+     * Calcula las plazas reservadas y la capacidad agregada de las sesiones de
+     * HOY de cada servicio. Para reflejar las reservas creadas por appCliente
+     * (que no actualizan la Room local del ADMIN), las plazas disponibles de
+     * cada sesión se leen de Firestore (sesiones/{id}) y, si falla la lectura
+     * o no hay conexión, se usa el valor local de Room como respaldo.
+     */
+    fun cargarPlazasDeHoy() {
+        viewModelScope.launch {
+            val hoy = LocalDate.now()
+            val inicioHoy = hoy.atStartOfDay(ZoneId.systemDefault())
+                .toInstant().toEpochMilli()
+            val finHoy = hoy.plusDays(1).atStartOfDay(ZoneId.systemDefault())
+                .toInstant().toEpochMilli()
+
+            val acumulador = mutableMapOf<Int, PlazasHoyServicio>()
+            try {
+                val sesionesHoy = sesionRepository.obtenerSesionesEntre(inicioHoy, finHoy)
+                sesionesHoy.groupBy { it.idServicio }
+                    .forEach { (idServicio, sesiones) ->
+                        var reservadas = 0
+                        var capacidad = 0
+                        sesiones.forEach { sesion ->
+                            capacidad += sesion.capacidad
+                            val plazasRemotas = sesionRemotoRepository
+                                .obtenerPlazasDisponiblesRemoto(sesion.idSesion)
+                            val disponibles = (plazasRemotas ?: sesion.plazasDisponibles)
+                                .coerceIn(0, sesion.capacidad)
+                            reservadas += sesion.capacidad - disponibles
+                        }
+                        acumulador[idServicio] = PlazasHoyServicio(reservadas, capacidad)
+                    }
+            } catch (e: Exception) {
+                Log.e(TAG, "cargarPlazasDeHoy: no se pudieron calcular las plazas de hoy", e)
+            }
+            _plazasHoyPorServicio.value = acumulador
         }
     }
 
@@ -338,3 +395,16 @@ class ServicioViewModel @Inject constructor(
         val servicio: ServicioEntity
     )
 }
+
+/**
+ * PlazasHoyServicio
+ * -----------------
+ * Resumen agregado de las sesiones de HOY de un servicio (varias sesiones del
+ * mismo día se suman). reservadas = plazas ocupadas y capacidad = plazas
+ * totales de las sesiones del día. Solo existe si el servicio tiene alguna
+ * sesión hoy.
+ */
+data class PlazasHoyServicio(
+    val reservadas: Int,
+    val capacidad: Int
+)

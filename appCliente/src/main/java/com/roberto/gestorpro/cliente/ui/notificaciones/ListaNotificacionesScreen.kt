@@ -112,7 +112,7 @@ fun ListaNotificacionesScreen(
                 }
 
                 noVinculado -> MensajeNotificaciones(
-                    titulo = "No estás vinculado a un gimnasio",
+                    titulo = "No estás vinculado a un centro",
                     detalle = "Vincula tu cuenta para recibir avisos."
                 )
 

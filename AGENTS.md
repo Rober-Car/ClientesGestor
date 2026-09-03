@@ -365,6 +365,69 @@ node firestore-tests/auditoria_backfill_indices.cjs
 - **Vinculación del CLIENTE:** el flujo de código maestro + DNI vive en `appCliente` (repositorio `VinculacionRepository`, pantalla de vinculación accesible desde el Home). Las operaciones críticas (VÍA 1 y VÍA 2) deben ejecutarse en Transaction. Nunca reintroducir Vía B/deep links.
 - **Logo del negocio:** la subida vive en `NegocioRepository.guardarLogoRemoto()` (`:app`): `putFile` a `negocios/{uid}/logo.jpg` → `downloadUrl` → WriteBatch con `logo` en `negocios` + `negocios_publicos`. El Cliente lee `negocios_publicos/{id}.logo` y lo muestra con Coil. Requiere el bucket habilitado en Firebase Console.
 
+## Modelo económico definitivo (decisiones del propietario)
+
+> Documento vivo. Estas reglas son las **decisiones económicas FINALES** adoptadas por el
+> propietario y **prevalece sobre cualquier bloque/checkpoint anterior de AGENTS.md y de la
+> HOJA DE RUTA que describa reglas antiguas** (morosidad solo tras `fechaFin`, "cuarto día
+> hábil", días hábiles/festivos, pago como entidad independiente, módulo económico del CLIENTE,
+> movimientos "solo locales", movimientos no eliminables en Firestore, descuentos automáticos,
+> `estado = MOROSO` persistido, servicios modificando movimientos ya creados). El histórico de
+> `CONVERSACION_EXPORTADA.md` se conserva tal cual (no refleja estas decisiones salvo su propia fecha).
+
+- **Fuente de verdad:** Room (Admin) sigue siendo la fuente de verdad económica del ADMIN;
+  Firestore es la **réplica remota** de la economía. Todo movimiento debe existir en Room y en
+  `movimientos/{movimientoId}`; la sincronización debe mantener ambos lados coherentes.
+- **Movimiento = unidad económica principal**, multi-servicio. Campos: cliente, servicios,
+  fechaInicio, fechaFin, precioFinal, estado, fechaPago, metodoPago, observaciones (si procede).
+  **No existe entidad Pago independiente**: el pago se representa con `estado + fechaPago + metodoPago`.
+- **Creación manual por el ADMIN** (no automática): el ADMIN decide fecha de inicio, fecha de fin,
+  servicios, precio final, si está pagado y el método de pago cuando corresponda. La acción
+  "Renovar" existente gestiona los casos ya contemplados; **no se inventan nuevas reglas de prorrateo**.
+- **Estado:** si el ADMIN marca "Pagado" → `PAGADO` (con datos de pago); si no → `PENDIENTE`.
+  Solo el ADMIN marca un movimiento como PAGADO; el CLIENTE no registra ni valida pagos.
+- **Fechas del período:** las fija el ADMIN (fechaInicio/fechaFin), sin regla de mes natural.
+- **Pago:** la cuota/movimiento debe pagarse **el día 1 del período**. **No existe "cuarto día
+  hábil"** ni margen de días hábiles; no cuentan sábados, domingos ni festivos.
+- **Deuda:** **suma de TODOS los movimientos PENDIENTES**. Un movimiento PENDIENTE ya representa
+  deuda (no hay que esperar a `fechaFin`).
+- **Morosidad:** un cliente es **MOROSO si tiene deuda pendiente** (no hay que esperar al
+  vencimiento). Segunda situación de entrada: un cliente que permanece ACTIVO pasa a MOROSO el
+  **día siguiente a la fechaFin** del período que le cubría si continúa sin cobertura económica
+  (p. ej. fechaFin 15/09 → 16/09), aunque ese día sea sábado, domingo o festivo. Sin reglas de días hábiles.
+- **Deuda (importe pendiente) ≠ MOROSO (situación del cliente).** Un PENDIENTE ya genera morosidad;
+  es INCORRECTO documentar que la deuda solo genera morosidad después de `fechaFin`.
+- **Salida de morosidad:** al marcar PAGADO el único pendiente y no existir otra causa →
+  `moroso = false`; se actualizan `fechaPago`/`metodoPago`. Si quedan otros PENDIENTES sigue
+  moroso. No se conserva historial de haber sido moroso (situación = estado ACTUAL).
+- **`fechaEntradaMorosidad`:** representa la entrada en la morosidad ACTUAL; al dejar de ser
+  moroso debe limpiarse/anularse. No conserva antecedente histórico.
+- **BAJA + deuda:** la BAJA **no elimina** deudas (`estado = BAJA` con `deuda > 0` es válido). Los
+  PENDIENTES siguen existiendo; el ADMIN puede gestionarlos y marcarlos PAGADO. La baja no perdona ni elimina deuda.
+- **Servicios contratados:** afectan solo a movimientos **nuevos**; no modifican movimientos ya
+  creados. Para corregir uno existente: el ADMIN lo elimina con confirmación y crea uno nuevo.
+- **Eliminación:** el ADMIN puede eliminar **cualquier** movimiento (con confirmación) en
+  **Room + Firestore**; al eliminar debe recalcularse la situación económica del cliente (deuda,
+  morosidad, fechaEntradaMorosidad, período actual, resumen económico remoto).
+- **Histórico remoto:** Firestore conserva el histórico completo (`movimientos/{id}`); no se
+  elimina por antigüedad, solo cuando el ADMIN lo elimina.
+- **Resumen económico remoto de `clientes/{id}`:** debe contemplar `moroso`, `deuda`,
+  `fechaEntradaMorosidad`, `fechaInicioActual`, `fechaFinActual`, para que procesos futuros
+  (incluidas Cloud Functions) conozcan la situación económica sin depender de la app Admin abierta.
+- **App CLIENTE sin economía:** no verá movimientos, importes, deuda, método de pago ni histórico
+  económico; solo lo ya decidido (estado, fecha de fin del período y funcionalidades generales).
+- **Estados:** la morosidad NO es estado administrativo. Estados: ACTIVO, REGISTRADO, BAJA,
+  ARCHIVADO (separados) + `moroso` como dato independiente. No persistir `estado = MOROSO`.
+- **ACTIVO + moroso:** continúa usando actividades/reservas si cumple el resto de condiciones de
+  acceso; la morosidad no implica BAJA ni bloqueo de actividades/reservas.
+- **Descuentos:** no existe sistema automático (ni estudiante/familia/jubilado, ni categorías). El
+  ADMIN decide el `precioFinal`; cualquier descuento queda reflejado indirectamente en él.
+- **Precio final:** el sistema puede proponer un precio desde los servicios seleccionados, pero el
+  ADMIN lo puede modificar antes de guardar; el movimiento conserva el precio decidido y cambios
+  posteriores del precio de un servicio **no alteran** movimientos históricos.
+- **Cloud Functions:** qué procesos automatizar con Functions sigue siendo **DECISIÓN PENDIENTE**
+  de una futura sesión. Lo cerrado es que **los movimientos los crea manualmente el ADMIN**.
+
 ## Estado actual y pendientes (2026-09-03)
 
 > ACTUALIZACIÓN 2026-09-03 (CIERRE — CORRECCIÓN ACCESO SOLO ACTIVO + NOTIFICACIÓN VINCULACIÓN + TEXTO
@@ -778,7 +841,7 @@ Pendiente para continuar:
 - Negocio: crear/editar nombre y código maestro; logo (pendiente bucket).
 - **Clientes Admin:** alta, edición, búsqueda, filtros (Todos/Activos/Bajas/Morosos/Archivados), archivar/restaurar, servicios contratados (Room + Firestore write-through), foto local, banners de sincronización con reintento.
 - **Servicios/Sesiones/Reservas:** modelo `Cliente → Servicio → Sesión → Reserva`; Room atómico (`withTransaction`, plazas±1, cascadas) + réplica Firestore write-through; generación de sesiones con apertura global y edición individual; índices compuestos creados en producción.
-- **Economía base:** movimientos y gastos en Room; `fechaInicioActual`/`fechaFinActual` replicados a `clientes/{id}`; morosidad derivada (Room); `EconomiaScreen` (resumen + CRUD de gastos + lectura de movimientos); movimientos por cliente (crear/editar/eliminar/renovar).
+- **Economía base:** movimientos **multi-servicio** con `precioFinal`, `estado` (PENDIENTE/PAGADO), `fechaPago` y `metodoPago` en Room (Fases 1–5 del modelo definitivo); `fechaInicioActual`/`fechaFinActual` replicados a `clientes/{id}`; morosidad persistida como flag (`moroso`/`fechaEntradaMorosidad`) recalculada por `MovimientoMorosidad`; `EconomiaScreen` (resumen + CRUD de gastos + lectura de movimientos); movimientos por cliente (crear/editar/eliminar/renovar). Ver "Modelo económico definitivo".
 - **Notificaciones (Fases B/C/D):** Admin (lista, crear individual/grupo/todos/programadas, configuración de preconfiguradas, selección grupal), bandeja del cliente, leído/no leído, toggle por dispositivo, buzón `notificaciones_por_destinatario`.
 - **Solicitudes de baja:** flujo completo Cliente → PENDIENTE → Admin (Aceptar=BAJA / Rechazar) + notificación `BAJA_CONFIRMADA` (si config activa).
 - **Baja de cliente (corregida):** navegación a `CuentaScreen` ("Mi cuenta" desde Configuración); bloqueo de BAJA en app (SesionesCliente/ReservaRepository/Home) y en Rules (`clientePuedeAcceder` en sesiones get/list y `reservaCreaValida`); baja directa y aceptación de solicitud convergen en `BajaClienteRemotoRepository` (cancelación de reservas futuras Room+Firestore liberando plazas, conservación de pasadas y `serviciosContratados`, BAJA_CONFIRMADA con ID determinista).
@@ -794,29 +857,29 @@ Pendiente para continuar:
 
 ## 3. Implementado parcialmente
 
-- **ECONOMÍA (bloque crítico pendiente de decidir/cerrar):**
-  - No existe entidad Pago/Cuota: el "pago" es `Movimiento.estado` (PENDIENTE/PAGADO) + `fechaPago`.
-  - **Bug conocido:** al editar un movimiento desde el perfil, `fechaPago` se resetea a `null` (se reconstruye el objeto sin ese campo).
-  - `fechaPago` solo se rellena en "Renovar". No hay métodos de pago (efectivo/Bizum/transferencia) ni validación de pago.
-  - No existen reglas de negocio económicas: descuentos, tramos, tarifas (estudiante/familia/jubilado/llave como tarifa), cargo de alta, prorrateo a mitad de mes, "cuarto día hábil".
-  - Morosidad 100% derivada (Room): ACTIVO con `fechaFin < ahora`, o BAJA con movimiento PENDIENTE. `EstadoCliente.MOROSO` nunca se persiste; sin fecha de entrada en moroso.
-  - Replicación a Firestore SOLO de `fechaInicioActual`/`fechaFinActual`; **no existe** colección remota `movimientos`/`gastos`. Insuficiente para que Cloud Functions calcule morosidad/precio con precisión.
+- **ECONOMÍA (modelo DEFINIDO — ver «Modelo económico definitivo»; la implementación Room en Fases 1–5 está cerrada y la réplica remota de movimientos/resumen es tarea de implementación pendiente):**
+  - No existe entidad Pago/Cuota: el "pago" es `Movimiento.estado` (PENDIENTE/PAGADO) + `fechaPago` + `metodoPago`.
+  - Movimientos multi-servicio: `servicios: List<Int>` + `precioFinal` + estado + fechaPago + metodoPago (EFECTIVO/BIZUM/TRANSFERENCIA). El `fechaPago` se conserva al editar (resuelto con `MovimientoPago`; validar en dispositivo).
+  - Creación/edición/eliminación **manuales por el ADMIN** (eliminación con confirmación). La "Renovar" gestiona los casos actuales. **No** se generan movimientos automáticamente.
+  - Morosidad = flag independiente persistido en Room (`moroso`/`fechaEntradaMorosidad`) con motor único `MovimientoMorosidad`: **un PENDIENTE ya es deuda y genera morosidad**; un ACTIVO pasa a moroso el **día siguiente a su `fechaFin`** si sigue sin cobertura. `EstadoCliente.MOROSO` no se persiste.
+  - Deuda = suma de los movimientos PENDIENTES.
+  - Firestore (decisión cerrada): espejo `movimientos/{id}` + resumen remoto en `clientes/{id}` (`moroso`, `deuda`, `fechaEntradaMorosidad`, `fechaInicioActual`, `fechaFinActual`). **Implementación pendiente en el árbol actual** (ver CONTEXTO_PROYECTO.md §8.5): hoy solo se replica el período.
   - `EconomiaScreen` es solo lectura para movimientos (gestión en el perfil del cliente).
 - **Reservas ADMIN:** `SesionReservasScreen` es solo lectura; el ADMIN no puede cancelar la reserva de un cliente (solo cascadas de servicios/sesiones).
 - **Sesiones:** `eliminarSesion` (ViewModel + remoto) existe pero **sin botón en la UI** (`EditarSesionScreen` solo guarda cambios).
 - **Clientes:** `eliminarCliente` (Room) sin botón en UI (baja lógica por diseño). "Dar de baja" directo solo vía switch de edición o aceptar solicitud. Reactivación `BAJA→ACTIVO` solo vía switch (no hay método dedicado).
 - **Cuenta Admin:** el diálogo "Cambiar contraseña" es un **placeholder** (no llama a `FirebaseAuth.updatePassword`).
-- **appCliente economía:** solo indicador de estado en Home (`PAGO_VENCIDO` derivado de `fechaFinActual`); **sin** módulo de cuotas/movimientos/pagos (¿deseado? decisión de producto).
-- **Persistencia/sincronización:** entidad por entidad hay diferencias (ver §10): cliente/servicio/sesión/reserva write-through; movimiento parcial; gasto solo Room; solicitud antigua Room inerte + nueva Firestore; notificación/dispositivo Firestore.
+- **appCliente economía:** solo indicador de estado en Home (`PAGO_VENCIDO` derivado de `fechaFinActual`); **sin** módulo de cuotas/movimientos/pagos (**decisión cerrada: el CLIENTE no tendrá módulo económico**).
+- **Persistencia/sincronización:** entidad por entidad hay diferencias (ver §10): cliente/servicio/sesión/reserva write-through; movimiento parcial (decisión: replicar a `movimientos/{id}` + resumen; implementación pendiente); gasto solo Room; solicitud antigua Room inerte + nueva Firestore; notificación/dispositivo Firestore.
 
 ## 4. Pendiente de implementar (funcional)
 
-- Decidir y cerrar el **circuito económico completo** (cuota → movimiento → pago → morosidad → baja) y su replicación para Functions.
+- Implementar la réplica económica ya decidida (ver «Modelo económico definitivo»): `movimientos/{id}` + resumen remoto en `clientes/{id}`; decidir en una futura sesión qué automatizar con Cloud Functions.
 - Pantalla **"Mis reservas"** del CLIENTE (si se aprueba).
 - **Cancelar reserva desde ADMIN** (`SesionReservasScreen`).
 - Botón **eliminar sesión** en `EditarSesionScreen`.
 - **Cambiar contraseña real** en Cuenta Admin.
-- (Si se aprueba) módulo económico del CLIENTE (deuda/cuotas/historial).
+- ~~Módulo económico del CLIENTE~~: **descartado** (decisión cerrada: el CLIENTE no tendrá módulo económico).
 - Auditorías finales: seguridad (aislamiento negocio/cliente) y persistencia/sincronización entidad por entidad.
 
 ## 5. Bloqueado por Blaze/Firebase (infraestructura real)
@@ -829,9 +892,9 @@ Pendiente para continuar:
 
 ## 6. Decisiones pendientes (el desarrollador debe decidir ANTES de programar)
 
-1. **Economía (prioritario):** ¿cuál es la fuente de verdad del movimiento (Room, Firestore o ambas)? ¿Replicar más datos económicos a Firestore (colección `movimientos` o flag `moroso` + `fechaEntradaMoroso`) para que Functions calcule morosidad? ¿Regla real de entrada/salida de MOROSO (se acordó "cuarto día hábil")? ¿Pago como entidad propia con método de pago, o mantener estado+fechaPago?
-2. **BAJA + deuda:** ¿basta `BAJA` + deuda pendiente (movimiento PENDIENTE) o se necesita estado `MOROSO_BAJA`? ¿Cómo afecta a notificaciones? (hoy la morosidad BAJA+PENDIENTE no es replicable desde Firestore).
-3. **appCliente economía:** ¿debe tener cuotas/movimientos/pagos o solo el estado/deuda derivado?
+1. **Economía:** **DECIDIDA** — ver «Modelo económico definitivo» (fuente de verdad Room + réplica Firestore `movimientos/{id}`, pago = `estado + fechaPago + metodoPago` sin entidad Pago, deuda = suma de PENDIENTES, morosidad si hay deuda o si el ACTIVO supera su período sin cobertura, BAJA + deuda válido, eliminación con confirmación en Room + Firestore, appCliente sin economía). Solo queda implementar la réplica remota y decidir en una sesión futura qué automatizar con Cloud Functions.
+2. ~~BAJA + deuda~~: **decidido** — la BAJA no elimina la deuda (los PENDIENTES se gestionan y pueden marcarse PAGADO); no se necesita `MOROSO_BAJA`.
+3. ~~appCliente economía~~: **decidido** — el CLIENTE no tendrá módulo económico.
 4. **Reservas:** ¿pantalla "Mis reservas"? ¿el ADMIN puede cancelar reservas desde `SesionReservasScreen`?
 5. **Sesiones:** ¿botón eliminar sesión en la UI?
 6. **Fotos:** ¿migrar a Storage cuando haya bucket?
@@ -839,7 +902,7 @@ Pendiente para continuar:
 
 ## 7. Orden recomendado de implementación
 
-1. **ECONOMÍA:** auditoría + decisiones (§6.1/6.2) → cerrar circuito (pagos, reglas, morosidad real) → replicación a Firestore para Functions.
+1. **ECONOMÍA:** decisiones ya tomadas (ver «Modelo económico definitivo») → cerrar la implementación de la réplica remota (`movimientos/{id}` + resumen en `clientes/{id}`) con Rules/tests; en sesión futura decidir qué automatizar con Cloud Functions.
 2. **Reservas del CLIENTE:** validar índices/sesiones, pantalla "Mis reservas" (si aprobada), retirar logs `ClasesDiagnostico`.
 3. **Cierres menores Admin:** eliminar sesión, cancelar reserva admin, cambiar contraseña, reactivar desde BAJA.
 4. **Auditorías:** seguridad + persistencia/sincronización entidad por entidad + completitud funcional Admin.
@@ -848,7 +911,7 @@ Pendiente para continuar:
 
 ## 8. Dependencias entre funcionalidades
 
-- Morosidad/recordatorio (Functions) dependen de datos en Firestore: hoy solo `fechaFinActual`; si se exige la regla acordada, hay que replicar más o persistir `moroso`.
+- Morosidad/recordatorio (Functions) dependen de datos en Firestore. **Decisión cerrada (ver «Modelo económico definitivo»):** replicar `movimientos/{id}` + resumen remoto en `clientes/{id}` (`moroso`, `deuda`, `fechaEntradaMorosidad`, fechas de período) para que Functions puedan calcular la situación sin app Admin; implementación pendiente.
 - `BAJA_CONFIRMADA` depende de: config `bajaConfirmada.activa` + `clientes/{id}.estado == "BAJA"` (ya conectado por solicitud y preparado en Functions).
 - Notificaciones programadas dependen del índice `notificaciones(estado, fechaProgramada)` + Blaze.
 - Reservas del CLIENTE dependen de índices `sesiones`/`reservas` READY + sesiones replicadas.
@@ -876,7 +939,7 @@ Pendiente para continuar:
 
 ## 10. Problemas técnicos conocidos
 
-- Editar un movimiento resetea `fechaPago` a `null`.
+- Editar un movimiento reseteaba `fechaPago` a `null` — **resuelto en código** con `MovimientoPago` (Fase 4); falta validar en dispositivo.
 - Rules no pueden hacer cross-document query → el duplicado de solicitud PENDIENTE se controla en el repositorio (capa de negocio), no solo en la UI.
 - Réplica de sesiones Room→Firestore estuvo rota por `idSesion=0` (fix en working tree; validar).
 - Alta Admin `PERMISSION_DENIED` en diagnóstico (posible documento huérfano en el batch; logging `[DIAG alta]`).

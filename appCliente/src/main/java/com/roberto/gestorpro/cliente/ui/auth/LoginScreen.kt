@@ -72,7 +72,7 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = nombreNegocio.ifBlank { "Tu gimnasio" },
+                text = nombreNegocio.ifBlank { "Tu centro" },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

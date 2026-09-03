@@ -266,6 +266,58 @@ object AppModule {
     }
 
     /**
+     * MIGRACION_15_16
+     * ---------------
+     * Fecha de nacimiento OPCIONAL del cliente: la columna `fechaNacimiento`
+     * de la tabla `cliente` pasa de NOT NULL a NULLABLE para permitir crear un
+     * cliente sin fecha de nacimiento. Se recrea la tabla conservando todas las
+     * filas (SQLite < 3.35 no soporta modificar la nullabilidad de una columna).
+     * Las fechas ya guardadas se copian tal cual; no se inventa ningún valor.
+     */
+    private val MIGRACION_15_16 = object : Migration(15, 16) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `cliente_nueva` (" +
+                    "`idCliente` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`nombre` TEXT NOT NULL, " +
+                    "`apellidos` TEXT NOT NULL, " +
+                    "`dni` TEXT NOT NULL, " +
+                    "`telefono` TEXT NOT NULL, " +
+                    "`email` TEXT, " +
+                    "`foto` TEXT NOT NULL, " +
+                    "`fechaNacimiento` INTEGER, " +
+                    "`fechaRegistro` INTEGER NOT NULL, " +
+                    "`fechaAlta` INTEGER, " +
+                    "`fechaBaja` INTEGER, " +
+                    "`estado` TEXT NOT NULL, " +
+                    "`observaciones` TEXT, " +
+                    "`negocioId` TEXT, " +
+                    "`serviciosContratados` TEXT NOT NULL, " +
+                    "`firebaseUid` TEXT, " +
+                    "`moroso` INTEGER NOT NULL, " +
+                    "`fechaEntradaMorosidad` INTEGER)"
+            )
+            db.execSQL(
+                "INSERT INTO `cliente_nueva` " +
+                    "(`idCliente`, `nombre`, `apellidos`, `dni`, `telefono`, `email`, " +
+                    "`foto`, `fechaNacimiento`, `fechaRegistro`, `fechaAlta`, `fechaBaja`, " +
+                    "`estado`, `observaciones`, `negocioId`, `serviciosContratados`, `firebaseUid`, " +
+                    "`moroso`, `fechaEntradaMorosidad`) " +
+                    "SELECT `idCliente`, `nombre`, `apellidos`, `dni`, `telefono`, `email`, " +
+                    "`foto`, `fechaNacimiento`, `fechaRegistro`, `fechaAlta`, `fechaBaja`, " +
+                    "`estado`, `observaciones`, `negocioId`, `serviciosContratados`, `firebaseUid`, " +
+                    "`moroso`, `fechaEntradaMorosidad` " +
+                    "FROM `cliente`"
+            )
+            db.execSQL("DROP TABLE `cliente`")
+            db.execSQL("ALTER TABLE `cliente_nueva` RENAME TO `cliente`")
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_cliente_dni` ON `cliente` (`dni`)"
+            )
+        }
+    }
+
+    /**
      * provideFirebaseAuth
      * -------------------
      * ✔ TIPO: método (fun) de Hilt con anotación @Provides y @Singleton → FirebaseAuth
@@ -325,7 +377,13 @@ object AppModule {
         )
 
         databaseBuilder = databaseBuilder
-            .addMigrations(MIGRACION_11_12, MIGRACION_12_13, MIGRACION_13_14, MIGRACION_14_15)
+            .addMigrations(
+                MIGRACION_11_12,
+                MIGRACION_12_13,
+                MIGRACION_13_14,
+                MIGRACION_14_15,
+                MIGRACION_15_16
+            )
             .fallbackToDestructiveMigration()
 
         return databaseBuilder.build()

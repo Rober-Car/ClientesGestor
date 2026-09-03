@@ -14,12 +14,16 @@ import kotlin.random.Random
  * ✔ TIPO: data class
  * Resultado del intento de vinculación: ficha encontrada y vinculada, ficha
  * creada, DNI ya vinculado, o error.
+ * requiereCompletarPerfil = true indica que NO existe ficha y el usuario tampoco
+ * tiene un perfil pendiente completo: la UI debe ofrecerle completar sus datos
+ * (no es un error, es un paso del flujo guiado).
  */
 data class ResultadoVinculacion(
     val exito: Boolean,
     val mensaje: String,
     val clienteId: Int? = null,
-    val negocioId: String? = null
+    val negocioId: String? = null,
+    val requiereCompletarPerfil: Boolean = false
 )
 
 /**
@@ -71,6 +75,22 @@ class VinculacionRepository @Inject constructor(
                 false,
                 "No existe ningún cliente registrado con ese DNI."
             )
+
+        /**
+         * resultadoNoHayFichaParaRegistro
+         * -------------------------------
+         * Resultado del flujo guiado cuando NO existe la ficha del DNI y el
+         * usuario tampoco tiene un perfil pendiente completo. No es un error de
+         * la operación: la UI debe invitar al usuario a completar sus datos y,
+         * tras guardarlos, la vinculación continuará sola (VÍA 2).
+         */
+        internal fun resultadoNoHayFichaParaRegistro(): ResultadoVinculacion =
+            ResultadoVinculacion(
+                false,
+                "No encontramos una ficha con este DNI. Puedes registrarte ahora " +
+                    "y después te vincularemos automáticamente a este centro.",
+                requiereCompletarPerfil = true
+            )
     }
 
     /**
@@ -112,8 +132,10 @@ class VinculacionRepository @Inject constructor(
      * (sin destruir el perfil completo) y, según el índice:
      *   - si la ficha existe y está libre (firebaseUid == null): la vincula (VÍA 1);
      *   - si la ficha ya está vinculada: rechaza;
-     *   - si el índice NO existe: rechaza la vinculación VÍA A; la creación de
-     *     fichas de VÍA 2 no se ejecuta desde esta entrada.
+     *   - si el índice NO existe pero hay un perfil pendiente COMPLETO: crea la
+     *     ficha con los datos de ese perfil (VÍA 2, reutiliza crearFicha);
+     *   - si el índice NO existe y no hay perfil completo: rechaza (no se crean
+     *     fichas vacías a partir de la declaración temporal { dni, negocioId }).
      * El perfil pendiente SOLO se elimina cuando la vinculación se completa con
      * éxito. Ante cualquier error (falta de perfil, permisos, red, fallo
      * intermedio) se conserva.
@@ -156,9 +178,26 @@ class VinculacionRepository @Inject constructor(
                     resultado
                 }
 
-                // VÍA A: la ausencia del índice significa que el gimnasio no
-                // tiene ningún cliente registrado con el DNI introducido.
-                ResultadoIndice.NoExiste -> resultadoCuandoIndiceNoExiste()
+                // El gimnasio no registró previamente a este DNI. VÍA 2: si el
+                // cliente completó su perfil (No tengo vinculación) se crea la
+                // ficha con esos datos; si no hay perfil completo se devuelve el
+                // resultado "necesita completar perfil" para que la UI lo guíe.
+                ResultadoIndice.NoExiste -> {
+                    val perfil = leerPerfilPendiente(uid)
+                    if (perfil != null &&
+                        perfil.nombre.isNotBlank() &&
+                        perfil.apellidos.isNotBlank() &&
+                        perfil.telefono.isNotBlank()
+                    ) {
+                        val resultado = crearFicha(uid, negocioId, dniNorm, perfil)
+                        if (resultado.exito) {
+                            perfilPendienteRepository.borrar(uid)
+                        }
+                        resultado
+                    } else {
+                        resultadoNoHayFichaParaRegistro()
+                    }
+                }
             }
         } catch (e: Exception) {
             ResultadoVinculacion(false, mensajeDe(e))
@@ -185,7 +224,7 @@ class VinculacionRepository @Inject constructor(
             telefono = documento.getString("telefono") ?: "",
             email = documento.getString("email"),
             foto = documento.getString("foto") ?: "",
-            fechaNacimiento = documento.getLong("fechaNacimiento") ?: 0L
+            fechaNacimiento = documento.getLong("fechaNacimiento")
         )
     }
 
@@ -230,7 +269,7 @@ class VinculacionRepository @Inject constructor(
 
             ResultadoVinculacion(
                 true,
-                "Te has vinculado a la ficha de tu gimnasio",
+                "Te has vinculado a la ficha de tu centro",
                 clienteId,
                 negocioId
             )
@@ -365,7 +404,7 @@ class VinculacionRepository @Inject constructor(
 
                     return ResultadoVinculacion(
                         true,
-                        "Te has registrado en tu gimnasio",
+                        "Te has registrado en tu centro",
                         idCliente,
                         negocioId
                     )

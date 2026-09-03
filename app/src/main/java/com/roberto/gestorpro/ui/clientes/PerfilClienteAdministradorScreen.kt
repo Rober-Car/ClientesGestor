@@ -1047,7 +1047,10 @@ fun PerfilClienteScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = cliente?.let { formatearFecha(it.fechaNacimiento) } ?: "No disponible",
+                            text = cliente?.let {
+                                it.fechaNacimiento?.let { fecha -> formatearFecha(fecha) }
+                                    ?: "No especificada"
+                            } ?: "No disponible",
                             style = MaterialTheme.typography.bodyLarge
                         )
                     }
