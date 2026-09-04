@@ -65,6 +65,7 @@ class VinculacionRepository @Inject constructor(
         private const val COLECCION_USUARIOS = "usuarios"
         private const val COLECCION_PERFILES_PENDIENTES = "perfiles_pendientes"
         private const val COLECCION_NEGOCIOS_PUBLICOS = "negocios_publicos"
+        private const val COLECCION_CODIGOS = "codigos_maestros"
         private const val COLECCION_NOTIFICACIONES = "notificaciones"
 
         private const val MAX_INTENTOS_ID = 5
@@ -149,13 +150,37 @@ class VinculacionRepository @Inject constructor(
                 ?: return ResultadoVinculacion(false, "No hay ningún usuario autenticado")
             val uid = usuario.uid
 
-            val negocio = db.collection(COLECCION_NEGOCIOS_PUBLICOS)
-                .whereEqualTo("codigoMaestro", codigoMaestro.trim())
-                .limit(1)
+            // RESOLUCIÓN DEL NEGOCIO POR CÓDIGO MAESTRO (única y determinista).
+            // codigos_maestros/{codigo} es la reserva global: UN código = UN
+            // negocio. Nunca se usa whereEqualTo/limit(1). Si la reserva no
+            // existe o apunta a un negocio incoherente, se falla explícitamente.
+            val codigoNorm = codigoMaestro.trim()
+
+            val codigoDoc = db.collection(COLECCION_CODIGOS)
+                .document(codigoNorm)
                 .get()
                 .esperar()
-            val negocioId = negocio.documents.firstOrNull()?.id
-                ?: return ResultadoVinculacion(false, "No existe ningún negocio con ese código maestro")
+            if (!codigoDoc.exists()) {
+                return ResultadoVinculacion(false, "Código maestro no válido.")
+            }
+            val negocioId = codigoDoc.getString("negocioId")
+            if (negocioId.isNullOrBlank()) {
+                return ResultadoVinculacion(false, "Código maestro no válido.")
+            }
+
+            val negocioPublico = db.collection(COLECCION_NEGOCIOS_PUBLICOS)
+                .document(negocioId)
+                .get()
+                .esperar()
+            if (!negocioPublico.exists() ||
+                negocioPublico.getString("codigoMaestro") != codigoNorm
+            ) {
+                return ResultadoVinculacion(
+                    false,
+                    "El código maestro no es válido o la información del centro " +
+                        "es incoherente. Contacta con tu centro."
+                )
+            }
 
             val dniNorm = dni.trim().uppercase()
 

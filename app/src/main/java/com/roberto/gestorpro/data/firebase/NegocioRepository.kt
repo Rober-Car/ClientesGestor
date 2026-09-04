@@ -22,6 +22,16 @@ data class ResultadoLogo(
 )
 
 /**
+ * DatosPublicosNegocio
+ * --------------------
+ * Datos públicos de identidad del negocio leídos de negocios_publicos/{id}.
+ */
+data class DatosPublicosNegocio(
+    val nombre: String,
+    val logo: String
+)
+
+/**
  * NegocioRepository
  * -----------------
  * ✔ TIPO: clase @Singleton inyectada por Hilt (data/firebase)
@@ -42,12 +52,20 @@ class NegocioRepository @Inject constructor(
         private const val COLECCION_USUARIOS = "usuarios"
         private const val COLECCION_NEGOCIOS = "negocios"
         private const val COLECCION_NEGOCIOS_PUBLICOS = "negocios_publicos"
+        private const val COLECCION_CODIGOS = "codigos_maestros"
 
         /**
          * El negocioId del ADMIN es su propio UID: determinista, único y
          * coherente con la regla que exige getAfter(usuarios).negocioId.
          */
         fun negocioIdDeAdmin(uid: String): String = uid
+
+        /**
+         * Normalización canónica del código maestro. Por ahora solo recorta
+         * espacios al inicio y al final; se usa de forma idéntica en crear,
+         * modificar, reservar y buscar (Admin y Cliente).
+         */
+        fun normalizarCodigo(codigo: String): String = codigo.trim()
     }
 
     /**
@@ -68,6 +86,63 @@ class NegocioRepository @Inject constructor(
                 .exists()
         } catch (_: Exception) {
             false
+        }
+    }
+
+    /**
+     * obtenerNegocioIdCuenta
+     * ----------------------
+     * Lee el `negocioId` de la cuenta autenticada desde su documento
+     * `usuarios/{uid}` (fuente de verdad remota del contexto de negocio).
+     * Devuelve null si no hay sesión, si el documento no existe o si el ADMIN
+     * todavía no tiene negocio asignado. Sirve para validar la identidad de un
+     * backup antes de importar/restaurar.
+     */
+    suspend fun obtenerNegocioIdCuenta(): String? {
+        val uid = auth.currentUser?.uid ?: return null
+        return try {
+            val documento = db.collection(COLECCION_USUARIOS)
+                .document(uid)
+                .get()
+                .esperar()
+            if (documento.exists()) documento.getString("negocioId") else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * obtenerDatosPublicosCuenta
+     * --------------------------
+     * Lee la identidad pública (nombre + logo) del negocio de la cuenta actual
+     * desde `negocios_publicos/{negocioId}` (fuente de verdad común con la app
+     * Cliente). Devuelve null si no hay negocio, no existe el documento público
+     * o falla la lectura (en ese caso la UI conserva su caché).
+     */
+    suspend fun obtenerDatosPublicosCuenta(): DatosPublicosNegocio? {
+        val negocioId = obtenerNegocioIdCuenta() ?: return null
+        return leerDatosPublicos(negocioId)
+    }
+
+    /**
+     * leerDatosPublicos
+     * -----------------
+     * Lee `negocios_publicos/{negocioId}` y devuelve nombre y logo. null si el
+     * documento no existe o la lectura falla (caché como fallback).
+     */
+    suspend fun leerDatosPublicos(negocioId: String): DatosPublicosNegocio? {
+        return try {
+            val documento = db.collection(COLECCION_NEGOCIOS_PUBLICOS)
+                .document(negocioId)
+                .get()
+                .esperar()
+            if (!documento.exists()) return null
+            DatosPublicosNegocio(
+                nombre = documento.getString("nombre") ?: "",
+                logo = documento.getString("logo") ?: ""
+            )
+        } catch (_: Exception) {
+            null
         }
     }
 
@@ -95,10 +170,12 @@ class NegocioRepository @Inject constructor(
     /**
      * crearNegocio
      * ------------
-     * ✔ TIPO: método (fun) suspend de Kotlin → ResultadoAutenticacion
-     * Crea en un único Batch negocios/{negocioId}, negocios_publicos/{negocioId}
-     * y la asignación usuarios/{uid}.negocioId, exactamente lo que exigen las
-     * Security Rules. Devuelve exito true o el mensaje de error para la UI.
+     * Crea el negocio de forma ATÓMICA en una Transaction: reserva el código
+     * maestro en codigos_maestros/{codigo} (si ya existe → rechaza "código ya
+     * en uso"), crea negocios/{negocioId} y negocios_publicos/{negocioId}, y
+     * asigna usuarios/{uid}.negocioId. Firestore serializa las transacciones
+     * sobre codigos_maestros/{codigo}: ante concurrencia solo un ADMIN consigue
+     * el código y el otro recibe el error.
      */
     suspend fun crearNegocio(
         nombre: String,
@@ -108,33 +185,42 @@ class NegocioRepository @Inject constructor(
             ?: return ResultadoAutenticacion(false, "No hay ningún usuario autenticado")
 
         val negocioId = negocioIdDeAdmin(uid)
-        val batch = db.batch()
+        val codigo = normalizarCodigo(codigoMaestro)
+        if (codigo.isBlank()) {
+            return ResultadoAutenticacion(false, "El código maestro no puede estar vacío")
+        }
 
-        batch.set(
-            db.collection(COLECCION_NEGOCIOS).document(negocioId),
-            mapOf(
-                "adminUid" to uid,
-                "nombre" to nombre,
-                "codigoMaestro" to codigoMaestro
-            )
-        )
-
-        batch.set(
-            db.collection(COLECCION_NEGOCIOS_PUBLICOS).document(negocioId),
-            mapOf(
-                "nombre" to nombre,
-                "codigoMaestro" to codigoMaestro
-            )
-        )
-
-        batch.update(
-            db.collection(COLECCION_USUARIOS).document(uid),
-            mapOf("negocioId" to negocioId)
-        )
+        val codigosRef = db.collection(COLECCION_CODIGOS).document(codigo)
+        val negociosRef = db.collection(COLECCION_NEGOCIOS).document(negocioId)
+        val negociosPublicosRef = db.collection(COLECCION_NEGOCIOS_PUBLICOS).document(negocioId)
+        val usuariosRef = db.collection(COLECCION_USUARIOS).document(uid)
 
         return try {
-            batch.commit().esperar()
+            db.runTransaction { transaction ->
+                if (transaction.get(codigosRef).exists()) {
+                    throw CodigoEnUsoException()
+                }
+                transaction.set(
+                    negociosRef,
+                    mapOf(
+                        "adminUid" to uid,
+                        "nombre" to nombre,
+                        "codigoMaestro" to codigo
+                    )
+                )
+                transaction.set(
+                    negociosPublicosRef,
+                    mapOf(
+                        "nombre" to nombre,
+                        "codigoMaestro" to codigo
+                    )
+                )
+                transaction.update(usuariosRef, mapOf("negocioId" to negocioId))
+                transaction.set(codigosRef, mapOf("negocioId" to negocioId))
+            }.esperar()
             ResultadoAutenticacion(true, "Negocio creado correctamente")
+        } catch (e: CodigoEnUsoException) {
+            ResultadoAutenticacion(false, "El código maestro ya está en uso por otro centro")
         } catch (e: Exception) {
             ResultadoAutenticacion(false, mensajeDe(e))
         }
@@ -143,31 +229,78 @@ class NegocioRepository @Inject constructor(
     /**
      * guardarCodigoMaestro
      * --------------------
-     * ✔ TIPO: método (fun) suspend de Kotlin → ResultadoAutenticacion
-     * Actualiza el código maestro en negocios/{id} y negocios_publicos/{id}
-     * dentro del mismo Batch. Cambiarlo no afecta a clientes ya vinculados.
-     * Sirve al modo edición de MiNegocioScreen.
+     * Cambia (o confirma) el código maestro de forma ATÓMICA:
+     *  - si `nuevo == anterior`: solo actualiza negocios/negocios_publicos;
+     *  - si cambia: reserva el código nuevo (rechaza si está ocupado por otro
+     *    negocio), libera el anterior (solo si pertenece a este negocio) y
+     *    actualiza ambos documentos. Todo en una Transaction, sin dejar el
+     *    código viejo reservado ni el nuevo reservado incorrectamente.
      */
-    suspend fun guardarCodigoMaestro(codigoMaestro: String): ResultadoAutenticacion {
+    suspend fun guardarCodigoMaestro(
+        codigoNuevo: String,
+        codigoAnterior: String?
+    ): ResultadoAutenticacion {
         val uid = auth.currentUser?.uid
             ?: return ResultadoAutenticacion(false, "No hay ningún usuario autenticado")
 
         val negocioId = negocioIdDeAdmin(uid)
-        val batch = db.batch()
+        val nuevo = normalizarCodigo(codigoNuevo)
+        if (nuevo.isBlank()) {
+            return ResultadoAutenticacion(false, "El código maestro no puede estar vacío")
+        }
+        val anterior = codigoAnterior?.let { normalizarCodigo(it) }
 
-        batch.update(
-            db.collection(COLECCION_NEGOCIOS).document(negocioId),
-            mapOf("codigoMaestro" to codigoMaestro)
-        )
+        val negociosRef = db.collection(COLECCION_NEGOCIOS).document(negocioId)
+        val negociosPublicosRef = db.collection(COLECCION_NEGOCIOS_PUBLICOS).document(negocioId)
 
-        batch.update(
-            db.collection(COLECCION_NEGOCIOS_PUBLICOS).document(negocioId),
-            mapOf("codigoMaestro" to codigoMaestro)
-        )
+        if (nuevo == anterior) {
+            // Mismo código: no tocar codigos_maestros.
+            return try {
+                val batch = db.batch()
+                batch.update(negociosRef, mapOf("codigoMaestro" to nuevo))
+                batch.update(negociosPublicosRef, mapOf("codigoMaestro" to nuevo))
+                batch.commit().esperar()
+                ResultadoAutenticacion(true, "Código maestro actualizado")
+            } catch (e: Exception) {
+                ResultadoAutenticacion(false, mensajeDe(e))
+            }
+        }
+
+        val codigoNuevoRef = db.collection(COLECCION_CODIGOS).document(nuevo)
+        val codigoAnteriorRef = anterior?.let {
+            db.collection(COLECCION_CODIGOS).document(it)
+        }
 
         return try {
-            batch.commit().esperar()
+            db.runTransaction { transaction ->
+                val reservadoNuevo = transaction.get(codigoNuevoRef)
+                if (reservadoNuevo.exists() &&
+                    reservadoNuevo.getString("negocioId") != negocioId
+                ) {
+                    throw CodigoEnUsoException()
+                }
+
+                if (codigoAnteriorRef != null) {
+                    val reservadoAnterior = transaction.get(codigoAnteriorRef)
+                    if (reservadoAnterior.exists()) {
+                        if (reservadoAnterior.getString("negocioId") != negocioId) {
+                            // El código anterior no pertenece a este negocio:
+                            // estado incoherente, no se debe liberar nada.
+                            throw IntegridadCodigoException()
+                        }
+                        transaction.delete(codigoAnteriorRef)
+                    }
+                }
+
+                transaction.set(codigoNuevoRef, mapOf("negocioId" to negocioId))
+                transaction.update(negociosRef, mapOf("codigoMaestro" to nuevo))
+                transaction.update(negociosPublicosRef, mapOf("codigoMaestro" to nuevo))
+            }.esperar()
             ResultadoAutenticacion(true, "Código maestro actualizado")
+        } catch (e: CodigoEnUsoException) {
+            ResultadoAutenticacion(false, "El código maestro ya está en uso por otro centro")
+        } catch (e: IntegridadCodigoException) {
+            ResultadoAutenticacion(false, "El código maestro anterior no es coherente. Contacta con soporte")
         } catch (e: Exception) {
             ResultadoAutenticacion(false, mensajeDe(e))
         }
@@ -263,3 +396,17 @@ class NegocioRepository @Inject constructor(
         }
     }
 }
+
+/**
+ * CodigoEnUsoException
+ * --------------------
+ * Señala que el código maestro ya está reservado por otro negocio.
+ */
+private class CodigoEnUsoException : Exception()
+
+/**
+ * IntegridadCodigoException
+ * -------------------------
+ * Señala un estado incoherente de la reserva del código maestro.
+ */
+private class IntegridadCodigoException : Exception()

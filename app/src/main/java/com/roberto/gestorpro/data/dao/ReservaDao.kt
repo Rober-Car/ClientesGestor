@@ -26,6 +26,9 @@ interface ReservaDao {
     @Query("SELECT * FROM reserva WHERE idCliente = :idCliente")
     suspend fun obtenerReservasPorClienteSync(idCliente: Int): List<ReservaEntity>
 
+    @Query("SELECT * FROM reserva ORDER BY idSesion ASC, idCliente ASC")
+    suspend fun obtenerTodasLasReservasSync(): List<ReservaEntity>
+
     @Query("SELECT * FROM reserva WHERE idSesion = :idSesion AND idCliente = :idCliente")
     suspend fun obtenerReserva(idSesion: Int, idCliente: Int): ReservaEntity?
 

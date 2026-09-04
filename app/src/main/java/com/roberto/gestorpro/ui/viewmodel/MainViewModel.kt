@@ -145,6 +145,7 @@ class MainViewModel @Inject constructor(
             is PreparadorLocalCuenta.ResultadoResolver.MismaCuenta,
             is PreparadorLocalCuenta.ResultadoResolver.AdoptadoSilencioso -> {
                 refrescarIdentidadLocal()
+                refrescarIdentidadRemota()
                 _estadoPreparacion.value = EstadoPreparacion.Listo
                 lanzarReintentoDeEliminacionesPendientes()
             }
@@ -160,6 +161,7 @@ class MainViewModel @Inject constructor(
                 // WIPE ya aplicado por el preparador. No se reintenta nada del
                 // propietario anterior bajo la nueva cuenta.
                 refrescarIdentidadLocal()
+                refrescarIdentidadRemota()
                 _cambioPropietarioToken.value += 1
                 _estadoPreparacion.value = EstadoPreparacion.Listo
             }
@@ -185,6 +187,7 @@ class MainViewModel @Inject constructor(
             } else {
                 preparadorLocalCuenta.wipeYAdoptar(uid)
                 refrescarIdentidadLocal()
+                refrescarIdentidadRemota()
                 _cambioPropietarioToken.value += 1
             }
             _estadoPreparacion.value = EstadoPreparacion.Listo
@@ -204,6 +207,7 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             preparadorLocalCuenta.wipeYAdoptar(uid)
             refrescarIdentidadLocal()
+            refrescarIdentidadRemota()
             _cambioPropietarioToken.value += 1
             _estadoPreparacion.value = EstadoPreparacion.Listo
         }
@@ -390,14 +394,22 @@ class MainViewModel @Inject constructor(
     /**
      * guardarCodigoMaestro
      * --------------------
-     * Actualiza el código maestro del negocio en los dos documentos remotos.
+     * Actualiza (o confirma) el código maestro del negocio de forma atómica,
+     * liberando el código anterior si es distinto. Devuelve null en éxito o el
+     * mensaje de error (p. ej. "código en uso") para la UI.
      */
-    suspend fun guardarCodigoMaestro(codigoMaestro: String): String? {
+    suspend fun guardarCodigoMaestro(
+        codigoMaestro: String,
+        codigoAnterior: String?
+    ): String? {
         if (codigoMaestro.isBlank()) return "El código maestro no puede estar vacío"
 
         _operandoRemoto.value = true
         try {
-            val resultado = negocioRepository.guardarCodigoMaestro(codigoMaestro.trim())
+            val resultado = negocioRepository.guardarCodigoMaestro(
+                codigoNuevo = codigoMaestro.trim(),
+                codigoAnterior = codigoAnterior?.trim()
+            )
             return if (resultado.exito) null else resultado.mensaje
         } finally {
             _operandoRemoto.value = false
@@ -447,6 +459,25 @@ class MainViewModel @Inject constructor(
             _logoNegocio.value = preferencesRepository.logoNegocio.first()
             _idClienteSesion.value = preferencesRepository.obtenerIdClienteSesion()
         }
+    }
+
+    /**
+     * refrescarIdentidadRemota
+     * ------------------------
+     * Refresca la identidad del centro (nombre + logo) desde la fuente de
+     * verdad remota negocios_publicos/{negocioId} y actualiza DataStore (caché)
+     * y el estado en memoria. Se ejecuta al arrancar con sesión, tras login y
+     * tras crear/editar el negocio. Si la lectura remota falla o no hay negocio,
+     * NO borra la caché válida: se conserva lo que haya en DataStore.
+     */
+    private suspend fun refrescarIdentidadRemota() {
+        val datos = negocioRepository.obtenerDatosPublicosCuenta() ?: return
+        val nombre = datos.nombre.trim()
+        val logo = datos.logo.trim()
+        preferencesRepository.setNombreNegocio(nombre)
+        preferencesRepository.setLogoNegocio(logo)
+        _nombreNegocio.value = nombre
+        _logoNegocio.value = logo
     }
 
     /**

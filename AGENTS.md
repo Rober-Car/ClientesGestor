@@ -2,6 +2,67 @@
 
 Lee este archivo completo antes de modificar el proyecto.
 
+> ## ⚠️ CHECKPOINT 2026-09-04 (última tanda documental — actualización informativa)
+>
+> Este bloque describe el estado REAL del árbol al cierre de la tanda de trabajo reciente
+> (características de identidad, backups y unicidad del código maestro). **HEAD del desarrollador:
+> `500bae3`** (últimos commits del desarrollador `500bae3` / `2463f11` / `300829c`, que incluyen entre
+> otros cambios de estilos de perfil, visibilidad de contraseña y una corrección de un ADMIN que podía
+> entrar en datos de otro ADMIN). El **working tree NO está commiteado** (ver `git status`): los cambios
+> SIN commit de esta tanda son los siguientes y **NO deben revertirse**:
+> `ReservaDao/ServicioDao/SesionDao`, `data/export/ExportManager.kt`, `NegocioRepository.kt`,
+> `AppNavigation.kt`, `LoginScreen.kt`, `DatosScreen.kt`, `MiNegocioScreen.kt`, `HomeScreen.kt`,
+> `DatosViewModel.kt`, `MainViewModel.kt` (Admin); `VinculacionRepository.kt` y `HomeScreen.kt`
+> (Cliente); `firestore.rules`; `firestore-tests/firestore.rules.test.cjs` (+ basura del emulador
+> `firestore-debug.log`).
+>
+> ### Cambios cerrados en el árbol actual (código, SIN deploy)
+> 1. **Backup v1 (`ExportManager` reescrito):** ZIP con `manifest.json` + `media/`; exportar,
+>    importar (merge atómico) y restaurar (replace completo atómico con `clearAllTables()`); validación
+>    estricta de `negocioId` contra `usuarios/{uid}`; normalización del `negocioId` de filas al negocio
+>    actual; DNI duplicado con distinto idCliente → aborto total; backups JSON legacy → rechazo
+>    explícito; recálculo + publicación del resumen económico de los clientes afectados; fotos en ZIP
+>    (checkbox), logo NO empaquetado (se recupera de Firestore). No toca `uid_propietario_datos_locales`.
+> 2. **Aislamiento de cuenta/propietario local (`data/local/PreparadorLocalCuenta.kt` + guard de
+>    `MainViewModel`/`AppNavigation`):** owner por `uid_propietario_datos_locales`, WIPE en cambio de
+>    cuenta, bloques de propietario indeterminado y pendientes; **corregido** el crash de arranque
+>    (orden de inicialización de los `MutableStateFlow` de identidad).
+> 3. **"Nueva actividad" sin negocio:** reutiliza el componente compartido `SinNegocioContenido`
+>    (creado en `ui/components/`) en lugar de navegar directo a Mi negocio; no crea nada en Room.
+> 4. **Identidad única del centro:** el Admin refresca nombre/logo desde `negocios_publicos/{negocioId}`
+>    al arrancar/login (DataStore como caché, fallback si no hay red); el nombre se actualiza
+>    **inmediatamente** en la UI tras guardar (se comparte la instancia Activity-scoped de
+>    `MainViewModel` entre Home/MiNegocio/Login — PARTE A); cabeceras de Admin y Cliente URL-aware
+>    (Coil: URL remota o ruta local) con nombre con ellipsis.
+> 5. **Unicidad GLOBAL del código maestro (PARTE B, SIN deploy):** colección `codigos_maestros/{codigo}`
+>    (`{negocioId}`); `NegocioRepository.crearNegocio` y `guardarCodigoMaestro(nuevo, anterior)` en
+>    `runTransaction` (reserva/libera el código atómicamente, rechaza códigos ocupados); VÍA 1 del
+>    Cliente resuelve **solo** por `codigos_maestros/{codigo}` (sin `whereEqualTo/limit(1)`; fallo
+>    explícito si no existe o incoherente con `negocios_publicos`). VÍA 2 intacta.
+> 6. **`firestore.rules` LOCAL** con bloque `codigos_maestros` (get autenticado, list/update false,
+>    create/delete ligados al negocio y coherentes con `negocios`/`negocios_publicos` vía getAfter) y
+>    validación cruzada en `negocios`/`negocios_publicos`. **NO desplegado.**
+>
+> ### Verificación ejecutada (working tree)
+> - `npm --prefix firestore-tests test` → **165/165** (PRUEBA 137–150 nuevas de códigos maestros).
+> - Unit tests `:app` y `:appCliente` → BUILD SUCCESSFUL; `assembleDebug` ambos módulos → OK.
+> - **Sin deploy:** el ruleset desplegado en `gestorpro-50e83` sigue siendo el anterior (SIN
+>   `codigos_maestros`). No se desplegó Firestore Rules, Storage, Functions, ni se tocaron datos.
+>
+> ### Estado de producción (solo lectura verificado)
+> - Negocio **Coliseo** (`bug1uPQ9UnPJ4wUWkEeUS8g2J9D3`) y negocio **prueba**
+>   (`SBgEVx1wraREVMKxfc0dTys4lT13`) comparten `codigoMaestro = 123456` (duplicado real). Índices del
+>   negocio Coliseo intactos (2). La **migración NO se ha ejecutado**.
+>
+> ### Próximos pasos pendientes (AUTORIZACIÓN del propietario)
+> 1. **Migración/despliegue del código maestro (orden definitivo):** corregir el duplicado en consola
+>    (prueba → `654321` en `negocios` y `negocios_publicos`) → crear `codigos_maestros/123456` y
+>    `codigos_maestros/654321` → tests → **desplegar `firestore.rules`** → instalar APK Admin y Cliente
+>    nuevas → probar VÍA 1. No hay transición retrocompatible segura: se acepta ventana de
+>    mantenimiento corta (no crear/cambiar negocio entre deploy de Rules y APK nueva).
+> 2. **Storage/logo:** pendiente de habilitar el bucket (infraestructura, por separado).
+> 3. **Tests Android dedicados** del backup y del guard de propietario (fase final).
+
 ## Proyecto
 
 - **Nombre:** GestorPro

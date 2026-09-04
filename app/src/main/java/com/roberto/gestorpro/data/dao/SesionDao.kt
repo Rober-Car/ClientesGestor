@@ -43,6 +43,9 @@ interface SesionDao {
     @Query("SELECT * FROM sesion WHERE fecha >= :inicio AND fecha < :fin ORDER BY idServicio ASC, fecha ASC, hora ASC")
     suspend fun obtenerSesionesEntre(inicio: Long, fin: Long): List<SesionEntity>
 
+    @Query("SELECT * FROM sesion ORDER BY idServicio ASC, fecha ASC, hora ASC")
+    suspend fun obtenerTodasLasSesionesSync(): List<SesionEntity>
+
     @Query("DELETE FROM sesion WHERE idServicio = :idServicio AND fecha >= :desde")
     suspend fun eliminarSesionesFuturasPorServicio(idServicio: Int, desde: Long)
 

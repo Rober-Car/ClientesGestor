@@ -2639,3 +2639,51 @@ precio final editable que no cambia históricos; Functions: automatizaciones fut
 2. Seguir pendientes previos sin cerrar: logs `[DIAG alta]`/`[DIAG sesiones]`/`ClasesDiagnostico`,
    confirmar fix del alta con BD limpia, VÍA2/fecha de nacimiento, `fallbackToDestructiveMigration`,
    botones restantes, diagnóstico "Crear negocio", Blaze/Functions/Storage.
+
+# ACTUALIZACIÓN 2026-09-04 (TANDA: IDENTIDAD / BACKUP v1 / UNICIDAD CÓDIGO MAESTRO) — checkpoint de cierre
+
+> Estado de CONTINUACIÓN. HEAD del desarrollador: `500bae3` (commits recientes del desarrollador de
+> estilos de perfil / contraseña / aislamiento de ADMIN). Working tree con cambios SIN commit de esta
+> tanda (lista en AGENTS.md 2026-09-04). Resumen de la tanda y verificación:
+
+## Qué se hizo (en orden)
+1. **Guard de negocio en Servicios/Actividades:** "Nueva actividad" sin negocio muestra la interfaz
+   explicativa compartida `SinNegocioContenido` (extraído a `ui/components/`) con botón "Crear mi
+   negocio" → MiNegocioScreen; con negocio navega a CREAR_SERVICIO como antes. Clientes reutiliza el
+   componente compartido sin cambios visuales.
+2. **Aislamiento local de cuenta/propietario:** `data/local/PreparadorLocalCuenta.kt`, clave
+   `uid_propietario_datos_locales`, WIPE completo en cambio de cuenta, bloqueos por pendientes e
+   indeterminado; resets de estado en memoria (MovimientoRepository, NotificacionesViewModel);
+   **corregido el crash de arranque** (init de identidad tras la inicialización de los StateFlows).
+3. **Backup v1:** `ExportManager` reescrito a ZIP (`manifest.json` + `media/`); validación de
+   `negocioId` (rechaza backups de otro negocio / legacy), merge atómico (importar), replace completo
+   atómico (restaurar), recálculo + resumen económico de clientes afectados, media de fotos, checkbox
+   "Incluir fotografías"; `DatosScreen`/`DatosViewModel` reescritos. Logo no empaquetado.
+4. **Identidad única del centro:** fuente remota `negocios_publicos/{negocioId}`; Admin refresca
+   nombre/logo al arrancar/login/tras WIPE (caché DataStore + fallback offline); MainViewModel
+   Activity-scoped compartido entre Home/MiNegocio/Login → el nombre cambia inmediatamente al guardar
+   (PARTE A); cabeceras URL-aware con ellipsis.
+5. **Unicidad GLOBAL del código maestro (PARTE B, sin deploy):** `codigos_maestros/{codigo}`;
+   `crearNegocio` y `guardarCodigoMaestro(nuevo, anterior)` en `runTransaction` (reserva/liberación
+   atómica, rechazo de códigos ocupados); VÍA 1 del Cliente resuelve solo por `codigos_maestros`
+   (0/1/incoherente explícitos, sin `limit(1)`/`firstOrNull`); Rules LOCALES con bloque
+   `codigos_maestros` + validación cruzada en `negocios`/`negocios_publicos`. VÍA 2 intacta.
+6. **Pre-migración (solo lectura):** verificado el duplicado real en producción (Coliseo y "prueba"
+   comparten `123456`); índices de Coliseo intactos (2); no hace falta tocar clientes/usuarios.
+   Migración/despliegue **pendiente de autorización** (no ejecutada).
+
+## Verificación
+- `npm --prefix firestore-tests test` → **165/165** (nuevas PRUEBA 137–150 de códigos maestros).
+- Unit `:app` y `:appCliente` → BUILD SUCCESSFUL; `assembleDebug` de ambos módulos → OK.
+- `:app`/`:appCliente` compileDebugKotlin → OK.
+- **Sin commit, sin deploy, sin tocar datos de producción** en esta tanda.
+
+## Para REANUDAR
+1. **Migración/despliegue del código maestro (orden definitivo en AGENTS.md 2026-09-04):** corregir en
+   consola el duplicado (prueba → `654321`), crear `codigos_maestros/123456` y `codigos_maestros/654321`,
+   re-ejecutar tests, desplegar `firestore.rules`, instalar APK Admin y Cliente nuevas, probar VÍA 1.
+   Ventana de mantenimiento corta aceptada (no crear/cambiar negocio entre Rules y APK nueva).
+2. Commit agrupado del working tree y limpieza (`firestore-tests/firestore-debug.log`).
+3. Pendientes previos sin cerrar: logs de diagnóstico, Storage/bucket (logo), tests Android dedicados
+   (backup/owner), VÍA 2/fecha nacimiento, `fallbackToDestructiveMigration`, botones restantes,
+   diagnóstico "Crear negocio", Blaze/Functions.

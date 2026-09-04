@@ -43,6 +43,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
@@ -92,30 +93,38 @@ fun HomeScreen(
                     .padding(horizontal = 20.dp, vertical = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                if (logoNegocio.isNotBlank()) {
-                    AsyncImage(
-                        model = logoNegocio,
-                        contentDescription = "Logo del centro",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(96.dp)
-                            .clip(CircleShape)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-
-                Text(
-                    text = "GestorPro Cliente",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold
-                )
-
                 if (vinculado) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (logoNegocio.isNotBlank()) {
+                            AsyncImage(
+                                model = logoNegocio,
+                                contentDescription = "Logo del centro",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                        }
+
+                        Text(
+                            text = nombreNegocio.ifBlank { "Tu centro" },
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                } else {
                     Text(
-                        text = nombreNegocio.ifBlank { "Tu centro" },
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "GestorPro Cliente",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }

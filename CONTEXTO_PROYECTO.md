@@ -12,6 +12,34 @@
 > - **Abierto:** diagnóstico "Crear negocio en la nube" PERMISSION_DENIED en producción (hipótesis principal: `usuarios/{uid}.negocioId` asignado pero `negocios/{uid}` ausente → lo bloquean también las Rules LOCALES); pendiente de confirmar en consola y reconciliar con Admin SDK.
 > - Algunas cifras y frases de las secciones siguientes (HEAD limpio `60cf834`, Room v15, "réplica no cableada", 143 tests) quedan **superadas por este bloque**; prevalecerá lo verificado arriba hasta el próximo traspaso.
 
+> **⚠️ ACTUALIZACIÓN 2026-09-04 (IDENTIDAD / BACKUP v1 / UNICIDAD CÓDIGO MAESTRO — estado del working tree):**
+> verificado contra el árbol real. **HEAD del desarrollador: `500bae3`** (commits recientes del
+> desarrollador sobre estilos de perfil, visibilidad de contraseña y aislamiento de ADMIN). El working
+> tree contiene **cambios SIN commit** (ver `git status`; lista autoritativa en el CHECKPOINT de
+> AGENTS.md 2026-09-04). Este bloque SUPERSEDE afirmaciones anteriores desactualizadas:
+> - **Backup v1 (`data/export/ExportManager.kt`, reescrito):** ZIP `manifest.json` + `media/`; validación
+>   estricta de `negocioId` vs `usuarios/{uid}`; merge (importar) y replace completo atómico
+>   (restaurar, `clearAllTables()`); normalización de filas al negocio actual; DNI duplicado → aborto;
+>   legacy JSON rechazado; recálculo + publicación de resumen económico de clientes afectados; fotos en
+>   ZIP; logo NO empaquetado. `DatosScreen`/`DatosViewModel` reescritos.
+> - **Identidad única del centro:** fuente remota común `negocios_publicos/{negocioId}` (nombre+logo);
+>   Admin refresca al arrancar/login y tras WIPE (DataStore = caché, fallback offline); cabeceras Admin y
+>   Cliente con `[LOGO] Nombre`, logo URL-aware (Coil) y ellipsis; el nombre se actualiza inmediatamente
+>   en la UI tras guardar (MainViewModel Activity-scoped compartido entre Home/MiNegocio/Login).
+> - **Aislamiento local de cuenta/propietario** (`data/local/PreparadorLocalCuenta.kt`, clave
+>   `uid_propietario_datos_locales`): WIPE en cambio de cuenta, bloques indeterminado/pendientes; crash de
+>   arranque corregido (orden de `init` de identidad).
+> - **Unicidad GLOBAL del código maestro (SIN deploy):** colección `codigos_maestros/{codigo}`
+>   (`{negocioId}`), creación/cambio en `runTransaction`, VÍA 1 del Cliente resuelve solo por
+>   `codigos_maestros` (sin `whereEqualTo/limit(1)`); Rules LOCALES con bloque `codigos_maestros` +
+>   validación cruzada. **Rules desplegadas en producción siguen SIN `codigos_maestros`.**
+> - **Tests/verificación:** `npm --prefix firestore-tests test` → **165/165** (PRUEBA 137–150 nuevas);
+>   unit `:app`/`:appCliente` BUILD SUCCESSFUL; `assembleDebug` ambos módulos OK. **Sin deploy; sin
+>   migración de datos** (el duplicado real Coliseo/prueba = `123456` sigue en producción, verificado
+>   solo-lectura; plan de migración en AGENTS.md 2026-09-04).
+> - El resto de secciones de este informe (esquemas, decisiones, §14-§25) sigue vigente salvo lo aquí
+>   corregido.
+
 Convención de evidencia usada en todo el informe:
 - **[CONFIRMADO]** — comprobado directamente en el código/configuración/ejecución de hoy.
 - **[INFERIDO]** — conclusión razonable por el comportamiento del código, no documentada explícitamente.

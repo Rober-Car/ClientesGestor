@@ -3949,3 +3949,206 @@ test("PRUEBA 136: el CLIENTE NO puede modificar fechaFinActual -> DENY", async (
         "cliente-resumen-136", 6105, "fechaFinActual", Timestamp.fromMillis(1704067200000)
     ));
 });
+
+// ============================================================================
+// UNICIDAD GLOBAL DEL CÓDIGO MAESTRO (codigos_maestros/{codigo})
+// ============================================================================
+
+function docNegocio(adminUid, codigo) {
+    return { adminUid, nombre: "Centro", codigoMaestro: codigo };
+}
+function docPublico(codigo) {
+    return { nombre: "Centro", codigoMaestro: codigo };
+}
+function docCodigo(negocioId) {
+    return { negocioId };
+}
+
+async function sembrarAdminSinNegocio(uid) {
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), "usuarios", uid), {
+            rol: "ADMIN",
+            activo: true,
+            clienteId: null,
+            negocioId: null
+        });
+    });
+}
+
+async function sembrarAdminConNegocio(uid, codigo) {
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const db = context.firestore();
+        await setDoc(doc(db, "usuarios", uid), {
+            rol: "ADMIN",
+            activo: true,
+            clienteId: null,
+            negocioId: uid
+        });
+        await setDoc(doc(db, "negocios", uid), docNegocio(uid, codigo));
+        await setDoc(doc(db, "negocios_publicos", uid), docPublico(codigo));
+        await setDoc(doc(db, "codigos_maestros", codigo), docCodigo(uid));
+    });
+}
+
+function batchCrearNegocioConCodigo(db, adminUid, codigo) {
+    const batch = writeBatch(db);
+    batch.set(doc(db, "negocios", adminUid), docNegocio(adminUid, codigo));
+    batch.set(doc(db, "negocios_publicos", adminUid), docPublico(codigo));
+    batch.update(doc(db, "usuarios", adminUid), { negocioId: adminUid });
+    batch.set(doc(db, "codigos_maestros", codigo), docCodigo(adminUid));
+    return batch.commit();
+}
+
+test("PRUEBA 137: crear negocio con código libre -> ALLOW", async () => {
+    const admin = "admin-cod-137";
+    const codigo = "C137";
+    await sembrarAdminSinNegocio(admin);
+    const db = testEnvironment.authenticatedContext(admin).firestore();
+    await assertSucceeds(batchCrearNegocioConCodigo(db, admin, codigo));
+});
+
+test("PRUEBA 138: crear negocio con código ya existente -> DENY", async () => {
+    const dueno = "admin-cod-138a";
+    const admin = "admin-cod-138b";
+    const codigo = "C138";
+    await sembrarAdminConNegocio(dueno, codigo);
+    await sembrarAdminSinNegocio(admin);
+    const db = testEnvironment.authenticatedContext(admin).firestore();
+    await assertFails(batchCrearNegocioConCodigo(db, admin, codigo));
+});
+
+test("PRUEBA 139: concurrencia - el segundo create sobre el mismo código falla", async () => {
+    const a = "admin-cod-139a";
+    const b = "admin-cod-139b";
+    const codigo = "C139";
+    await sembrarAdminSinNegocio(a);
+    await sembrarAdminSinNegocio(b);
+    const dbA = testEnvironment.authenticatedContext(a).firestore();
+    await assertSucceeds(batchCrearNegocioConCodigo(dbA, a, codigo));
+    const dbB = testEnvironment.authenticatedContext(b).firestore();
+    await assertFails(batchCrearNegocioConCodigo(dbB, b, codigo));
+});
+
+test("PRUEBA 140: cambiar a código libre libera el anterior y reserva el nuevo", async () => {
+    const admin = "admin-cod-140";
+    const viejo = "C140V";
+    const nuevo = "C140N";
+    await sembrarAdminConNegocio(admin, viejo);
+    const db = testEnvironment.authenticatedContext(admin).firestore();
+    const batch = writeBatch(db);
+    batch.delete(doc(db, "codigos_maestros", viejo));
+    batch.set(doc(db, "codigos_maestros", nuevo), docCodigo(admin));
+    batch.update(doc(db, "negocios", admin), { codigoMaestro: nuevo });
+    batch.update(doc(db, "negocios_publicos", admin), { codigoMaestro: nuevo });
+    await assertSucceeds(batch.commit());
+});
+
+test("PRUEBA 141: cambiar a código ocupado por otro negocio -> DENY", async () => {
+    const dueno = "admin-cod-141a";
+    const admin = "admin-cod-141b";
+    const propio = "C141B";
+    const ocupado = "C141A";
+    await sembrarAdminConNegocio(dueno, ocupado);
+    await sembrarAdminConNegocio(admin, propio);
+    const db = testEnvironment.authenticatedContext(admin).firestore();
+    const batch = writeBatch(db);
+    batch.delete(doc(db, "codigos_maestros", propio));
+    batch.set(doc(db, "codigos_maestros", ocupado), docCodigo(admin));
+    batch.update(doc(db, "negocios", admin), { codigoMaestro: ocupado });
+    batch.update(doc(db, "negocios_publicos", admin), { codigoMaestro: ocupado });
+    await assertFails(batch.commit());
+});
+
+test("PRUEBA 142: mantener el mismo código (sin tocar codigos_maestros) -> ALLOW", async () => {
+    const admin = "admin-cod-142";
+    const codigo = "C142";
+    await sembrarAdminConNegocio(admin, codigo);
+    const db = testEnvironment.authenticatedContext(admin).firestore();
+    const batch = writeBatch(db);
+    batch.update(doc(db, "negocios", admin), { codigoMaestro: codigo });
+    batch.update(doc(db, "negocios_publicos", admin), { codigoMaestro: codigo });
+    await assertSucceeds(batch.commit());
+});
+
+test("PRUEBA 143: solo el propio negocio puede liberar su reserva", async () => {
+    const dueno = "admin-cod-143a";
+    const otro = "admin-cod-143b";
+    const codigo = "C143";
+    await sembrarAdminConNegocio(dueno, codigo);
+    await sembrarAdminConNegocio(otro, "C143B");
+    const db = testEnvironment.authenticatedContext(otro).firestore();
+    await assertFails(deleteDoc(doc(db, "codigos_maestros", codigo)));
+
+    const dbDueno = testEnvironment.authenticatedContext(dueno).firestore();
+    const batch = writeBatch(dbDueno);
+    batch.delete(doc(dbDueno, "codigos_maestros", codigo));
+    batch.set(doc(dbDueno, "codigos_maestros", "C143N"), docCodigo(dueno));
+    batch.update(doc(dbDueno, "negocios", dueno), { codigoMaestro: "C143N" });
+    batch.update(doc(dbDueno, "negocios_publicos", dueno), { codigoMaestro: "C143N" });
+    await assertSucceeds(batch.commit());
+});
+
+test("PRUEBA 144: VÍA 1 - un autenticado puede leer la reserva de un código", async () => {
+    const admin = "admin-cod-144";
+    const codigo = "C144";
+    await sembrarAdminConNegocio(admin, codigo);
+    const db = testEnvironment.authenticatedContext(CLIENTE_UID).firestore();
+    await assertSucceeds(getDoc(doc(db, "codigos_maestros", codigo)));
+});
+
+test("PRUEBA 145: un no autenticado NO puede leer codigos_maestros", async () => {
+    const db = testEnvironment.unauthenticatedContext().firestore();
+    await assertFails(getDoc(doc(db, "codigos_maestros", "C144")));
+});
+
+test("PRUEBA 146: no se puede enumerar codigos_maestros (list -> DENY)", async () => {
+    const admin = "admin-cod-146";
+    await sembrarAdminConNegocio(admin, "C146");
+    const db = testEnvironment.authenticatedContext(admin).firestore();
+    await assertFails(getDocs(query(collection(db, "codigos_maestros"))));
+});
+
+test("PRUEBA 147: un Admin no puede reservar un código para otro negocio", async () => {
+    const admin = "admin-cod-147";
+    const codigo = "C147";
+    await sembrarAdminSinNegocio(admin);
+    const db = testEnvironment.authenticatedContext(admin).firestore();
+    // La reserva apuntaría a otro negocio y no hay coherencia con negocios del uid.
+    await assertFails(
+        setDoc(doc(db, "codigos_maestros", codigo), docCodigo("negocio-ajeno"))
+    );
+});
+
+test("PRUEBA 148: un Admin no puede eliminar la reserva de otro negocio", async () => {
+    const dueno = "admin-cod-148a";
+    const otro = "admin-cod-148b";
+    const codigo = "C148";
+    await sembrarAdminConNegocio(dueno, codigo);
+    await sembrarAdminConNegocio(otro, "C148B");
+    const db = testEnvironment.authenticatedContext(otro).firestore();
+    await assertFails(deleteDoc(doc(db, "codigos_maestros", codigo)));
+});
+
+test("PRUEBA 149: actualizar negocios a un código reservado por otro negocio -> DENY", async () => {
+    const dueno = "admin-cod-149a";
+    const admin = "admin-cod-149b";
+    const ocupado = "C149A";
+    await sembrarAdminConNegocio(dueno, ocupado);
+    await sembrarAdminConNegocio(admin, "C149B");
+    const db = testEnvironment.authenticatedContext(admin).firestore();
+    await assertFails(
+        updateDoc(doc(db, "negocios", admin), { codigoMaestro: ocupado })
+    );
+});
+
+test("PRUEBA 150: crear negocio SIN reservar el código en la misma operación -> DENY", async () => {
+    const admin = "admin-cod-150";
+    const codigo = "C150";
+    await sembrarAdminSinNegocio(admin);
+    const db = testEnvironment.authenticatedContext(admin).firestore();
+    const batch = writeBatch(db);
+    batch.set(doc(db, "negocios", admin), docNegocio(admin, codigo));
+    batch.set(doc(db, "negocios_publicos", admin), docPublico(codigo));
+    batch.update(doc(db, "usuarios", admin), { negocioId: admin });
+    await assertFails(batch.commit());
+});

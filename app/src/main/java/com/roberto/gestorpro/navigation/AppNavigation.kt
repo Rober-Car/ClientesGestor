@@ -122,7 +122,7 @@ fun AppNavigation() {
     ) {
 
         composable(Routes.LOGIN) {
-            LoginScreen(navController)
+            LoginScreen(navController, mainViewModel)
         }
 
         composable(Routes.REGISTRO) {
@@ -134,7 +134,7 @@ fun AppNavigation() {
         }
 
         composable(Routes.HOME) {
-            HomeScreen(navController)
+            HomeScreen(navController, mainViewModel)
         }
 
         composable(Routes.CLIENTES) {
@@ -187,7 +187,7 @@ fun AppNavigation() {
         }
 
         composable(Routes.MINEGOCIO) {
-            MiNegocioScreen(navController)
+            MiNegocioScreen(navController, mainViewModel)
         }
 
         composable(Routes.CREAR_NEGOCIO) {

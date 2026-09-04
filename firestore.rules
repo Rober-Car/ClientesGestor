@@ -276,12 +276,22 @@ service cloud.firestore {
         && request.resource.data.codigoMaestro is string
         && getAfter(
           /databases/$(database)/documents/usuarios/$(request.auth.uid)
+        ).data.negocioId == negocioId
+        && getAfter(
+          /databases/$(database)/documents/codigos_maestros/$(request.resource.data.codigoMaestro)
         ).data.negocioId == negocioId;
 
       allow update: if esAdmin()
         && usuarioActual().negocioId == negocioId
         && resource.data.adminUid == request.auth.uid
-        && request.resource.data.adminUid == request.auth.uid;
+        && request.resource.data.adminUid == request.auth.uid
+        && (!request.resource.data.diff(resource.data)
+              .affectedKeys()
+              .hasAny(["codigoMaestro"])
+            || (request.resource.data.codigoMaestro is string
+                && getAfter(
+                  /databases/$(database)/documents/codigos_maestros/$(request.resource.data.codigoMaestro)
+                ).data.negocioId == negocioId));
 
       allow delete: if false;
     }
@@ -302,15 +312,60 @@ service cloud.firestore {
         && request.resource.data.nombre is string
         && getAfter(
           /databases/$(database)/documents/usuarios/$(request.auth.uid)
+        ).data.negocioId == negocioId
+        && getAfter(
+          /databases/$(database)/documents/codigos_maestros/$(request.resource.data.codigoMaestro)
         ).data.negocioId == negocioId;
 
       allow update: if esAdmin()
         && usuarioActual().negocioId == negocioId
         && request.resource.data.diff(resource.data)
             .affectedKeys()
-            .hasOnly(["codigoMaestro", "nombre", "logo"]);
+            .hasOnly(["codigoMaestro", "nombre", "logo"])
+        && (!request.resource.data.diff(resource.data)
+              .affectedKeys()
+              .hasAny(["codigoMaestro"])
+            || (request.resource.data.codigoMaestro is string
+                && getAfter(
+                  /databases/$(database)/documents/codigos_maestros/$(request.resource.data.codigoMaestro)
+                ).data.negocioId == negocioId));
 
       allow delete: if false;
+    }
+
+    // =========================================================
+    // CODIGOS MAESTROS (unicidad global)
+    // documentId = codigo normalizado. UN codigo = UN negocio.
+    // No enumerable. La reserva y los documentos negocios/negocios_publicos
+    // deben quedar coherentes dentro de la misma operación (getAfter).
+    // =========================================================
+
+    match /codigos_maestros/{codigo} {
+      allow get: if autenticado();
+
+      allow list: if false;
+
+      allow update: if false;
+
+      allow create: if esAdmin()
+        && request.resource.data.keys().hasOnly(["negocioId"])
+        && request.resource.data.negocioId == request.auth.uid
+        && getAfter(
+          /databases/$(database)/documents/negocios/$(request.resource.data.negocioId)
+        ).data.codigoMaestro == codigo
+        && getAfter(
+          /databases/$(database)/documents/negocios_publicos/$(request.resource.data.negocioId)
+        ).data.codigoMaestro == codigo;
+
+      allow delete: if esAdmin()
+        && resource.data.keys().hasOnly(["negocioId"])
+        && resource.data.negocioId == request.auth.uid
+        && getAfter(
+          /databases/$(database)/documents/negocios/$(resource.data.negocioId)
+        ).data.codigoMaestro != codigo
+        && getAfter(
+          /databases/$(database)/documents/negocios_publicos/$(resource.data.negocioId)
+        ).data.codigoMaestro != codigo;
     }
 
 

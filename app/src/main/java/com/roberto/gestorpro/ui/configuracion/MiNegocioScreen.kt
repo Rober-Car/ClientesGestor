@@ -115,6 +115,14 @@ fun MiNegocioScreen(
      */
     var negocioEnNube by rememberSaveable { mutableStateOf<Boolean?>(null) }
     var codigoMaestro by rememberSaveable { mutableStateOf("") }
+    /**
+     * codigoMaestroOriginal
+     * ---------------------
+     * Código maestro que el negocio tenía al abrir MiNegocio (modo edición).
+     * Se pasa al guardar para liberar/reservar la reserva global
+     * codigos_maestros de forma atómica.
+     */
+    var codigoMaestroOriginal by rememberSaveable { mutableStateOf<String?>(null) }
     var mensajeRemoto by rememberSaveable { mutableStateOf("") }
 
     /**
@@ -127,9 +135,13 @@ fun MiNegocioScreen(
     LaunchedEffect(Unit) {
         if (mainViewModel.existeNegocioPropio()) {
             negocioEnNube = true
-            mainViewModel.obtenerCodigoMaestroRemoto()?.let { codigoMaestro = it }
+            mainViewModel.obtenerCodigoMaestroRemoto()?.let { codigo ->
+                codigoMaestro = codigo
+                codigoMaestroOriginal = codigo
+            }
         } else {
             negocioEnNube = false
+            codigoMaestroOriginal = null
         }
     }
 
@@ -459,12 +471,20 @@ fun MiNegocioScreen(
 
                         var error: String? = null
                         if (estadoNegocio) {
-                            // Edición: sincroniza nombre y código maestro.
+                            // Edición: sincroniza nombre y código maestro. Se pasa
+                            // el código original para liberar/reservar la reserva
+                            // global de forma atómica y detectar códigos en uso.
                             val eNombre = mainViewModel.sincronizarNombreNegocio(nombre)
                             error = if (eNombre != null) {
                                 eNombre
                             } else {
-                                mainViewModel.guardarCodigoMaestro(codigoMaestro)
+                                mainViewModel.guardarCodigoMaestro(
+                                    codigoMaestro = codigoMaestro,
+                                    codigoAnterior = codigoMaestroOriginal
+                                )
+                            }
+                            if (error == null) {
+                                codigoMaestroOriginal = codigoMaestro.trim()
                             }
                         } else {
                             // Alta inicial: crea el negocio en la nube y deja el

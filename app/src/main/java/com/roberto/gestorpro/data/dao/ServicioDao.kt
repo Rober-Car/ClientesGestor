@@ -40,6 +40,9 @@ interface ServicioDao {
     @Query("SELECT * FROM servicio ORDER BY nombre ASC")
     fun obtenerTodosLosServicios(): Flow<List<ServicioEntity>>
 
+    @Query("SELECT * FROM servicio ORDER BY nombre ASC")
+    suspend fun obtenerTodosLosServiciosSync(): List<ServicioEntity>
+
     @Query("SELECT COUNT(*) FROM servicio")
     suspend fun contarTodos(): Int
 }

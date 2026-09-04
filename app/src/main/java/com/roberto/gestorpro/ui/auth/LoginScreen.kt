@@ -158,7 +158,7 @@ fun LoginScreen(
              * Sirve para identificar visualmente el negocio al iniciar sesión.
              */
             AsyncImage(
-                model = File(logoNegocio),
+                model = modeloLogo(logoNegocio),
                 contentDescription = "Logo del negocio",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
@@ -359,5 +359,19 @@ fun LoginScreen(
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(bottom = 24.dp)
         )
+    }
+}
+
+/**
+ * modeloLogo
+ * ----------
+ * Modelo de Coil para el logo: URL remota (futuro Firebase Storage) → String;
+ * ruta local → File. Nunca File(...) sobre una URL.
+ */
+private fun modeloLogo(valor: String): Any {
+    return if (valor.startsWith("http://") || valor.startsWith("https://")) {
+        valor
+    } else {
+        File(valor)
     }
 }

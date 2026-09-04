@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -70,7 +71,7 @@ fun HomeScreen(
             ) {
                 if (logoNegocio.isNotBlank()) {
                     AsyncImage(
-                        model = File(logoNegocio),
+                        model = modeloLogo(logoNegocio),
                         contentDescription = "Logo del negocio",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
@@ -94,7 +95,7 @@ fun HomeScreen(
                     }
                 }
                 Spacer(modifier = Modifier.width(12.dp))
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "Panel principal",
                         style = MaterialTheme.typography.labelMedium,
@@ -104,7 +105,9 @@ fun HomeScreen(
                         text = nombreNegocio.ifBlank { "GestorPro" },
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -192,5 +195,20 @@ fun HomeScreen(
                 }
             }
         }
+    }
+}
+
+/**
+ * modeloLogo
+ * ----------
+ * Devuelve el modelo correcto para Coil: si el valor es una URL remota (futuro
+ * Firebase Storage) usa el propio String; si es una ruta local usa File. Evita
+ * usar File(...) con una URL.
+ */
+private fun modeloLogo(valor: String): Any {
+    return if (valor.startsWith("http://") || valor.startsWith("https://")) {
+        valor
+    } else {
+        File(valor)
     }
 }

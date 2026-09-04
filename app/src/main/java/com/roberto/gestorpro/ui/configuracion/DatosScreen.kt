@@ -22,12 +22,16 @@ import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -48,13 +52,17 @@ fun DatosScreen(
     viewModel: DatosViewModel = hiltViewModel()
 ) {
     val mensaje by viewModel.mensaje.collectAsStateWithLifecycle()
+    val esError by viewModel.esError.collectAsStateWithLifecycle()
+    val mostrarDialogoImportar by viewModel.mostrarDialogoImportar.collectAsStateWithLifecycle()
     val mostrarDialogoRestaurar by viewModel.mostrarDialogoRestaurar.collectAsStateWithLifecycle()
 
+    var incluirFotos by remember { mutableStateOf(true) }
+
     val exportarLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/json")
+        contract = ActivityResultContracts.CreateDocument("application/zip")
     ) { uri ->
         if (uri != null) {
-            viewModel.exportarDatos(uri)
+            viewModel.exportarDatos(uri, incluirFotos)
         }
     }
 
@@ -62,7 +70,7 @@ fun DatosScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            viewModel.importarDatos(uri)
+            viewModel.solicitarImportar(uri)
         }
     }
 
@@ -74,12 +82,34 @@ fun DatosScreen(
         }
     }
 
+    if (mostrarDialogoImportar) {
+        AlertDialog(
+            onDismissRequest = { viewModel.cancelarImportar() },
+            title = { Text("¿Importar datos?") },
+            text = {
+                Text("Se incorporarán o actualizarán los datos del backup del MISMO negocio. No se borrarán los datos actuales.")
+            },
+            confirmButton = {
+                AppDialogConfirmButton(
+                    text = "IMPORTAR",
+                    onClick = { viewModel.confirmarImportar() }
+                )
+            },
+            dismissButton = {
+                AppDialogTextButton(
+                    text = "CANCELAR",
+                    onClick = { viewModel.cancelarImportar() }
+                )
+            }
+        )
+    }
+
     if (mostrarDialogoRestaurar) {
         AlertDialog(
             onDismissRequest = { viewModel.cancelarRestaurar() },
-            title = { Text("¿Restaurar copia?") },
+            title = { Text("¿Restaurar copia de seguridad?") },
             text = {
-                Text("Los datos actuales serán reemplazados por los datos del archivo.")
+                Text("Se reemplazarán TODOS los datos locales actuales por el contenido del backup del MISMO negocio. Esta acción no se puede deshacer.")
             },
             confirmButton = {
                 AppDialogConfirmButton(
@@ -126,25 +156,44 @@ fun DatosScreen(
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
             )
 
+            // Opción de fotografías del backup (solo afecta a Exportar).
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = incluirFotos,
+                    onCheckedChange = { incluirFotos = it }
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Incluir fotografías en el backup",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
             DatosItem(
                 titulo = "Exportar datos",
-                descripcion = "Guardar datos en archivo",
+                descripcion = "Guardar una copia completa de tu negocio",
                 icono = Icons.Default.CloudUpload,
-                onClick = { exportarLauncher.launch("gestorpro_backup.json") }
+                onClick = { exportarLauncher.launch("gestorpro_backup.zip") }
             )
 
             DatosItem(
                 titulo = "Importar datos",
-                descripcion = "Añadir datos desde archivo",
+                descripcion = "Añadir/actualizar datos desde un backup del mismo negocio",
                 icono = Icons.Default.CloudDownload,
-                onClick = { importarLauncher.launch(arrayOf("application/json")) }
+                onClick = { importarLauncher.launch(arrayOf("application/zip")) }
             )
 
             DatosItem(
                 titulo = "Restaurar copia de seguridad",
-                descripcion = "Reemplazar datos actuales",
+                descripcion = "Reemplazar todos los datos por un backup del mismo negocio",
                 icono = Icons.Default.Restore,
-                onClick = { restaurarLauncher.launch(arrayOf("application/json")) }
+                onClick = { restaurarLauncher.launch(arrayOf("application/zip")) }
             )
 
             if (mensaje != null) {
@@ -152,7 +201,7 @@ fun DatosScreen(
                 Text(
                     text = mensaje!!,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF4CAF50),
+                    color = if (esError) MaterialTheme.colorScheme.error else Color(0xFF4CAF50),
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
             }
