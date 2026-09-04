@@ -5,6 +5,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.roberto.gestorpro.data.entity.MovimientoEntity
+import com.roberto.gestorpro.util.HidratacionMapeadores
 import com.roberto.gestorpro.util.MovimientoFirestore
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -46,11 +47,37 @@ class MovimientoRemotoRepository @Inject constructor(
     private fun negocioIdDelAdmin(uid: String): String = uid
 
     /**
+     * obtenerMovimientosRemotosDelNegocio
+     * ------------------------------------
+     * Recupera TODOS los movimientos del negocio del ADMIN autenticado desde
+     * `movimientos/{idMovimiento}` (query filtrada por negocioId; las reglas de
+     * list no funcionan como post-filtro). Solo lectura. Se usa en la
+     * hidratación central de la caché local tras un cambio de propietario.
+     * Conserva el idMovimiento original (no regenera IDs). NO traga los errores
+     * (un fallo se propaga para reintentar).
+     */
+    suspend fun obtenerMovimientosRemotosDelNegocio(): List<MovimientoEntity> {
+        val uid = auth.currentUser?.uid ?: return emptyList()
+        val negocioId = negocioIdDelAdmin(uid)
+        return db.collection(COLECCION_MOVIMIENTOS)
+            .whereEqualTo("negocioId", negocioId)
+            .get()
+            .esperar()
+            .documents
+            .mapNotNull { documento ->
+                HidratacionMapeadores.movimientoDeDocumento(
+                    documento.data ?: emptyMap(),
+                    negocioId
+                )
+            }
+    }
+
+    /**
      * crearMovimientoRemoto
      * ---------------------
      * Crea `movimientos/{idMovimiento}` replicando el movimiento completo de Room.
      * Si el documento ya existe y es del mismo negocio, lo sobrescribe con el
-     * estado actual (idempotente: repetir la creación no duplica documentos).
+     * estado actual (idempotente: repetir la creaci��n no duplica documentos).
      */
     suspend fun crearMovimientoRemoto(movimiento: MovimientoEntity): ResultadoAutenticacion {
         return escribirMovimientoRemoto(movimiento, "crear")

@@ -91,15 +91,12 @@ class ClienteRemotoRepository @Inject constructor(
         if (uid.isBlank()) return emptyList()
 
         val negocioId = negocioIdDelAdmin(uid)
-        val snapshots = try {
-            db.collection(COLECCION_CLIENTES)
-                .whereEqualTo("negocioId", negocioId)
-                .get()
-                .esperar()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error listando clientes remotos del negocio $negocioId", e)
-            return emptyList()
-        }
+        // El error de lista NO se traga: se propaga para que la hidratación
+        // central pueda reintentar sin marcar la caché como hidratada.
+        val snapshots = db.collection(COLECCION_CLIENTES)
+            .whereEqualTo("negocioId", negocioId)
+            .get()
+            .esperar()
 
         return snapshots.documents.mapNotNull { documento ->
             val datos = documento.data ?: return@mapNotNull null

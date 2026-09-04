@@ -79,6 +79,18 @@ class PreferencesRepository @Inject constructor(
          * en el logout; solo se actualiza al adoptar/limpiar la caché.
          */
         private val UID_PROPIETARIO_KEY = stringPreferencesKey("uid_propietario_datos_locales")
+
+        /**
+         * CACHE_HIDRATADA_UID_KEY
+         * ------------------------
+         * UID del ADMIN cuyo Room ya se reconstruyó desde Firestore (hidratación
+         * central). Sirve para no repetir la reconstrucción en cada login de la
+         * misma cuenta (MismaCuenta) y para reintentarla automáticamente si un
+         * intento anterior falló (p. ej. sin conexión): solo se escribe tras una
+         * hidratación COMPLETA y sin errores. NO es identidad del negocio, por lo
+         * que no se borra en el logout ni en limpiarIdentidadNegocio.
+         */
+        private val CACHE_HIDRATADA_UID_KEY = stringPreferencesKey("cache_hidratada_uid")
     }
 
     /**
@@ -294,6 +306,43 @@ class PreferencesRepository @Inject constructor(
     suspend fun setUidPropietario(uid: String) {
         context.dataStore.edit { preferences ->
             preferences[UID_PROPIETARIO_KEY] = uid
+        }
+    }
+
+    /**
+     * obtenerUidCacheHidratada
+     * ------------------------
+     * UID del ADMIN que ya tiene su Room reconstruido desde Firestore (o null
+     * si todavía no se ha completado ninguna hidratación).
+     */
+    suspend fun obtenerUidCacheHidratada(): String? {
+        return context.dataStore.data.map { preferences ->
+            preferences[CACHE_HIDRATADA_UID_KEY]
+        }.first()
+    }
+
+    /**
+     * setUidCacheHidratada
+     * --------------------
+     * Marca que la caché Room del ADMIN indicado ya se reconstruyó desde
+     * Firestore sin errores. Solo se llama al terminar la hidratación completa.
+     */
+    suspend fun setUidCacheHidratada(uid: String) {
+        context.dataStore.edit { preferences ->
+            preferences[CACHE_HIDRATADA_UID_KEY] = uid
+        }
+    }
+
+    /**
+     * borrarUidCacheHidratada
+     * -----------------------
+     * Elimina el marcador de caché hidratada. Se usa al crear el negocio (una
+     * cuenta que antes no tenía negocio pudo marcar su caché como hidratada sin
+     * datos; al crear el negocio debe poder volver a hidratarse si procede).
+     */
+    suspend fun borrarUidCacheHidratada() {
+        context.dataStore.edit { preferences ->
+            preferences.remove(CACHE_HIDRATADA_UID_KEY)
         }
     }
 

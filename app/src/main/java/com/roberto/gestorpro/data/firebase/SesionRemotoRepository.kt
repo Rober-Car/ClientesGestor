@@ -5,6 +5,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.roberto.gestorpro.data.entity.SesionEntity
+import com.roberto.gestorpro.util.HidratacionMapeadores
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -41,11 +42,35 @@ class SesionRemotoRepository @Inject constructor(
     }
 
     /**
+     * obtenerSesionesRemotasDelNegocio
+     * ---------------------------------
+     * Recupera TODAS las sesiones del negocio del ADMIN autenticado desde
+     * `sesiones/{idSesion}` (query filtrada por negocioId). Solo lectura. Se
+     * usa en la hidratación central de la caché local tras un cambio de
+     * propietario. NO traga los errores (un fallo se propaga para reintentar).
+     */
+    suspend fun obtenerSesionesRemotasDelNegocio(): List<SesionEntity> {
+        val uid = auth.currentUser?.uid ?: return emptyList()
+        val negocioId = negocioIdDeAdmin(uid)
+        return db.collection(COLECCION_SESIONES)
+            .whereEqualTo("negocioId", negocioId)
+            .get()
+            .esperar()
+            .documents
+            .mapNotNull { documento ->
+                HidratacionMapeadores.sesionDeDocumento(
+                    documento.data ?: emptyMap(),
+                    negocioId
+                )
+            }
+    }
+
+    /**
      * crearSesionRemoto
      * -----------------
      * Crea sesiones/{idSesion} con el negocioId real del ADMIN autenticado.
      * Antes comprueba (con lectura y Transaction) que el id no pertenece ya a
-     * otro negocio; si hay colisión, NO sobrescribe y devuelve error.
+     * otro negocio; si hay colisi��n, NO sobrescribe y devuelve error.
      */
     suspend fun crearSesionRemoto(sesion: SesionEntity): ResultadoAutenticacion {
         val uid = auth.currentUser?.uid

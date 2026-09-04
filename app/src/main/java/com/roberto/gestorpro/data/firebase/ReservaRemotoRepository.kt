@@ -5,8 +5,10 @@ import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.roberto.gestorpro.data.entity.ReservaEntity
 import com.roberto.gestorpro.model.EstadoCliente
 import com.roberto.gestorpro.model.ReservaClienteDetalle
+import com.roberto.gestorpro.util.HidratacionMapeadores
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -57,6 +59,31 @@ class ReservaRemotoRepository @Inject constructor(
          */
         fun reservaId(clienteId: Int, sesionId: Int): String =
             "${clienteId}_${sesionId}"
+    }
+
+    /**
+     * obtenerReservasRemotasDelNegocio
+     * ---------------------------------
+     * Recupera TODAS las reservas del negocio del ADMIN autenticado desde
+     * `reservas/{clienteId}_{sesionId}` (query filtrada por negocioId). Solo
+     * lectura. Se usa en la hidratación central: las reservas huérfanas (sin
+     * su cliente o su sesión locales) NO se insertan en Room. NO traga los
+     * errores (un fallo se propaga para reintentar).
+     */
+    suspend fun obtenerReservasRemotasDelNegocio(): List<ReservaEntity> {
+        val uid = auth.currentUser?.uid ?: return emptyList()
+        val negocioId = uid
+        return db.collection(COLECCION_RESERVAS)
+            .whereEqualTo("negocioId", negocioId)
+            .get()
+            .esperar()
+            .documents
+            .mapNotNull { documento ->
+                HidratacionMapeadores.reservaDeDocumento(
+                    documento.data ?: emptyMap(),
+                    negocioId
+                )
+            }
     }
 
     /**

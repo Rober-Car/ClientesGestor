@@ -5,6 +5,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.roberto.gestorpro.data.entity.ServicioEntity
+import com.roberto.gestorpro.util.HidratacionMapeadores
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -35,6 +36,33 @@ class ServicioRemotoRepository @Inject constructor(
          * repositorios remotos del proyecto.
          */
         fun negocioIdDeAdmin(uid: String): String = uid
+    }
+
+    /**
+     * obtenerServiciosRemotosDelNegocio
+     * ----------------------------------
+     * Recupera TODOS los servicios del negocio del ADMIN autenticado desde
+     * `servicios/{idServicio}` (query filtrada por negocioId; las reglas de
+     * list no funcionan como post-filtro). Solo lectura. Se usa en la
+     * hidratación central de la caché local tras un cambio de propietario.
+     * NO traga los errores: un fallo de red/permisos se propaga para que el
+     * hidratador pueda reintentar más adelante sin marcar la caché como
+     * hidratada.
+     */
+    suspend fun obtenerServiciosRemotosDelNegocio(): List<ServicioEntity> {
+        val uid = auth.currentUser?.uid ?: return emptyList()
+        val negocioId = negocioIdDeAdmin(uid)
+        return db.collection(COLECCION_SERVICIOS)
+            .whereEqualTo("negocioId", negocioId)
+            .get()
+            .esperar()
+            .documents
+            .mapNotNull { documento ->
+                HidratacionMapeadores.servicioDeDocumento(
+                    documento.data ?: emptyMap(),
+                    negocioId
+                )
+            }
     }
 
     /**

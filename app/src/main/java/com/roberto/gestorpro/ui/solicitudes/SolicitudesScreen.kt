@@ -66,7 +66,9 @@ import com.roberto.gestorpro.ui.components.AppDialogTextButton
 import com.roberto.gestorpro.ui.components.AppNavigationBackButton
 import com.roberto.gestorpro.ui.components.AppSecondaryButton
 import com.roberto.gestorpro.ui.components.AppSemanticButton
+import com.roberto.gestorpro.ui.components.SinNegocioContenido
 import com.roberto.gestorpro.ui.viewmodel.ClienteViewModel
+import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 import com.roberto.gestorpro.ui.viewmodel.SolicitudesViewModel
 import java.io.File
 import java.time.Instant
@@ -85,7 +87,8 @@ import java.time.format.DateTimeFormatter
 fun SolicitudesScreen(
     navController: NavHostController,
     viewModel: SolicitudesViewModel = hiltViewModel(),
-    clienteViewModel: ClienteViewModel = hiltViewModel()
+    clienteViewModel: ClienteViewModel = hiltViewModel(),
+    mainViewModel: MainViewModel = hiltViewModel()
 ) {
     val solicitudes by viewModel.solicitudes.collectAsStateWithLifecycle()
     val cargando by viewModel.cargando.collectAsStateWithLifecycle()
@@ -102,8 +105,21 @@ fun SolicitudesScreen(
     var solicitudAEliminar by remember { mutableStateOf<SolicitudBaja?>(null) }
     var textoBusqueda by rememberSaveable { mutableStateOf("") }
 
+    /**
+     * negocioOk
+     * ---------
+     * null = comprobando si el ADMIN tiene negocio; false = sin negocio;
+     * true = con negocio. Sin negocio NO se consulta Firestore (las Rules de
+     * solicitudes lo denegarían) y se muestra SinNegocioContenido.
+     */
+    var negocioOk by remember { mutableStateOf<Boolean?>(null) }
+
     LaunchedEffect(Unit) {
-        viewModel.cargarSolicitudes()
+        val conNegocio = mainViewModel.existeNegocioPropio()
+        negocioOk = conNegocio
+        if (conNegocio) {
+            viewModel.cargarSolicitudes()
+        }
     }
 
     LaunchedEffect(mensajeExito) {
@@ -157,7 +173,24 @@ fun SolicitudesScreen(
                 )
             }
 
-            OutlinedTextField(
+            when (negocioOk) {
+                null -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+
+                false -> SinNegocioContenido(
+                    titulo = "No puedes gestionar solicitudes todavía.",
+                    mensaje = "Primero debes crear tu negocio para poder gestionar las solicitudes de baja.",
+                    onCrearNegocio = { navController.navigate(Routes.MINEGOCIO) }
+                )
+
+                true -> {
+                    OutlinedTextField(
                 value = textoBusqueda,
                 onValueChange = { textoBusqueda = it },
                 modifier = Modifier
@@ -314,6 +347,8 @@ fun SolicitudesScreen(
                             }
                         }
                     }
+                }
+            }
                 }
             }
         }

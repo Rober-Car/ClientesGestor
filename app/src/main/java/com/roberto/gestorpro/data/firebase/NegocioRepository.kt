@@ -112,6 +112,41 @@ class NegocioRepository @Inject constructor(
     }
 
     /**
+     * estadoNegocioDeCuenta
+     * ---------------------
+     * Determina el estado remoto del negocio de la cuenta autenticada leyendo
+     * `usuarios/{uid}.negocioId` (fuente de verdad de la pertenencia).
+     * Distingue tres casos que antes colapsaban en null:
+     *  - SinSesion: no hay usuario autenticado.
+     *  - Error: no se pudo CONFIRMAR (red, permisos, lectura fallida). En este
+     *    caso NO debe concluirse que la cuenta no tiene negocio: la caché local
+     *    de un negocio válido debe conservarse (modo offline).
+     *  - SinNegocio: confirmado que `usuarios/{uid}.negocioId == null`.
+     *  - ConNegocio(negocioId): la cuenta pertenece a un negocio.
+     * Sirve al MainViewModel para limpiar la identidad visual solo cuando se
+     * sabe con seguridad que la cuenta actual no tiene negocio.
+     */
+    suspend fun estadoNegocioDeCuenta(): EstadoNegocioDeCuenta {
+        val uid = auth.currentUser?.uid ?: return EstadoNegocioDeCuenta.SinSesion
+        return try {
+            val documento = db.collection(COLECCION_USUARIOS)
+                .document(uid)
+                .get()
+                .esperar()
+            val negocioId = documento.getString("negocioId")
+            if (negocioId.isNullOrBlank()) {
+                EstadoNegocioDeCuenta.SinNegocio
+            } else {
+                EstadoNegocioDeCuenta.ConNegocio(negocioId)
+            }
+        } catch (_: Exception) {
+            // No confirmado: no se trata como "sin negocio" (evita borrar la
+            // caché de un negocio válido cuando no hay conexión).
+            EstadoNegocioDeCuenta.Error
+        }
+    }
+
+    /**
      * obtenerDatosPublicosCuenta
      * --------------------------
      * Lee la identidad pública (nombre + logo) del negocio de la cuenta actual
@@ -395,6 +430,28 @@ class NegocioRepository @Inject constructor(
             else -> e.message ?: "Error inesperado. Inténtalo de nuevo"
         }
     }
+}
+
+/**
+ * EstadoNegocioDeCuenta
+ * ---------------------
+ * Estado remoto del negocio de la cuenta autenticada. Distingue "sin negocio
+ * CONFIRMADO" (usuarios/{uid}.negocioId == null, lectura correcta) de "no se
+ * pudo comprobar" (Error), porque solo el primer caso autoriza a vaciar la
+ * identidad visual local de un negocio anterior.
+ */
+sealed interface EstadoNegocioDeCuenta {
+    /** No hay usuario autenticado. */
+    object SinSesion : EstadoNegocioDeCuenta
+
+    /** No se pudo confirmar el estado (red/permisos/fallo de lectura). */
+    object Error : EstadoNegocioDeCuenta
+
+    /** Confirmado: usuarios/{uid}.negocioId es null (la cuenta no tiene negocio). */
+    object SinNegocio : EstadoNegocioDeCuenta
+
+    /** La cuenta pertenece al negocio indicado. */
+    data class ConNegocio(val negocioId: String) : EstadoNegocioDeCuenta
 }
 
 /**

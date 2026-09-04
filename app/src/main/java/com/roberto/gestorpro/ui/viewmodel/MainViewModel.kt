@@ -4,8 +4,10 @@ import android.util.Patterns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.roberto.gestorpro.data.firebase.AutenticacionRepository
+import com.roberto.gestorpro.data.firebase.EstadoNegocioDeCuenta
 import com.roberto.gestorpro.data.firebase.NegocioRepository
 import com.roberto.gestorpro.data.local.PreparadorLocalCuenta
+import com.roberto.gestorpro.data.repository.HidratadorCacheLocal
 import com.roberto.gestorpro.data.repository.MovimientoRepository
 import com.roberto.gestorpro.data.repository.PreferencesRepository
 import com.roberto.gestorpro.model.TipoUsuario
@@ -26,7 +28,8 @@ class MainViewModel @Inject constructor(
     private val autenticacionRepository: AutenticacionRepository,
     private val negocioRepository: NegocioRepository,
     private val movimientoRepository: MovimientoRepository,
-    private val preparadorLocalCuenta: PreparadorLocalCuenta
+    private val preparadorLocalCuenta: PreparadorLocalCuenta,
+    private val hidratadorCacheLocal: HidratadorCacheLocal
 ) : ViewModel() {
 
     /**
@@ -146,6 +149,7 @@ class MainViewModel @Inject constructor(
             is PreparadorLocalCuenta.ResultadoResolver.AdoptadoSilencioso -> {
                 refrescarIdentidadLocal()
                 refrescarIdentidadRemota()
+                lanzarHidratacionSiProcede()
                 _estadoPreparacion.value = EstadoPreparacion.Listo
                 lanzarReintentoDeEliminacionesPendientes()
             }
@@ -162,6 +166,7 @@ class MainViewModel @Inject constructor(
                 // propietario anterior bajo la nueva cuenta.
                 refrescarIdentidadLocal()
                 refrescarIdentidadRemota()
+                lanzarHidratacionSiProcede()
                 _cambioPropietarioToken.value += 1
                 _estadoPreparacion.value = EstadoPreparacion.Listo
             }
@@ -184,10 +189,15 @@ class MainViewModel @Inject constructor(
             if (conservar) {
                 preparadorLocalCuenta.adoptarDatos(uid)
                 refrescarIdentidadLocal()
+                // Aplica la verdad remota tras adoptar: si la cuenta no tiene
+                // negocio (confirmado) se vacía la identidad; si lo tiene se
+                // carga la suya. Si no se puede confirmar, se conserva la caché.
+                refrescarIdentidadRemota()
             } else {
                 preparadorLocalCuenta.wipeYAdoptar(uid)
                 refrescarIdentidadLocal()
                 refrescarIdentidadRemota()
+                lanzarHidratacionSiProcede()
                 _cambioPropietarioToken.value += 1
             }
             _estadoPreparacion.value = EstadoPreparacion.Listo
@@ -208,8 +218,24 @@ class MainViewModel @Inject constructor(
             preparadorLocalCuenta.wipeYAdoptar(uid)
             refrescarIdentidadLocal()
             refrescarIdentidadRemota()
+            lanzarHidratacionSiProcede()
             _cambioPropietarioToken.value += 1
             _estadoPreparacion.value = EstadoPreparacion.Listo
+        }
+    }
+
+    /**
+     * lanzarHidratacionSiProcede
+     * --------------------------
+     * Lanza (best-effort, no bloquea la UI) la reconstrucción central de la
+     * caché Room desde Firestore cuando procede: solo si la cuenta actual tiene
+     * un negocio confirmado, si esta instalación aún no ha hidratado esa cuenta
+     * y si no hay otra hidratación en curso. Si falla (p. ej. sin red), no se
+     * marca como completada y se reintenta en el próximo arranque/login.
+     */
+    private fun lanzarHidratacionSiProcede() {
+        viewModelScope.launch {
+            hidratadorCacheLocal.hidratarSiNecesario()
         }
     }
 
@@ -345,6 +371,14 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             movimientoRepository.reintentarEliminacionesPendientesGlobal()
             autenticacionRepository.cerrarSesion()
+            // Logout: se limpia la identidad de la cuenta saliente (memoria y
+            // DataStore) para que la siguiente cuenta no vea branding ajeno
+            // mientras se prepara su sesión. Room, owner y ficheros se
+            // conservan (el mismo usuario los reencuentra al volver).
+            preferencesRepository.limpiarIdentidadNegocio()
+            _nombreNegocio.value = ""
+            _logoNegocio.value = ""
+            _idClienteSesion.value = null
             _estadoPreparacion.value = EstadoPreparacion.SinSesion
         }
     }
@@ -383,6 +417,10 @@ class MainViewModel @Inject constructor(
             if (resultado.exito) {
                 preferencesRepository.setNombreNegocio(nombre.trim())
                 _nombreNegocio.value = nombre.trim()
+                // La cuenta pasa de "sin negocio" a "con negocio": se elimina el
+                // marcador de caché hidratada para que un futuro login pueda
+                // reconstruir Room si procede.
+                preferencesRepository.borrarUidCacheHidratada()
                 return null
             }
             return resultado.mensaje
@@ -442,7 +480,9 @@ class MainViewModel @Inject constructor(
     val idClienteSesion: StateFlow<Int?> = _idClienteSesion.asStateFlow()
 
     init {
-        refrescarIdentidadLocal()
+        viewModelScope.launch {
+            refrescarIdentidadLocal()
+        }
     }
 
     /**
@@ -452,32 +492,49 @@ class MainViewModel @Inject constructor(
      * (nombre/logo/id de cliente). Se invoca en init y después de un WIPE o de
      * adoptar/limpiar la identidad al cambiar de propietario, para no mostrar
      * en memoria la identidad de la cuenta anterior.
+     * Es suspend y se espera antes de marcar la preparación como terminada,
+     * para que la UI no llegue a mostrar el valor de la cuenta anterior.
      */
-    private fun refrescarIdentidadLocal() {
-        viewModelScope.launch {
-            _nombreNegocio.value = preferencesRepository.nombreNegocio.first()
-            _logoNegocio.value = preferencesRepository.logoNegocio.first()
-            _idClienteSesion.value = preferencesRepository.obtenerIdClienteSesion()
-        }
+    private suspend fun refrescarIdentidadLocal() {
+        _nombreNegocio.value = preferencesRepository.nombreNegocio.first()
+        _logoNegocio.value = preferencesRepository.logoNegocio.first()
+        _idClienteSesion.value = preferencesRepository.obtenerIdClienteSesion()
     }
 
     /**
      * refrescarIdentidadRemota
      * ------------------------
-     * Refresca la identidad del centro (nombre + logo) desde la fuente de
-     * verdad remota negocios_publicos/{negocioId} y actualiza DataStore (caché)
-     * y el estado en memoria. Se ejecuta al arrancar con sesión, tras login y
-     * tras crear/editar el negocio. Si la lectura remota falla o no hay negocio,
-     * NO borra la caché válida: se conserva lo que haya en DataStore.
+     * Hace coherente la identidad visual (nombre + logo) con la cuenta
+     * autenticada usando como fuente de verdad el estado remoto:
+     *  - SinNegocio CONFIRMADO (usuarios/{uid}.negocioId == null): vacía la
+     *    identidad en DataStore (caché) y en memoria. Nunca se hereda la
+     *    identidad de un propietario anterior.
+     *  - ConNegocio: refresca nombre/logo desde negocios_publicos/{negocioId}.
+     *  - Error/SinSesion: NO toca nada (no hay confirmación); se conserva la
+     *    caché de un negocio válido (modo offline).
      */
     private suspend fun refrescarIdentidadRemota() {
-        val datos = negocioRepository.obtenerDatosPublicosCuenta() ?: return
-        val nombre = datos.nombre.trim()
-        val logo = datos.logo.trim()
-        preferencesRepository.setNombreNegocio(nombre)
-        preferencesRepository.setLogoNegocio(logo)
-        _nombreNegocio.value = nombre
-        _logoNegocio.value = logo
+        when (val estado = negocioRepository.estadoNegocioDeCuenta()) {
+            EstadoNegocioDeCuenta.SinSesion,
+            EstadoNegocioDeCuenta.Error -> Unit
+
+            EstadoNegocioDeCuenta.SinNegocio -> {
+                preferencesRepository.setNombreNegocio("")
+                preferencesRepository.setLogoNegocio("")
+                _nombreNegocio.value = ""
+                _logoNegocio.value = ""
+            }
+
+            is EstadoNegocioDeCuenta.ConNegocio -> {
+                val datos = negocioRepository.leerDatosPublicos(estado.negocioId) ?: return
+                val nombre = datos.nombre.trim()
+                val logo = datos.logo.trim()
+                preferencesRepository.setNombreNegocio(nombre)
+                preferencesRepository.setLogoNegocio(logo)
+                _nombreNegocio.value = nombre
+                _logoNegocio.value = logo
+            }
+        }
     }
 
     /**
