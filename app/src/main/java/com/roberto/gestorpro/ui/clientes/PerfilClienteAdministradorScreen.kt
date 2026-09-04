@@ -24,10 +24,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Person
@@ -45,7 +48,6 @@ import androidx.compose.ui.res.painterResource
 import com.roberto.gestorpro.R
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePickerDialog
@@ -118,9 +120,11 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.text.input.KeyboardType
 import com.roberto.gestorpro.data.entity.MovimientoEntity
@@ -245,6 +249,7 @@ fun PerfilClienteScreen(
         EstadoCliente.ACTIVO -> "Activo"
         EstadoCliente.MOROSO -> "Moroso"
         EstadoCliente.BAJA -> "Baja"
+        EstadoCliente.ARCHIVADO -> "Archivado"
         else -> "Registrado"
     }
 
@@ -261,6 +266,15 @@ fun PerfilClienteScreen(
         EstadoCliente.BAJA -> Color.Gray
         else -> Color(0xFF64B5F6)
     }
+
+    /**
+     * esArchivado
+     * -----------
+     * Indica si el cliente está archivado. Sirve para mostrar la etiqueta
+     * adecuada en el menú de acciones (⋮): "Archivar cliente" o
+     * "Restaurar cliente" cuando ya está archivado.
+     */
+    val esArchivado = cliente?.estado == EstadoCliente.ARCHIVADO
 
     /**
      * esMoroso
@@ -585,6 +599,44 @@ fun PerfilClienteScreen(
     var mostrarConfirmarArchivar by rememberSaveable { mutableStateOf(false) }
 
     /**
+     * menuAbierto
+     * ------------
+     * Controla si el menú de acciones administrativas (⋮) de la cabecera
+     * está desplegado.
+     */
+    var menuAbierto by rememberSaveable { mutableStateOf(false) }
+
+    /**
+     * mostrarInfoExento
+     * -----------------
+     * Controla si se muestra el diálogo informativo de "Exento de morosidad".
+     */
+    var mostrarInfoExento by rememberSaveable { mutableStateOf(false) }
+
+    /**
+     * mostrarDialogoEstado
+     * --------------------
+     * Controla si se muestra el diálogo "Cambiar estado" (ACTIVO/BAJA) al
+     * pulsar el card de estado del cliente.
+     */
+    var mostrarDialogoEstado by rememberSaveable { mutableStateOf(false) }
+
+    /**
+     * estadoSeleccionado
+     * ------------------
+     * Estado elegido en el diálogo "Cambiar estado" antes de aplicarlo.
+     */
+    var estadoSeleccionado by rememberSaveable { mutableStateOf<EstadoCliente?>(null) }
+
+    /**
+     * mostrarConfirmarBaja
+     * --------------------
+     * Controla el segundo diálogo de confirmación cuando se va a pasar un
+     * cliente a BAJA (avisa de las consecuencias: reservas futuras, aviso…).
+     */
+    var mostrarConfirmarBaja by rememberSaveable { mutableStateOf(false) }
+
+    /**
      * alternarServicioNuevo
      * ---------------------
      * Marca/desmarca un servicio activo en el formulario de nuevo movimiento.
@@ -741,8 +793,61 @@ fun PerfilClienteScreen(
 
                     Text(
                         text = "Perfil de cliente",
-                        style = MaterialTheme.typography.titleLarge
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.weight(1f)
                     )
+
+                    /**
+                     * Menú de acciones administrativas (⋮)
+                     * ------------------------------------
+                     * Patrón estándar de Material 3: un IconButton anclado a un
+                     * DropdownMenu. Sustituye a los botones inferiores de la
+                     * pestaña Datos y agrupa las acciones administrativas:
+                     *  - Editar cliente (navega al formulario de modificar).
+                     *  - Archivar cliente (o Restaurar si ya está archivado).
+                     */
+                    Box {
+                        IconButton(
+                            onClick = { menuAbierto = true }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "Más opciones",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = menuAbierto,
+                            onDismissRequest = { menuAbierto = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Editar cliente") },
+                                onClick = {
+                                    menuAbierto = false
+                                    navController.navigate(Routes.modificarCliente(idCliente))
+                                }
+                            )
+
+                            HorizontalDivider()
+
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        if (esArchivado) {
+                                            "Restaurar cliente"
+                                        } else {
+                                            "Archivar cliente"
+                                        }
+                                    )
+                                },
+                                onClick = {
+                                    menuAbierto = false
+                                    mostrarConfirmarArchivar = true
+                                }
+                            )
+                        }
+                    }
                 }
             }
 
@@ -861,16 +966,49 @@ fun PerfilClienteScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
+                /**
+                 * Card de estado (interactivo)
+                 * ----------------------------
+                 * Píldora con el estado del cliente y su color. Al pulsarla se
+                 * abre el diálogo "Cambiar estado" (ACTIVO/BAJA). Incluye un
+                 * chevron discreto para indicar que es interactivo. Cuando el
+                 * cliente está ARCHIVADO no es clicable: su restauración se
+                 * gestiona desde el menú ⋮.
+                 */
+                val estadoInteractivo = cliente != null &&
+                    cliente?.estado != EstadoCliente.ARCHIVADO
+
                 Surface(
                     shape = RoundedCornerShape(50),
-                    color = colorEstado.copy(alpha = 0.15f)
+                    color = colorEstado.copy(alpha = 0.15f),
+                    enabled = estadoInteractivo,
+                    onClick = {
+                        estadoSeleccionado = when (cliente?.estado) {
+                            EstadoCliente.ACTIVO, EstadoCliente.BAJA -> cliente?.estado
+                            else -> EstadoCliente.ACTIVO
+                        }
+                        mostrarDialogoEstado = true
+                    }
                 ) {
-                    Text(
-                        text = textoEstado,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = colorEstado,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-                    )
+                    ) {
+                        Text(
+                            text = textoEstado,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = colorEstado
+                        )
+                        if (estadoInteractivo) {
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = null,
+                                tint = colorEstado,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -1188,7 +1326,7 @@ fun PerfilClienteScreen(
                  * Abre el diálogo para seleccionar los servicios activos que
                  * tiene contratados este cliente.
                  */
-                AppSecondaryButton(
+                AppPrimaryButton(
                     text = "Editar servicios",
                     onClick = { mostrarDialogoServicios = true }
                 )
@@ -1196,40 +1334,6 @@ fun PerfilClienteScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
-
-                /**
-                 * Button de Modificar cliente
-                 * ---------------------------
-                 * ✔ TIPO: función @Composable (androidx.compose.material3.Button)
-                 * Es el botón que abre el formulario de edición del cliente.
-                 * Sirve para navegar a la pantalla de modificar con los datos precargados,
-                 * con el mismo estilo azul que el botón de guardar del formulario.
-                 */
-                AppSecondaryButton(
-                    text = "Modificar cliente",
-                    onClick = {
-                        navController.navigate(Routes.modificarCliente(idCliente))
-                    },
-                    modifier = Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .padding(top = 16.dp)
-                )
-
-                val esArchivado = cliente?.estado == EstadoCliente.ARCHIVADO
-
-                androidx.compose.material3.OutlinedButton(
-                    onClick = { mostrarConfirmarArchivar = true },
-                    modifier = Modifier
-                        .fillMaxWidth(0.7f)
-                        .align(Alignment.CenterHorizontally)
-                        .padding(top = 8.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = if (esArchivado) Color(0xFF4CAF50) else Color(0xFFE53935)
-                    )
-                ) {
-                    Text(if (esArchivado) "Restaurar cliente" else "Archivar cliente")
-                }
             }else {
                 /**
                  * Sección de Economía
@@ -1290,6 +1394,8 @@ fun PerfilClienteScreen(
                  * Excepción manual controlada SOLO por el ADMIN. Si está activa,
                  * el cliente no se considera moroso (moroso=false en el resumen)
                  * aunque su deuda real se mantiene; los movimientos no cambian.
+                 * Se muestra en una sola fila: etiqueta + icono de información
+                 * (ⓘ) que abre una explicación breve + interruptor.
                  */
                 Row(
                     modifier = Modifier
@@ -1297,22 +1403,46 @@ fun PerfilClienteScreen(
                         .padding(top = 16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Exento de morosidad",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "No se considerará moroso aunque tenga deuda.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.Gray
+                    Text(
+                        text = "Exento de morosidad",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(
+                        onClick = { mostrarInfoExento = true }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "Información sobre exento de morosidad",
+                            tint = Color.Gray,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
-                    androidx.compose.material3.Switch(
+                    Switch(
                         checked = cliente?.exentoMorosidad == true,
                         onCheckedChange = { nuevoValor ->
                             viewModel.cambiarExentoMorosidad(idCliente, nuevoValor)
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = Color(0xFFF44336)
+                        )
+                    )
+                }
+
+                if (mostrarInfoExento) {
+                    AlertDialog(
+                        onDismissRequest = { mostrarInfoExento = false },
+                        title = { Text("Exento de morosidad") },
+                        text = {
+                            Text("El cliente no se considerará moroso aunque tenga deuda.")
+                        },
+                        confirmButton = {
+                            AppDialogTextButton(
+                                text = "Entendido",
+                                onClick = { mostrarInfoExento = false }
+                            )
                         }
                     )
                 }
@@ -2646,6 +2776,109 @@ fun PerfilClienteScreen(
                     TextButton(onClick = { mostrarConfirmarArchivar = false }) {
                         Text("Cancelar")
                     }
+                }
+            )
+        }
+
+        /**
+         * Diálogo "Cambiar estado"
+         * -----------------------
+         * Se abre al pulsar el card de estado. Permite elegir entre ACTIVO y
+         * BAJA (los estados que la aplicación permite cambiar). No ejecuta la
+         * lógica por sí mismo: al aplicar se delega en los métodos existentes
+         * de ClienteViewModel (darDeBaja / reactivación vía actualizarCliente).
+         */
+        if (mostrarDialogoEstado) {
+            val clienteActual = cliente
+            AlertDialog(
+                onDismissRequest = { mostrarDialogoEstado = false },
+                title = { Text("Cambiar estado") },
+                text = {
+                    Column {
+                        listOf(
+                            EstadoCliente.ACTIVO to "Activo",
+                            EstadoCliente.BAJA to "Baja"
+                        ).forEach { (estado, etiqueta) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { estadoSeleccionado = estado }
+                                    .padding(vertical = 4.dp, horizontal = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = estadoSeleccionado == estado,
+                                    onClick = { estadoSeleccionado = estado }
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = etiqueta,
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    AppDialogTextButton(
+                        text = "Aplicar",
+                        onClick = {
+                            val objetivo = estadoSeleccionado
+                            val estadoActual = clienteActual?.estado
+                            mostrarDialogoEstado = false
+                            if (objetivo == null || objetivo == estadoActual) return@AppDialogTextButton
+                            when (objetivo) {
+                                EstadoCliente.BAJA -> mostrarConfirmarBaja = true
+                                EstadoCliente.ACTIVO -> clienteActual?.let {
+                                    viewModel.reactivarCliente(it)
+                                }
+                                else -> Unit
+                            }
+                        }
+                    )
+                },
+                dismissButton = {
+                    AppDialogTextButton(
+                        text = "Cancelar",
+                        onClick = { mostrarDialogoEstado = false }
+                    )
+                }
+            )
+        }
+
+        /**
+         * Confirmación al pasar a BAJA
+         * ----------------------------
+         * Mismo aviso y consecuencias que el formulario de modificar cliente:
+         * se cancelan las reservas futuras y se notifica si la configuración
+         * lo permite. La baja efectiva la ejecuta darDeBaja (existente).
+         */
+        if (mostrarConfirmarBaja) {
+            AlertDialog(
+                onDismissRequest = { mostrarConfirmarBaja = false },
+                title = { Text("Confirmar baja") },
+                text = {
+                    Text(
+                        "¿Confirmar la baja de este cliente? Se cancelarán sus " +
+                            "reservas futuras y se le notificará si está activada " +
+                            "la configuración de avisos. Los servicios contratados se conservan."
+                    )
+                },
+                confirmButton = {
+                    AppDialogDangerConfirmButton(
+                        text = "Dar de baja",
+                        onClick = {
+                            mostrarConfirmarBaja = false
+                            cliente?.let { viewModel.darDeBaja(it) }
+                        }
+                    )
+                },
+                dismissButton = {
+                    AppDialogTextButton(
+                        text = "Cancelar",
+                        onClick = { mostrarConfirmarBaja = false }
+                    )
                 }
             )
         }

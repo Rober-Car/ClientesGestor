@@ -14,10 +14,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -49,6 +52,33 @@ import com.roberto.gestorpro.ui.components.AppTextLinkButton
 import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 import java.io.File
 import kotlinx.coroutines.launch
+
+/**
+ * Mensajes de credenciales inválidas que ya devuelve el repositorio de
+ * autenticación. No se revela si el email está registrado: ambos se
+ * presentan con el mismo mensaje genérico en la pantalla de login.
+ */
+private val erroresCredencialesLogin = setOf(
+    "Email o contraseña incorrectos",
+    "No existe una cuenta con este email"
+)
+
+private const val MENSAJE_CREDENCIALES_INCORRECTAS =
+    "El correo o la contraseña no son correctos."
+
+/**
+ * textoErrorLogin
+ * ---------------
+ * Normaliza el error de credenciales devuelto por la autenticación a un
+ * mensaje genérico. El resto de errores (cuenta desactivada, sin conexión,
+ * perfil ilegible…) se muestran tal cual.
+ */
+private fun textoErrorLogin(error: String): String =
+    if (error in erroresCredencialesLogin) {
+        MENSAJE_CREDENCIALES_INCORRECTAS
+    } else {
+        error
+    }
 
 @Composable
 fun LoginScreen(
@@ -97,6 +127,7 @@ fun LoginScreen(
 
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
+    var contrasenaVisible by rememberSaveable { mutableStateOf(false) }
 
     val formularioValido = email.isNotBlank() && password.isNotBlank()
     val azulPrincipal = Color(0xFF1E88E5)
@@ -187,7 +218,10 @@ fun LoginScreen(
 
                 OutlinedTextField(
                     value = email,
-                    onValueChange = { email = it },
+                    onValueChange = {
+                        email = it
+                        mensajeError = ""
+                    },
                     label = { Text("Email") },
                     leadingIcon = {
                         Icon(
@@ -211,7 +245,10 @@ fun LoginScreen(
 
                 OutlinedTextField(
                     value = password,
-                    onValueChange = { password = it },
+                    onValueChange = {
+                        password = it
+                        mensajeError = ""
+                    },
                     label = { Text("Contraseña") },
                     leadingIcon = {
                         Icon(
@@ -220,7 +257,30 @@ fun LoginScreen(
                             tint = azulPrincipal
                         )
                     },
-                    visualTransformation = PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(
+                            onClick = { contrasenaVisible = !contrasenaVisible }
+                        ) {
+                            Icon(
+                                imageVector = if (contrasenaVisible) {
+                                    Icons.Default.VisibilityOff
+                                } else {
+                                    Icons.Default.Visibility
+                                },
+                                contentDescription = if (contrasenaVisible) {
+                                    "Ocultar contraseña"
+                                } else {
+                                    "Mostrar contraseña"
+                                },
+                                tint = azulPrincipal
+                            )
+                        }
+                    },
+                    visualTransformation = if (contrasenaVisible) {
+                        VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
+                    },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
@@ -237,16 +297,16 @@ fun LoginScreen(
                 AppPrimaryButton(
                     text = "Entrar",
                     onClick = {
+                        mensajeError = ""
                         scope.launch {
                             val error = mainViewModel.iniciarSesion(email.trim(), password)
                             if (error == null) {
-                                mensajeError = ""
                                 val destino = mainViewModel.destinoSegunTipo()
                                 navController.navigate(destino) {
                                     popUpTo(Routes.LOGIN) { inclusive = true }
                                 }
                             } else {
-                                mensajeError = error
+                                mensajeError = textoErrorLogin(error)
                             }
                         }
                     },

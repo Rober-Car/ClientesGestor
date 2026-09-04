@@ -68,6 +68,17 @@ class PreferencesRepository @Inject constructor(
          * el formulario de alta.
          */
         private val ID_CLIENTE_SESION_KEY = intPreferencesKey("id_cliente_sesion")
+
+        /**
+         * UID_PROPIETARIO_KEY
+         * --------------------
+         * UID del ADMIN (o de su negocio, negocioId == uid) al que pertenece la
+         * caché local (Room + ficheros + identidad de DataStore). Sirve para
+         * detectar un cambio de cuenta en el mismo dispositivo y limpiar la
+         * caché antes de que un segundo ADMIN vea datos ajenos. NUNCA se borra
+         * en el logout; solo se actualiza al adoptar/limpiar la caché.
+         */
+        private val UID_PROPIETARIO_KEY = stringPreferencesKey("uid_propietario_datos_locales")
     }
 
     /**
@@ -249,6 +260,55 @@ class PreferencesRepository @Inject constructor(
     suspend fun setLogoNegocio(ruta: String) {
         context.dataStore.edit { preferences ->
             preferences[LOGO_NEGOCIO_KEY] = ruta
+        }
+    }
+
+    /**
+     * uidPropietario
+     * --------------
+     * UID del ADMIN al que pertenece la caché local, o null si todavía no se ha
+     * fijado. Sirve al guard de cambio de cuenta para decidir entre conservar,
+     * adoptar o limpiar los datos locales.
+     */
+    val uidPropietario: Flow<String?> = context.dataStore.data.map { preferences ->
+        preferences[UID_PROPIETARIO_KEY]
+    }
+
+    /**
+     * obtenerUidPropietario
+     * ---------------------
+     * Lectura única (sin observar) del UID propietario de la caché local.
+     */
+    suspend fun obtenerUidPropietario(): String? {
+        return context.dataStore.data.map { preferences ->
+            preferences[UID_PROPIETARIO_KEY]
+        }.first()
+    }
+
+    /**
+     * setUidPropietario
+     * -----------------
+     * Fija el UID del ADMIN propietario de la caché local. Se escribe al
+     * adoptar la caché para una cuenta o tras limpiarla para la cuenta nueva.
+     */
+    suspend fun setUidPropietario(uid: String) {
+        context.dataStore.edit { preferences ->
+            preferences[UID_PROPIETARIO_KEY] = uid
+        }
+    }
+
+    /**
+     * limpiarIdentidadNegocio
+     * -----------------------
+     * Borra las claves de DataStore ligadas a la IDENTIDAD del negocio de la
+     * cuenta anterior: nombre, logo e id de cliente de sesión. NO borra
+     * theme_mode (preferencia del dispositivo) ni el tipo de usuario.
+     */
+    suspend fun limpiarIdentidadNegocio() {
+        context.dataStore.edit { preferences ->
+            preferences.remove(NOMBRE_NEGOCIO_KEY)
+            preferences.remove(LOGO_NEGOCIO_KEY)
+            preferences.remove(ID_CLIENTE_SESION_KEY)
         }
     }
 }

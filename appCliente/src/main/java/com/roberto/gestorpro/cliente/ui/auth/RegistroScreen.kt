@@ -11,10 +11,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -29,6 +32,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -51,6 +56,9 @@ fun RegistroScreen(
     var contrasenaRepetida by rememberSaveable { mutableStateOf("") }
     var mensajeError by rememberSaveable { mutableStateOf("") }
     val scope = rememberCoroutineScope()
+
+    var contrasenaVisible by rememberSaveable { mutableStateOf(false) }
+    var contrasenaRepetidaVisible by rememberSaveable { mutableStateOf(false) }
 
     val azul = Color(0xFF1E88E5)
     val formularioValido = email.isNotBlank() &&
@@ -119,6 +127,30 @@ fun RegistroScreen(
                     leadingIcon = {
                         Icon(Icons.Default.Lock, contentDescription = null, tint = azul)
                     },
+                    trailingIcon = {
+                        IconButton(
+                            onClick = { contrasenaVisible = !contrasenaVisible }
+                        ) {
+                            Icon(
+                                imageVector = if (contrasenaVisible) {
+                                    Icons.Default.VisibilityOff
+                                } else {
+                                    Icons.Default.Visibility
+                                },
+                                contentDescription = if (contrasenaVisible) {
+                                    "Ocultar contraseña"
+                                } else {
+                                    "Mostrar contraseña"
+                                },
+                                tint = azul
+                            )
+                        }
+                    },
+                    visualTransformation = if (contrasenaVisible) {
+                        VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
+                    },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
@@ -137,6 +169,30 @@ fun RegistroScreen(
                     label = { Text("Repetir contraseña") },
                     leadingIcon = {
                         Icon(Icons.Default.Lock, contentDescription = null, tint = azul)
+                    },
+                    trailingIcon = {
+                        IconButton(
+                            onClick = { contrasenaRepetidaVisible = !contrasenaRepetidaVisible }
+                        ) {
+                            Icon(
+                                imageVector = if (contrasenaRepetidaVisible) {
+                                    Icons.Default.VisibilityOff
+                                } else {
+                                    Icons.Default.Visibility
+                                },
+                                contentDescription = if (contrasenaRepetidaVisible) {
+                                    "Ocultar contraseña"
+                                } else {
+                                    "Mostrar contraseña"
+                                },
+                                tint = azul
+                            )
+                        }
+                    },
+                    visualTransformation = if (contrasenaRepetidaVisible) {
+                        VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
                     },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),

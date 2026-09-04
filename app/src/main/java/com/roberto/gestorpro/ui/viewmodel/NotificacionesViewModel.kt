@@ -372,6 +372,34 @@ class NotificacionesViewModel @Inject constructor(
     }
 
     /**
+     * resetTrasCambioCuenta
+     * ---------------------
+     * Limpia TODO el estado propio del ViewModel cuando la capa UI detecta un
+     * cambio de propietario (WIPE de la caché local). Se llama desde
+     * AppNavigation al observar el token de cambio de propietario; el propio
+     * ViewModel se resetea a sí mismo (nadie externo conoce sus campos).
+     */
+    fun resetTrasCambioCuenta() {
+        _cargando.value = false
+        _error.value = null
+        _notificaciones.value = emptyList()
+        _resolviendo.value = false
+        _errorResolucion.value = null
+        _resolucion.value = null
+        _creando.value = false
+        _errorSincronizacion.value = null
+        _creacionPendiente.value = false
+        pendienteCreacion = null
+        _mensajeExito.value = null
+        _configuracion.value = null
+        _cargandoConfiguracion.value = false
+        _guardandoConfiguracion.value = false
+        _errorConfiguracion.value = null
+        _seleccionGrupo.value = emptySet()
+        _seleccionIndividual.value = null
+    }
+
+    /**
      * ejecutarCreacion
      * ----------------
      * Núcleo de la creación (compartido entre creación y reintento).

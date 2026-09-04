@@ -28,7 +28,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
@@ -43,7 +42,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -80,6 +78,7 @@ import com.roberto.gestorpro.ui.components.AppNavigationBackButton
 import com.roberto.gestorpro.ui.components.AppPrimaryButton
 import com.roberto.gestorpro.ui.components.AppSecondaryButton
 import com.roberto.gestorpro.ui.components.BotonSelectorFoto
+import com.roberto.gestorpro.ui.components.SinNegocioContenido
 import com.roberto.gestorpro.ui.utils.crearFotoTemporal
 import com.roberto.gestorpro.ui.utils.guardaFotoEnInterna
 import com.roberto.gestorpro.ui.utils.guardarFotoDeCamara
@@ -987,33 +986,6 @@ fun AñadirClienteScreen(
                 modifier = Modifier.padding(top = 16.dp)
             )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(if (esActivo) "Activo" else "Baja")
-                    Switch(
-                        checked = esActivo,
-                        onCheckedChange = { nuevoActivo ->
-                            // Si se intenta pasar un cliente EXISTENTE y activo a
-                            // BAJA, se pide confirmación antes de aplicarlo.
-                            if (!nuevoActivo && idCliente != null &&
-                                clienteEditando?.estado != EstadoCliente.BAJA
-                            ) {
-                                mostrarConfirmarBaja = true
-                            } else {
-                                esActivo = nuevoActivo
-                                viewModel.limpiarError()
-                            }
-                        }
-                    )
-                }
-            }
-
             OutlinedTextField(
                 value = observaciones,
                 onValueChange = {
@@ -1079,7 +1051,8 @@ fun AñadirClienteScreen(
                             // MODO EDICIÓN: se conservan los datos que no se pueden cambiar
                             // en este formulario (fecha de registro y el uid de Firebase)
                             // tomándolos del cliente original.
-                            // El estado se controla desde el switch de la UI.
+                            // El estado se conserva: ya no se edita desde este
+                            // formulario (se cambia desde el card del perfil).
                             val original = clienteEditando!!
                             val cliente = ClienteEntity(
                                 idCliente = idCliente,
@@ -1133,10 +1106,11 @@ fun AñadirClienteScreen(
                                 viewModel.actualizarCliente(cliente, onExito = alGuardar)
                             }
                         } else {
-                            // MODO ALTA: el cliente nuevo empieza con el estado elegido
-                            // en el switch (ACTIVO o BAJA); si el alta la hace el propio
-                            // cliente desde Mi perfil, nace como REGISTRADO a la espera
-                            // de que el administrador lo revise.
+                            // MODO ALTA: el cliente nuevo nace ACTIVO por defecto.
+                            // El cambio de estado (ACTIVO/BAJA) se gestiona ahora desde
+                            // el card de estado del perfil del cliente. Si el alta la
+                            // hace el propio cliente desde Mi perfil, nace REGISTRADO a
+                            // la espera de que el administrador lo revise.
                             val cliente = ClienteEntity(
                                 nombre = nombre,
                                 apellidos = apellidos,
@@ -1386,52 +1360,4 @@ private fun esEmailValido(email: String): Boolean {
     return android.util.Patterns.EMAIL_ADDRESS
         .matcher(email)
         .matches()
-}
-
-/**
- * SinNegocioContenido
- * -------------------
- * Pantalla de bloqueo del alta de clientes cuando el administrador todavía no
- * tiene creado su negocio. Muestra el motivo y lleva a "Mi negocio", donde se
- * crea el negocio en un único flujo (nombre + logo + código maestro).
- */
-@Composable
-private fun SinNegocioContenido(
-    onCrearNegocio: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            imageVector = Icons.Default.AccountBalance,
-            contentDescription = null,
-            modifier = Modifier.size(64.dp),
-            tint = Color.Gray.copy(alpha = 0.5f)
-        )
-        Spacer(modifier = Modifier.size(16.dp))
-        Text(
-            text = "No puedes crear clientes todavía.",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Spacer(modifier = Modifier.size(8.dp))
-        Text(
-            text = "Primero debes crear tu negocio para poder dar de alta clientes.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color.Gray,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-        )
-        Spacer(modifier = Modifier.size(24.dp))
-        AppPrimaryButton(
-            text = "Crear mi negocio",
-            onClick = onCrearNegocio,
-            fullWidth = false
-        )
-    }
 }

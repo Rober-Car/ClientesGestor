@@ -624,6 +624,53 @@ class ClienteViewModel @Inject constructor(
         }
     }
 
+    /**
+     * darDeBaja (sobrecarga para el perfil)
+     * -------------------------------------
+     * Adaptador que recibe el modelo [Cliente] (como el que observa el perfil)
+     * y delega en [darDeBaja] con la entidad recién leída de Room. No añade
+     * lógica: la baja efectiva (fechaBaja, reservas futuras, morosidad,
+     * notificación y sincronización) es exactamente la ya existente.
+     * Al completarse refresca el cliente seleccionado para actualizar la UI.
+     */
+    fun darDeBaja(cliente: Cliente, onExito: () -> Unit = {}) {
+        viewModelScope.launch {
+            val entity = clienteRepository.obtenerClientePorIdRepo(cliente.idCliente) ?: return@launch
+            darDeBaja(entity) {
+                onExito()
+                viewModelScope.launch {
+                    _clienteSeleccionado.value = clienteRepository
+                        .obtenerClientePorIdRepo(entity.idCliente)
+                        ?.toCliente()
+                }
+            }
+        }
+    }
+
+    /**
+     * reactivarCliente
+     * ----------------
+     * Adaptador para el perfil que reactiva (BAJA → ACTIVO) o activa
+     * (REGISTRADO → ACTIVO) un cliente. Delega en [actualizarCliente] con la
+     * entidad en estado ACTIVO, que es quien ya aplica la reactivación real
+     * (prepararReactivacion renueva fechaAlta y conserva fechaBaja, recalcula
+     * la morosidad y replica). No añade reglas nuevas de estado.
+     * Al completarse refresca el cliente seleccionado para actualizar la UI.
+     */
+    fun reactivarCliente(cliente: Cliente, onExito: () -> Unit = {}) {
+        viewModelScope.launch {
+            val entity = clienteRepository.obtenerClientePorIdRepo(cliente.idCliente) ?: return@launch
+            actualizarCliente(entity.copy(estado = EstadoCliente.ACTIVO)) {
+                onExito()
+                viewModelScope.launch {
+                    _clienteSeleccionado.value = clienteRepository
+                        .obtenerClientePorIdRepo(entity.idCliente)
+                        ?.toCliente()
+                }
+            }
+        }
+    }
+
     fun obtenerClientePorId(id: Int) {
         viewModelScope.launch {
             val clienteEntity = clienteRepository.obtenerClientePorIdRepo(id)

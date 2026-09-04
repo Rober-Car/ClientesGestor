@@ -18,10 +18,13 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -31,12 +34,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -163,6 +169,10 @@ private fun DialogoCambiarContrasena(
     var nuevaContrasena by remember { mutableStateOf("") }
     var repetirContrasena by remember { mutableStateOf("") }
 
+    var contrasenaActualVisible by rememberSaveable { mutableStateOf(false) }
+    var nuevaContrasenaVisible by rememberSaveable { mutableStateOf(false) }
+    var repetirContrasenaVisible by rememberSaveable { mutableStateOf(false) }
+
     Dialog(
         onDismissRequest = onDismiss
     ) {
@@ -191,6 +201,30 @@ private fun DialogoCambiarContrasena(
                     value = contrasenaActual,
                     onValueChange = { contrasenaActual = it },
                     label = { Text("Contraseña actual") },
+                    trailingIcon = {
+                        IconButton(
+                            onClick = { contrasenaActualVisible = !contrasenaActualVisible }
+                        ) {
+                            Icon(
+                                imageVector = if (contrasenaActualVisible) {
+                                    Icons.Default.VisibilityOff
+                                } else {
+                                    Icons.Default.Visibility
+                                },
+                                contentDescription = if (contrasenaActualVisible) {
+                                    "Ocultar contraseña"
+                                } else {
+                                    "Mostrar contraseña"
+                                },
+                                tint = Color(0xFF1E88E5)
+                            )
+                        }
+                    },
+                    visualTransformation = if (contrasenaActualVisible) {
+                        VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
+                    },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -199,6 +233,30 @@ private fun DialogoCambiarContrasena(
                     value = nuevaContrasena,
                     onValueChange = { nuevaContrasena = it },
                     label = { Text("Nueva contraseña") },
+                    trailingIcon = {
+                        IconButton(
+                            onClick = { nuevaContrasenaVisible = !nuevaContrasenaVisible }
+                        ) {
+                            Icon(
+                                imageVector = if (nuevaContrasenaVisible) {
+                                    Icons.Default.VisibilityOff
+                                } else {
+                                    Icons.Default.Visibility
+                                },
+                                contentDescription = if (nuevaContrasenaVisible) {
+                                    "Ocultar contraseña"
+                                } else {
+                                    "Mostrar contraseña"
+                                },
+                                tint = Color(0xFF1E88E5)
+                            )
+                        }
+                    },
+                    visualTransformation = if (nuevaContrasenaVisible) {
+                        VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
+                    },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -207,6 +265,30 @@ private fun DialogoCambiarContrasena(
                     value = repetirContrasena,
                     onValueChange = { repetirContrasena = it },
                     label = { Text("Repetir contraseña") },
+                    trailingIcon = {
+                        IconButton(
+                            onClick = { repetirContrasenaVisible = !repetirContrasenaVisible }
+                        ) {
+                            Icon(
+                                imageVector = if (repetirContrasenaVisible) {
+                                    Icons.Default.VisibilityOff
+                                } else {
+                                    Icons.Default.Visibility
+                                },
+                                contentDescription = if (repetirContrasenaVisible) {
+                                    "Ocultar contraseña"
+                                } else {
+                                    "Mostrar contraseña"
+                                },
+                                tint = Color(0xFF1E88E5)
+                            )
+                        }
+                    },
+                    visualTransformation = if (repetirContrasenaVisible) {
+                        VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
+                    },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )

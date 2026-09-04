@@ -11,10 +11,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -29,6 +32,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -38,6 +43,33 @@ import com.roberto.gestorpro.cliente.ui.components.AppPrimaryButton
 import com.roberto.gestorpro.cliente.ui.components.AppTextLinkButton
 import com.roberto.gestorpro.cliente.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
+
+/**
+ * Mensajes de credenciales inválidas que ya devuelve el repositorio de
+ * autenticación. No se revela si el email está registrado: ambos se
+ * presentan con el mismo mensaje genérico en la pantalla de login.
+ */
+private val erroresCredencialesLogin = setOf(
+    "Email o contraseña incorrectos",
+    "No existe una cuenta con este email"
+)
+
+private const val MENSAJE_CREDENCIALES_INCORRECTAS =
+    "El correo o la contraseña no son correctos."
+
+/**
+ * textoErrorLogin
+ * ---------------
+ * Normaliza el error de credenciales devuelto por la autenticación a un
+ * mensaje genérico. El resto de errores (cuenta desactivada, sin conexión,
+ * perfil ilegible…) se muestran tal cual.
+ */
+private fun textoErrorLogin(error: String): String =
+    if (error in erroresCredencialesLogin) {
+        MENSAJE_CREDENCIALES_INCORRECTAS
+    } else {
+        error
+    }
 
 @Composable
 fun LoginScreen(
@@ -50,6 +82,7 @@ fun LoginScreen(
     var email by rememberSaveable { mutableStateOf("") }
     var contrasena by rememberSaveable { mutableStateOf("") }
     var mensajeError by rememberSaveable { mutableStateOf("") }
+    var contrasenaVisible by rememberSaveable { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     val azul = Color(0xFF1E88E5)
@@ -92,7 +125,10 @@ fun LoginScreen(
             ) {
                 OutlinedTextField(
                     value = email,
-                    onValueChange = { email = it },
+                    onValueChange = {
+                        email = it
+                        mensajeError = ""
+                    },
                     label = { Text("Email") },
                     leadingIcon = {
                         Icon(Icons.Default.Person, contentDescription = null, tint = azul)
@@ -111,10 +147,37 @@ fun LoginScreen(
 
                 OutlinedTextField(
                     value = contrasena,
-                    onValueChange = { contrasena = it },
+                    onValueChange = {
+                        contrasena = it
+                        mensajeError = ""
+                    },
                     label = { Text("Contraseña") },
                     leadingIcon = {
                         Icon(Icons.Default.Lock, contentDescription = null, tint = azul)
+                    },
+                    trailingIcon = {
+                        IconButton(
+                            onClick = { contrasenaVisible = !contrasenaVisible }
+                        ) {
+                            Icon(
+                                imageVector = if (contrasenaVisible) {
+                                    Icons.Default.VisibilityOff
+                                } else {
+                                    Icons.Default.Visibility
+                                },
+                                contentDescription = if (contrasenaVisible) {
+                                    "Ocultar contraseña"
+                                } else {
+                                    "Mostrar contraseña"
+                                },
+                                tint = azul
+                            )
+                        }
+                    },
+                    visualTransformation = if (contrasenaVisible) {
+                        VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
                     },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -144,7 +207,7 @@ fun LoginScreen(
                         scope.launch {
                             val error = mainViewModel.iniciarSesion(email.trim(), contrasena)
                             if (error != null) {
-                                mensajeError = error
+                                mensajeError = textoErrorLogin(error)
                             } else {
                                 val destino = mainViewModel.destinoTrasAutenticar()
                                 navController.navigate(destino) {

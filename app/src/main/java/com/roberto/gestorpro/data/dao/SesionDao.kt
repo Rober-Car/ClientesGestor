@@ -57,4 +57,7 @@ interface SesionDao {
 
     @Query("UPDATE sesion SET plazasDisponibles = plazasDisponibles + 1 WHERE idSesion = :idSesion AND plazasDisponibles < capacidad")
     suspend fun liberarPlaza(idSesion: Int)
+
+    @Query("SELECT COUNT(*) FROM sesion")
+    suspend fun contarTodos(): Int
 }

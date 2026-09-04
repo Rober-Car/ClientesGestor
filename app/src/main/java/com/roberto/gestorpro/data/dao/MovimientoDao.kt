@@ -137,4 +137,7 @@ interface MovimientoDao {
 
     @Query("DELETE FROM movimiento")
     suspend fun borrarTodosLosMovimientos()
+
+    @Query("SELECT COUNT(*) FROM movimiento")
+    suspend fun contarTodos(): Int
 }

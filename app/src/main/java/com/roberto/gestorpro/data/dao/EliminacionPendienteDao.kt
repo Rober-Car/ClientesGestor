@@ -57,4 +57,7 @@ interface EliminacionPendienteDao {
      */
     @Query("SELECT * FROM eliminacion_pendiente")
     fun obtenerPendientes(): Flow<List<EliminacionPendienteEntity>>
+
+    @Query("SELECT COUNT(*) FROM eliminacion_pendiente")
+    suspend fun contarTodos(): Int
 }

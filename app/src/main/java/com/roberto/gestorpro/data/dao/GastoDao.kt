@@ -32,4 +32,7 @@ interface GastoDao {
 
     @Query("DELETE FROM gasto")
     suspend fun borrarTodosLosGastos()
+
+    @Query("SELECT COUNT(*) FROM gasto")
+    suspend fun contarTodos(): Int
 }

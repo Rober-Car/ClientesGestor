@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.roberto.gestorpro.data.firebase.AutenticacionRepository
 import com.roberto.gestorpro.data.firebase.NegocioRepository
+import com.roberto.gestorpro.data.local.PreparadorLocalCuenta
 import com.roberto.gestorpro.data.repository.MovimientoRepository
 import com.roberto.gestorpro.data.repository.PreferencesRepository
 import com.roberto.gestorpro.model.TipoUsuario
@@ -24,13 +25,14 @@ class MainViewModel @Inject constructor(
     private val preferencesRepository: PreferencesRepository,
     private val autenticacionRepository: AutenticacionRepository,
     private val negocioRepository: NegocioRepository,
-    private val movimientoRepository: MovimientoRepository
+    private val movimientoRepository: MovimientoRepository,
+    private val preparadorLocalCuenta: PreparadorLocalCuenta
 ) : ViewModel() {
 
     /**
      * _autenticando / autenticando
      * ----------------------------
-     * Estado que indica si hay una operación de autenticación en curso.
+     * Estado que indica si hay una operaci��n de autenticaci��n en curso.
      */
     private val _autenticando = MutableStateFlow(false)
     val autenticando: StateFlow<Boolean> = _autenticando.asStateFlow()
@@ -42,6 +44,27 @@ class MainViewModel @Inject constructor(
      */
     private val _operandoRemoto = MutableStateFlow(false)
     val operandoRemoto: StateFlow<Boolean> = _operandoRemoto.asStateFlow()
+
+    /**
+     * _estadoPreparacion / estadoPreparacion
+     * --------------------------------------
+     * Estado del guard de propietario de la caché local. Determina si la UI
+     * puede mostrar pantallas de datos (Listo) o si debe mostrar un aviso de
+     * propietario indeterminado / bloqueo por pendientes antes de continuar.
+     */
+    private val _estadoPreparacion = MutableStateFlow<EstadoPreparacion>(EstadoPreparacion.Preparando)
+    val estadoPreparacion: StateFlow<EstadoPreparacion> = _estadoPreparacion.asStateFlow()
+
+    /**
+     * _cambioPropietarioToken / cambioPropietarioToken
+     * ------------------------------------------------
+     * Contador que se incrementa cada vez que se produce un WIPE por cambio de
+     * propietario (o el borrado de datos de un propietario indeterminado). La
+     * capa UI (AppNavigation) lo observa para pedir a los ViewModels que
+     * conservan estado propio (p. ej. NotificacionesViewModel) que lo reseteen.
+     */
+    private val _cambioPropietarioToken = MutableStateFlow(0)
+    val cambioPropietarioToken: StateFlow<Int> = _cambioPropietarioToken.asStateFlow()
 
     /**
      * themeMode
@@ -92,10 +115,111 @@ class MainViewModel @Inject constructor(
      */
     suspend fun destinoInicialSegunSesion(): String {
         return if (autenticacionRepository.haySesionActiva()) {
-            lanzarReintentoDeEliminacionesPendientes()
+            prepararParaCuentaActual()
             Routes.HOME
         } else {
+            _estadoPreparacion.value = EstadoPreparacion.SinSesion
             Routes.LOGIN
+        }
+    }
+
+    /**
+     * prepararParaCuentaActual
+     * ------------------------
+     * Ejecuta el guard de propietario con la cuenta autenticada (resolver del
+     * PreparadorLocalCuenta) y mapea el resultado al estado de la UI. Un WIPE
+     * por cambio de propietario ya deja la caché limpia; en ese caso NO se
+     * lanzan reintentos de la cuenta anterior.
+     */
+    suspend fun prepararParaCuentaActual() {
+        val uid = autenticacionRepository.uidActual()
+        if (uid == null) {
+            _estadoPreparacion.value = EstadoPreparacion.SinSesion
+            return
+        }
+
+        when (val resultado = preparadorLocalCuenta.resolver(uid)) {
+            is PreparadorLocalCuenta.ResultadoResolver.SinSesion ->
+                _estadoPreparacion.value = EstadoPreparacion.SinSesion
+
+            is PreparadorLocalCuenta.ResultadoResolver.MismaCuenta,
+            is PreparadorLocalCuenta.ResultadoResolver.AdoptadoSilencioso -> {
+                refrescarIdentidadLocal()
+                _estadoPreparacion.value = EstadoPreparacion.Listo
+                lanzarReintentoDeEliminacionesPendientes()
+            }
+
+            is PreparadorLocalCuenta.ResultadoResolver.Indeterminado ->
+                _estadoPreparacion.value =
+                    EstadoPreparacion.Indeterminado(resultado.pendientes)
+
+            is PreparadorLocalCuenta.ResultadoResolver.Bloqueado ->
+                _estadoPreparacion.value = EstadoPreparacion.Bloqueado(resultado.pendientes)
+
+            is PreparadorLocalCuenta.ResultadoResolver.CambioCompletado -> {
+                // WIPE ya aplicado por el preparador. No se reintenta nada del
+                // propietario anterior bajo la nueva cuenta.
+                refrescarIdentidadLocal()
+                _cambioPropietarioToken.value += 1
+                _estadoPreparacion.value = EstadoPreparacion.Listo
+            }
+        }
+    }
+
+    /**
+     * decidirPropietarioIndeterminado
+     * -------------------------------
+     * Resuelve el caso INDETERMINADO (owner == null con datos locales) por
+     * decisión del usuario:
+     *  - conservar = true  -> adopta la caché para la cuenta actual (bajo su
+     *    responsabilidad, sin limpiar).
+     *  - conservar = false -> WIPE y reconstruye desde Firebase (opción segura
+     *    por defecto).
+     */
+    fun decidirPropietarioIndeterminado(conservar: Boolean) {
+        val uid = autenticacionRepository.uidActual() ?: return
+        viewModelScope.launch {
+            if (conservar) {
+                preparadorLocalCuenta.adoptarDatos(uid)
+                refrescarIdentidadLocal()
+            } else {
+                preparadorLocalCuenta.wipeYAdoptar(uid)
+                refrescarIdentidadLocal()
+                _cambioPropietarioToken.value += 1
+            }
+            _estadoPreparacion.value = EstadoPreparacion.Listo
+        }
+    }
+
+    /**
+     * descartarPendientesYContinuar
+     * -----------------------------
+     * Ante un cambio de propietario BLOQUEADO por pendientes, descarta
+     * explícitamente la caché local de la cuenta anterior (tras confirmación
+     * del usuario) y continúa con la cuenta nueva. Nunca reintenta los
+     * pendientes de la cuenta anterior bajo la nueva.
+     */
+    fun descartarPendientesYContinuar() {
+        val uid = autenticacionRepository.uidActual() ?: return
+        viewModelScope.launch {
+            preparadorLocalCuenta.wipeYAdoptar(uid)
+            refrescarIdentidadLocal()
+            _cambioPropietarioToken.value += 1
+            _estadoPreparacion.value = EstadoPreparacion.Listo
+        }
+    }
+
+    /**
+     * cancelarCambioDeCuenta
+     * ----------------------
+     * Abandona el cambio de cuenta (caso bloqueado o indeterminado): cierra la
+     * sesión actual y vuelve al estado SinSesion. La caché y el propietario
+     * anterior se conservan intactos.
+     */
+    fun cancelarCambioDeCuenta() {
+        viewModelScope.launch {
+            autenticacionRepository.cerrarSesion()
+            _estadoPreparacion.value = EstadoPreparacion.SinSesion
         }
     }
 
@@ -105,7 +229,9 @@ class MainViewModel @Inject constructor(
      * Reintenta al ARRANQUE (o tras autenticarse) los borrados remotos de
      * movimientos que quedaron pendientes persistidos en Room, con
      * independencia de qué pantalla abra después el ADMIN (AJUSTE 1).
-     * Es un no-op si no hay sesión o si no hay pendientes.
+     * Es un no-op si no hay sesión o si no hay pendientes. Solo se invoca
+     * cuando el propietario de la caché es la cuenta actual (nunca tras un
+     * WIPE por cambio de propietario).
      */
     private fun lanzarReintentoDeEliminacionesPendientes() {
         viewModelScope.launch {
@@ -132,7 +258,7 @@ class MainViewModel @Inject constructor(
         try {
             val resultado = autenticacionRepository.iniciarSesion(email, contrasena)
             return if (resultado.exito) {
-                lanzarReintentoDeEliminacionesPendientes()
+                prepararParaCuentaActual()
                 null
             } else {
                 resultado.mensaje
@@ -191,7 +317,7 @@ class MainViewModel @Inject constructor(
                 AutenticacionRepository.ROL_ADMIN
             )
             return if (resultado.exito) {
-                lanzarReintentoDeEliminacionesPendientes()
+                prepararParaCuentaActual()
                 null
             } else {
                 resultado.mensaje
@@ -204,11 +330,18 @@ class MainViewModel @Inject constructor(
     /**
      * cerrarSesion
      * ------------
-     * Cierra la sesión de Firebase Authentication sin borrar DataStore.
+     * Cierra la sesión de Firebase Authentication sin borrar DataStore (la
+     * caché y el owner se conservan para que el mismo usuario la reencuentre).
+     * Antes de salir hace un reintento BEST-EFFORT de las eliminaciones
+     * pendientes PERSISTIDAS bajo la cuenta actual (su token es el correcto);
+     * si falla, quedan persistidas y el owner no cambia, por lo que no se
+     * pierden ni se ejecutan bajo otra cuenta.
      */
     fun cerrarSesion() {
         viewModelScope.launch {
+            movimientoRepository.reintentarEliminacionesPendientesGlobal()
             autenticacionRepository.cerrarSesion()
+            _estadoPreparacion.value = EstadoPreparacion.SinSesion
         }
     }
 
@@ -245,6 +378,7 @@ class MainViewModel @Inject constructor(
             val resultado = negocioRepository.crearNegocio(nombre.trim(), codigoMaestro.trim())
             if (resultado.exito) {
                 preferencesRepository.setNombreNegocio(nombre.trim())
+                _nombreNegocio.value = nombre.trim()
                 return null
             }
             return resultado.mensaje
@@ -271,26 +405,49 @@ class MainViewModel @Inject constructor(
     }
 
     /**
-     * nombreNegocio
-     * -------------
-     * Nombre del negocio guardado en DataStore.
+     * _nombreNegocio / nombreNegocio
+     * ------------------------------
+     * Nombre del negocio guardado en DataStore, cacheado en el ViewModel para
+     * mostrarlo en Home/Login y para poder refrescarlo al cambiar de propietario.
      */
-    val nombreNegocio = preferencesRepository.nombreNegocio.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = ""
-    )
+    private val _nombreNegocio = MutableStateFlow("")
+    val nombreNegocio: StateFlow<String> = _nombreNegocio.asStateFlow()
 
     /**
-     * logoNegocio
-     * -----------
-     * Ruta del logo del negocio guardado en DataStore.
+     * _logoNegocio / logoNegocio
+     * --------------------------
+     * Ruta del logo del negocio guardado en DataStore (caché local del VM).
      */
-    val logoNegocio = preferencesRepository.logoNegocio.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = ""
-    )
+    private val _logoNegocio = MutableStateFlow("")
+    val logoNegocio: StateFlow<String> = _logoNegocio.asStateFlow()
+
+    /**
+     * _idClienteSesion / idClienteSesion
+     * ----------------------------------
+     * Identificador del cliente registrado en este dispositivo (uso local).
+     */
+    private val _idClienteSesion = MutableStateFlow<Int?>(null)
+    val idClienteSesion: StateFlow<Int?> = _idClienteSesion.asStateFlow()
+
+    init {
+        refrescarIdentidadLocal()
+    }
+
+    /**
+     * refrescarIdentidadLocal
+     * -----------------------
+     * Recarga en el ViewModel los valores de identidad guardados en DataStore
+     * (nombre/logo/id de cliente). Se invoca en init y después de un WIPE o de
+     * adoptar/limpiar la identidad al cambiar de propietario, para no mostrar
+     * en memoria la identidad de la cuenta anterior.
+     */
+    private fun refrescarIdentidadLocal() {
+        viewModelScope.launch {
+            _nombreNegocio.value = preferencesRepository.nombreNegocio.first()
+            _logoNegocio.value = preferencesRepository.logoNegocio.first()
+            _idClienteSesion.value = preferencesRepository.obtenerIdClienteSesion()
+        }
+    }
 
     /**
      * guardarNombreNegocio
@@ -300,6 +457,7 @@ class MainViewModel @Inject constructor(
     fun guardarNombreNegocio(nombre: String) {
         viewModelScope.launch {
             preferencesRepository.setNombreNegocio(nombre)
+            _nombreNegocio.value = nombre.trim()
         }
     }
 
@@ -318,6 +476,7 @@ class MainViewModel @Inject constructor(
         _operandoRemoto.value = true
         try {
             preferencesRepository.setNombreNegocio(nombre.trim())
+            _nombreNegocio.value = nombre.trim()
             val resultado = negocioRepository.guardarNombreNegocio(nombre.trim())
             return if (resultado.exito) null else resultado.mensaje
         } finally {
@@ -340,7 +499,9 @@ class MainViewModel @Inject constructor(
         try {
             val resultado = negocioRepository.guardarLogoRemoto(rutaLocal)
             if (!resultado.exito) return resultado.mensaje
-            preferencesRepository.setLogoNegocio(resultado.url ?: rutaLocal)
+            val rutaGuardada = resultado.url ?: rutaLocal
+            preferencesRepository.setLogoNegocio(rutaGuardada)
+            _logoNegocio.value = rutaGuardada
             return null
         } finally {
             _operandoRemoto.value = false
@@ -355,19 +516,9 @@ class MainViewModel @Inject constructor(
     fun guardarLogoNegocio(ruta: String) {
         viewModelScope.launch {
             preferencesRepository.setLogoNegocio(ruta)
+            _logoNegocio.value = ruta
         }
     }
-
-    /**
-     * idClienteSesion
-     * ---------------
-     * Identificador del cliente registrado en este dispositivo (de uso local).
-     */
-    val idClienteSesion = preferencesRepository.idClienteSesion.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = null
-    )
 
     /**
      * guardarIdClienteSesion
@@ -377,6 +528,7 @@ class MainViewModel @Inject constructor(
     fun guardarIdClienteSesion(id: Int) {
         viewModelScope.launch {
             preferencesRepository.setIdClienteSesion(id)
+            _idClienteSesion.value = id
         }
     }
 
@@ -388,6 +540,31 @@ class MainViewModel @Inject constructor(
     fun borrarIdClienteSesion() {
         viewModelScope.launch {
             preferencesRepository.borrarIdClienteSesion()
+            _idClienteSesion.value = null
         }
     }
+}
+
+/**
+ * EstadoPreparacion
+ * -----------------
+ * Estado del guard de propietario de la caché local que ve la capa UI.
+ * - Preparando: resolviendo el propietario (spinner).
+ * - SinSesion: sin usuario autenticado (Login).
+ * - Listo: la caché pertenece a la cuenta actual y se pueden mostrar datos.
+ * - Indeterminado: owner == null con datos locales; exige decisión (no se
+ *   adopta automáticamente). Opción segura por defecto: empezar desde cero.
+ * - Bloqueado: cambio de propietario con pendientes críticos de la cuenta
+ *   anterior; hay que volver a esa cuenta o descartar explícitamente.
+ */
+sealed interface EstadoPreparacion {
+    object Preparando : EstadoPreparacion
+    object SinSesion : EstadoPreparacion
+    object Listo : EstadoPreparacion
+    data class Indeterminado(
+        val pendientes: PreparadorLocalCuenta.InformePendientes
+    ) : EstadoPreparacion
+    data class Bloqueado(
+        val pendientes: PreparadorLocalCuenta.InformePendientes
+    ) : EstadoPreparacion
 }

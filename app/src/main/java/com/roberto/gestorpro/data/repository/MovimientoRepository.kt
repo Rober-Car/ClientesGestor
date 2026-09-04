@@ -60,6 +60,30 @@ class MovimientoRepository @Inject constructor(
     private val _errorSincronizacion = MutableStateFlow<String?>(null)
     val errorSincronizacion: StateFlow<String?> = _errorSincronizacion.asStateFlow()
 
+    /**
+     * pendientesEconomicosMemoria
+     * ---------------------------
+     * Clientes con alguna operación económica (crear/editar/borrar/resumen)
+     * cuyo resultado remoto no se confirmó en esta sesión. Solo memoria; no
+     * sobrevive al reinicio. Se usa en el guard de cambio de propietario para
+     * detectar movimientos locales cuyo espejo remoto no está confirmado.
+     */
+    val pendientesEconomicosMemoria: Set<Int>
+        get() = _periodosPendientes.value
+
+    /**
+     * resetEstadoEnMemoria
+     * --------------------
+     * Vacía los marcadores de sincronización económica en memoria. Lo invoca
+     * el guard de cambio de propietario tras un WIPE (o al adoptar una caché
+     * de propietario indeterminado) para que ninguna marca de la cuenta
+     * anterior se reintente bajo la nueva cuenta.
+     */
+    fun resetEstadoEnMemoria() {
+        _periodosPendientes.value = emptySet()
+        _errorSincronizacion.value = null
+    }
+
     companion object {
         private const val TAG = "MovimientoRepository"
     }

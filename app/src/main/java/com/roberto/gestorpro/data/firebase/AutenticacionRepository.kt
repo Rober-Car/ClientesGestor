@@ -73,6 +73,17 @@ class AutenticacionRepository @Inject constructor(
     }
 
     /**
+     * uidActual
+     * ---------
+     * UID del usuario autenticado o null si no hay sesión. Sirve al guard de
+     * cambio de propietario para comparar la cuenta autenticada con el
+     * propietario de la caché local.
+     */
+    fun uidActual(): String? {
+        return auth.currentUser?.uid
+    }
+
+    /**
      * registrar
      * ---------
      * ✔ TIPO: método (fun) suspend de Kotlin → ResultadoAutenticacion

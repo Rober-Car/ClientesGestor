@@ -158,4 +158,7 @@ interface ClienteDao {
     @Query("DELETE FROM cliente")
     suspend fun borrarTodosLosClientes()
 
+    @Query("SELECT COUNT(*) FROM cliente")
+    suspend fun contarTodos(): Int
+
 }

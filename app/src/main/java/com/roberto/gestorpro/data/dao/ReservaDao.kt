@@ -76,4 +76,7 @@ interface ReservaDao {
 
     @Query("DELETE FROM reserva")
     suspend fun borrarTodasLasReservas()
+
+    @Query("SELECT COUNT(*) FROM reserva")
+    suspend fun contarTodos(): Int
 }

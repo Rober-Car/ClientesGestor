@@ -57,6 +57,7 @@ import com.roberto.gestorpro.ui.components.AppDialogTextButton
 import com.roberto.gestorpro.ui.components.AppNavigationBackButton
 import com.roberto.gestorpro.ui.components.AppSecondaryButton
 import com.roberto.gestorpro.ui.components.AppSemanticButton
+import com.roberto.gestorpro.ui.components.SinNegocioContenido
 import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 import com.roberto.gestorpro.ui.viewmodel.PlazasHoyServicio
 import com.roberto.gestorpro.ui.viewmodel.ServicioViewModel
@@ -93,6 +94,15 @@ fun ServiciosScreen(
     var servicioDarDeBaja by remember { mutableStateOf<ServicioEntity?>(null) }
     var servicioEliminar by remember { mutableStateOf<ServicioEntity?>(null) }
 
+    /**
+     * mostrarAvisoSinNegocio
+     * ----------------------
+     * Indica si se está mostrando la interfaz explicativa "No puedes crear
+     * actividades todavía" (el ADMIN pulsó "Nueva actividad" sin tener negocio).
+     * Mientras es true se oculta el FAB y no se abre el alta de servicio.
+     */
+    var mostrarAvisoSinNegocio by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
         viewModel.cargarServicios()
     }
@@ -106,27 +116,32 @@ fun ServiciosScreen(
 
     Scaffold(
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    // GUARD DE NEGOCIO: antes de abrir el alta de un servicio se
-                    // comprueba que el administrador tiene negocio creado (mismo
-                    // mecanismo que AñadirClienteScreen). Sin negocio, se lleva a
-                    // Mi negocio para crearlo; el alta de servicio nunca se inicia,
-                    // por lo que no se inserta nada en Room ni se intenta sincronizar.
-                    alcance.launch {
-                        val conNegocio = mainViewModel.existeNegocioPropio()
-                        navController.navigate(
-                            if (conNegocio) Routes.CREAR_SERVICIO else Routes.MINEGOCIO
-                        )
-                    }
-                },
-                containerColor = Color(0xFF1E88E5)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Crear servicio",
-                    tint = Color.White
-                )
+            if (!mostrarAvisoSinNegocio) {
+                FloatingActionButton(
+                    onClick = {
+                        // GUARD DE NEGOCIO: antes de abrir el alta de un servicio se
+                        // comprueba que el administrador tiene negocio creado (mismo
+                        // mecanismo que AñadirClienteScreen). Sin negocio NO se abre
+                        // el alta: se muestra la interfaz explicativa SinNegocioContenido
+                        // con el botón que lleva a Mi negocio. Así nunca se inserta ni
+                        // se intenta sincronizar un servicio sin negocio.
+                        alcance.launch {
+                            val conNegocio = mainViewModel.existeNegocioPropio()
+                            if (conNegocio) {
+                                navController.navigate(Routes.CREAR_SERVICIO)
+                            } else {
+                                mostrarAvisoSinNegocio = true
+                            }
+                        }
+                    },
+                    containerColor = Color(0xFF1E88E5)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Crear servicio",
+                        tint = Color.White
+                    )
+                }
             }
         }
     ) { innerPadding ->
@@ -135,6 +150,17 @@ fun ServiciosScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
+            if (mostrarAvisoSinNegocio) {
+                SinNegocioContenido(
+                    titulo = "No puedes crear actividades todavía.",
+                    mensaje = "Primero debes crear tu negocio para poder gestionar actividades.",
+                    onCrearNegocio = {
+                        mostrarAvisoSinNegocio = false
+                        navController.navigate(Routes.MINEGOCIO)
+                    }
+                )
+                return@Column
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

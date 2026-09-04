@@ -2,7 +2,11 @@ package com.roberto.gestorpro.navigation
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -11,10 +15,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.roberto.gestorpro.data.local.PreparadorLocalCuenta
 import com.roberto.gestorpro.ui.auth.LoginScreen
 import com.roberto.gestorpro.ui.auth.RecuperarPasswordScreen
 import com.roberto.gestorpro.ui.auth.RegistroScreen
@@ -46,6 +53,7 @@ import com.roberto.gestorpro.ui.servicios.ProgramarSesionesScreen
 import com.roberto.gestorpro.ui.servicios.ServiciosScreen
 import com.roberto.gestorpro.ui.servicios.SesionReservasScreen
 import com.roberto.gestorpro.ui.solicitudes.SolicitudesScreen
+import com.roberto.gestorpro.ui.viewmodel.EstadoPreparacion
 import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 import com.roberto.gestorpro.ui.viewmodel.NotificacionesViewModel
 
@@ -75,6 +83,21 @@ fun AppNavigation() {
     // configuración): al obtenerlo a nivel de AppNavigation se mantiene una
     // única instancia durante toda la navegación de notificaciones.
     val notificacionesViewModel: NotificacionesViewModel = hiltViewModel()
+
+    // Estado del guard de propietario de la caché local. La UI se bloquea
+    // (diálogos) mientras sea Indeterminado o Bloqueado.
+    val estadoPreparacion by mainViewModel.estadoPreparacion.collectAsStateWithLifecycle()
+    val cambioPropietarioToken by mainViewModel.cambioPropietarioToken.collectAsStateWithLifecycle()
+
+    // Cuando se produce un WIPE por cambio de propietario (token incrementado),
+    // los ViewModels que conservan estado propio se resetean a sí mismos.
+    // NotificacionesViewModel no lo conoce PreparadorLocalCuenta ni MainViewModel;
+    // la capa UI le pide aquí que resetee su estado.
+    LaunchedEffect(cambioPropietarioToken) {
+        if (cambioPropietarioToken > 0) {
+            notificacionesViewModel.resetTrasCambioCuenta()
+        }
+    }
 
     var destinoInicial by remember { mutableStateOf<String?>(null) }
 
@@ -340,4 +363,114 @@ fun AppNavigation() {
         }
 
     }
+
+    // Overlay del guard de propietario: bloquea el acceso a las pantallas de
+    // datos hasta que se resuelva el propietario de la caché local.
+    when (val estado = estadoPreparacion) {
+        is EstadoPreparacion.Indeterminado -> DialogoPropietarioIndeterminado(
+            pendientes = estado.pendientes,
+            onEmpezarDeCero = { mainViewModel.decidirPropietarioIndeterminado(conservar = false) },
+            onConservar = { mainViewModel.decidirPropietarioIndeterminado(conservar = true) }
+        )
+
+        is EstadoPreparacion.Bloqueado -> DialogoCambioBloqueado(
+            pendientes = estado.pendientes,
+            onCancelar = {
+                mainViewModel.cancelarCambioDeCuenta()
+                navController.navigate(Routes.LOGIN) {
+                    popUpTo(0) { inclusive = true }
+                }
+            },
+            onDescartar = { mainViewModel.descartarPendientesYContinuar() }
+        )
+
+        else -> Unit
+    }
+}
+
+/**
+ * DialogoPropietarioIndeterminado
+ * -------------------------------
+ * Muestra el aviso de propietario indeterminado (owner == null con datos
+ * locales). NUNCA se adoptan automáticamente: la opción segura por defecto es
+ * "Empezar con los datos de mi cuenta" (borra caché local y reconstruye desde
+ * Firebase); conservar es una decisión explícita bajo responsabilidad del ADMIN.
+ */
+@Composable
+private fun DialogoPropietarioIndeterminado(
+    pendientes: PreparadorLocalCuenta.InformePendientes,
+    onEmpezarDeCero: () -> Unit,
+    onConservar: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = { },
+        title = { Text("Datos locales de otra cuenta") },
+        text = {
+            Text(
+                text = "Esta instalación contiene datos locales que no pueden " +
+                    "atribuirse con seguridad a ninguna cuenta. GestorPro Admin guarda " +
+                    "en este dispositivo los datos de UN solo negocio.\n\n" +
+                    if (pendientes.hayAlgo()) {
+                        "Además hay ${pendientes.total} operaciones pendientes de " +
+                            "sincronizar de la sesión anterior.\n\n"
+                    } else {
+                        ""
+                    } +
+                    "La opción recomendada es empezar con los datos de TU cuenta: " +
+                    "se borrará la caché local y se reconstruirá desde la nube de tu negocio.",
+                textAlign = TextAlign.Start
+            )
+        },
+        confirmButton = {
+            Button(onClick = onEmpezarDeCero) {
+                Text("Empezar con mis datos (borrar caché local)")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onConservar) {
+                Text("Conservar los datos locales (asumo que son míos)")
+            }
+        }
+    )
+}
+
+/**
+ * DialogoCambioBloqueado
+ * ----------------------
+ * Bloquea el cambio de cuenta cuando la cuenta anterior dejó operaciones
+ * locales pendientes (eliminaciones o movimientos económicos sin confirmar).
+ * NUNCA se ejecutan esos pendientes bajo la nueva cuenta: solo se permite
+ * volver a la cuenta anterior o descartar explícitamente la caché local.
+ */
+@Composable
+private fun DialogoCambioBloqueado(
+    pendientes: PreparadorLocalCuenta.InformePendientes,
+    onCancelar: () -> Unit,
+    onDescartar: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = { },
+        title = { Text("Cambio de cuenta bloqueado") },
+        text = {
+            Text(
+                text = "La cuenta anterior dejó en este dispositivo " +
+                    "${pendientes.total} operación(es) local(es) sin sincronizar " +
+                    "(eliminaciones y/o movimientos económicos).\n\n" +
+                    "Para no perderlas, estas operaciones no pueden ejecutarse bajo la " +
+                    "cuenta nueva. Inicia sesión con la cuenta anterior y sincroniza, " +
+                    "o descarta la caché local (se reconstruirá desde la nube de tu negocio).",
+                textAlign = TextAlign.Start
+            )
+        },
+        confirmButton = {
+            Button(onClick = onCancelar) {
+                Text("Volver a iniciar sesión con la cuenta anterior")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDescartar) {
+                Text("Descartar caché local y continuar")
+            }
+        }
+    )
 }
