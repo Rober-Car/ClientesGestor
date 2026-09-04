@@ -36,6 +36,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,8 +57,10 @@ import com.roberto.gestorpro.ui.components.AppDialogTextButton
 import com.roberto.gestorpro.ui.components.AppNavigationBackButton
 import com.roberto.gestorpro.ui.components.AppSecondaryButton
 import com.roberto.gestorpro.ui.components.AppSemanticButton
+import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 import com.roberto.gestorpro.ui.viewmodel.PlazasHoyServicio
 import com.roberto.gestorpro.ui.viewmodel.ServicioViewModel
+import kotlinx.coroutines.launch
 
 /**
  * ServiciosScreen
@@ -69,8 +72,17 @@ import com.roberto.gestorpro.ui.viewmodel.ServicioViewModel
 @Composable
 fun ServiciosScreen(
     navController: NavHostController,
-    viewModel: ServicioViewModel = hiltViewModel()
+    viewModel: ServicioViewModel = hiltViewModel(),
+    /**
+     * mainViewModel
+     * -------------
+     * ViewModel general de la app. Se usa para comprobar que el ADMIN tiene un
+     * negocio creado antes de permitir crear un servicio nuevo, igual que hace
+     * el flujo de Clientes con AñadirClienteScreen.
+     */
+    mainViewModel: MainViewModel = hiltViewModel()
 ) {
+    val alcance = rememberCoroutineScope()
     val activos by viewModel.activos.collectAsStateWithLifecycle()
     val inactivos by viewModel.inactivos.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
@@ -95,7 +107,19 @@ fun ServiciosScreen(
     Scaffold(
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { navController.navigate(Routes.CREAR_SERVICIO) },
+                onClick = {
+                    // GUARD DE NEGOCIO: antes de abrir el alta de un servicio se
+                    // comprueba que el administrador tiene negocio creado (mismo
+                    // mecanismo que AñadirClienteScreen). Sin negocio, se lleva a
+                    // Mi negocio para crearlo; el alta de servicio nunca se inicia,
+                    // por lo que no se inserta nada en Room ni se intenta sincronizar.
+                    alcance.launch {
+                        val conNegocio = mainViewModel.existeNegocioPropio()
+                        navController.navigate(
+                            if (conNegocio) Routes.CREAR_SERVICIO else Routes.MINEGOCIO
+                        )
+                    }
+                },
                 containerColor = Color(0xFF1E88E5)
             ) {
                 Icon(
