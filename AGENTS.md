@@ -2,6 +2,89 @@
 
 Lee este archivo completo antes de modificar el proyecto.
 
+> ## ⚠️ CHECKPOINT 2026-09-05 (permisos ADMIN nuevo + identidad/aislamiento + hidratación central Room + misc)
+>
+> Estado REAL al cierre de la tanda de trabajo reciente. **HEAD del desarrollador: `f616891`**
+> ("Modificacion de posicion y estilos en perfil cleintes, arregaldo el problema de un admind qeu entra
+> en la base de datos d eotro admid, solucionado la visibilidad de la contraseña y otros"). El working
+> tree tiene cambios SIN commit de esta tanda (**NO revertir**; lista en `git status`): la corrección de
+> aislamiento de identidad visual, el fix de teclado de Mi negocio, el guard "sin negocio" de
+> Solicitudes y la **hidratación central de Room**.
+>
+> ### DEPLOY AUTORIZADO (único de la tanda): Firestore Rules con `codigos_maestros`
+> - Diagnóstico previo (PC nuevo, ADMIN creado desde cero): la APK nueva ya escribe
+>   `codigos_maestros/{codigo}` en `crearNegocio()`, pero el ruleset desplegado (`cd36cbc9`, 2026-09-03)
+>   NO contenía esa colección → la Transaction de crear negocio fallaba (PERMISSION_DENIED). Además, un
+>   ADMIN con `usuarios/{uid}.negocioId == null` recibía PERMISSION_DENIED al abrir Notificaciones y
+>   Solicitudes (rules-are-not-filters sobre listados de negocio).
+> - Se desplegó **únicamente** `firestore.rules` local (validado **165/165**) a `gestorpro-50e83` →
+>   ruleset **`projects/gestorpro-50e83/rulesets/9d38a26c-0dae-41bf-b691-7f3f55138dbc`**
+>   (createTime 2026-09-04T21:24:26Z), verificado por API (contiene `match /codigos_maestros` y la
+>   validación cruzada en `negocios`/`negocios_publicos`). NO se desplegó Storage, Functions ni nada más.
+>
+> ### Cambios cerrados en el árbol actual (código, SIN commit)
+> 1. **Fix teclado en Mi negocio (`ui/configuracion/MiNegocioScreen.kt`):** el contenido pasa a
+>    `verticalScroll(rememberScrollState())` + `imePadding()` (mismo patrón que AñadirClienteScreen);
+>    con el teclado oculto el diseño es idéntico. El campo "Código maestro" ya no queda tapado.
+> 2. **Aislamiento de identidad visual Admin1→Admin2 (`NegocioRepository`, `MainViewModel`,
+>    `PreferencesRepository`):** el nombre/logo de la cuenta anterior ya no se hereda. Nuevo
+>    `estadoNegocioDeCuenta(): EstadoNegocioDeCuenta` (`SinSesion/Error/SinNegocio/ConNegocio`) que
+>    distingue "no tiene negocio CONFIRMADO" de "no se pudo comprobar". `refrescarIdentidadLocal()` es
+>    suspend y se espera antes de `Listo`; `refrescarIdentidadRemota()` vacía DataStore+memoria cuando el
+>    negocio confirmado es `null` y conserva la caché ante errores/offline; `cerrarSesion()` limpia la
+>    identidad en memoria y DataStore. `decidirPropietarioIndeterminado(conservar=true)` aplica la verdad
+>    remota tras adoptar.
+> 3. **Solicitudes sin negocio (`ui/solicitudes/SolicitudesScreen.kt`):** guard `negocioOk`; si
+>    `existeNegocioPropio() == false` NO consulta Firestore y muestra `SinNegocioContenido`
+>    ("No puedes gestionar solicitudes todavía… Crear mi negocio" → `Routes.MINEGOCIO`). Con negocio el
+>    flujo es idéntico.
+> 4. **Hidratación CENTRAL de Room tras WIPE (regresión "CrossFit no reaparece"):**
+>    - Nuevo `data/repository/HidratadorCacheLocal.kt` (coordinador) + `util/HidratacionMapeadores.kt`
+>      (mapeos puros). Lecturas remotas nuevas en los repos:
+>      `ServicioRemotoRepository.obtenerServiciosRemotosDelNegocio`,
+>      `SesionRemotoRepository.obtenerSesionesRemotasDelNegocio`,
+>      `ReservaRemotoRepository.obtenerReservasRemotasDelNegocio`,
+>      `MovimientoRemotoRepository.obtenerMovimientosRemotosDelNegocio` (todas filtran por
+>      `negocioId == uid` y propagan errores); `ClienteRemotoRepository.obtenerClientesRemotosDelNegocio`
+>      ya no traga el error de lista.
+>    - Orden: clientes → servicios → sesiones → reservas (solo si su cliente y sesión existen) →
+>      movimientos → recálculo de morosidad/deuda por cliente afectado (motor MovimientoMorosidad).
+>      Inserción SOLO si la fila no existe (sin duplicados, sin REPLACE destructivo).
+>    - Se dispara best-effort tras WIPE/adopción (`CambioCompletado`, `decidir…false`, `Descartar`,
+>      `AdoptadoSilencioso`) **solo si la cuenta actual tiene negocio confirmado y `negocioId == uid`**,
+>      con marcador `cache_hidratada_uid` en DataStore (evita repetir en cada login; un fallo de red no
+>      lo marca y permite reintentar). No se ejecuta en MismaCuenta con caché ya hidratada. NUNCA hidrata
+>      para una cuenta sin negocio. Al crear negocio se borra el marcador.
+>    - **Limitación documentada:** los GASTOS no tienen espejo remoto → no son recuperables tras WIPE
+>      (se abordará en fase posterior si se decide replicarlos).
+>
+> ### Verificación ejecutada (working tree)
+> - `npm --prefix firestore-tests test` → **165/165** (antes del deploy; sin cambios de Rules en la tanda).
+> - `:app:testDebugUnitTest` → **98/98** (85 previos + **13 nuevos** `HidratacionMapeadoresTest`);
+>   `:app:assembleDebug` → BUILD SUCCESSFUL.
+> - Diagnóstico de "Restaurar copia": **falsa alarma** — el backup real contenía `clientes=2`,
+>   `movimientos=0`; la transacción hace COMMIT y Room queda exactamente con el contenido del backup
+>   (por eso "Cliente Import Test" permanece y el movimiento 1994741218 no aparece). Se retiró la
+>   instrumentación temporal sin cambios funcionales.
+>
+> ### Estado de producción (verificado solo-lectura)
+> - Ruleset desplegado = `9d38a26c` (con `codigos_maestros`). `usuarios`: 5 (ADMIN `rdKOD…` con negocio
+>   "prueba de negocio"/`654321`; ADMIN `BW8a…` sin negocio; 1 CLIENTE sin negocio; 2 CLIENTES vinculados
+>   a `rdKOD…`). `negocios`/`negocios_publicos`/`codigos_maestros`: 1 doc cada uno. `clientes`: 2.
+>   `notificaciones`/`solicitudes`: 0.
+>
+> ### Pendientes inmediatos
+> 1. Commit agrupado del working tree de esta tanda (identidad + MiNegocio teclado + Solicitudes +
+>    hidratación + tests).
+> 2. Pruebas manuales pendientes del propietario: aislamiento Admin1/Admin2 (identidad vacía con Admin2,
+>    identidad propia al volver), hidratación completa tras WIPE (servicio/sesión/reserva/movimiento
+>    reaparecen), Solicitudes sin negocio (sin PERMISSION_DENIED), y keyboard de Mi negocio.
+> 3. Limpieza conocida: `firestore-tests/firestore-debug.log`; logs `[DIAG alta]`/`[DIAG sesiones]`/
+>    `ClasesDiagnostico`; `fallbackToDestructiveMigration` antes de producción.
+> 4. Seguir pendientes previos sin cerrar: Storage/bucket (logo), Blaze/Functions, tests Android
+>    dedicados (backup/owner/hidratación en fase instrumentada), VÍA 2/fecha de nacimiento opcional.
+
+
 > ## ⚠️ CHECKPOINT 2026-09-04 (última tanda documental — actualización informativa)
 >
 > Este bloque describe el estado REAL del árbol al cierre de la tanda de trabajo reciente

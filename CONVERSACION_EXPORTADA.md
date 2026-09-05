@@ -2687,3 +2687,98 @@ precio final editable que no cambia históricos; Functions: automatizaciones fut
 3. Pendientes previos sin cerrar: logs de diagnóstico, Storage/bucket (logo), tests Android dedicados
    (backup/owner), VÍA 2/fecha nacimiento, `fallbackToDestructiveMigration`, botones restantes,
    diagnóstico "Crear negocio", Blaze/Functions.
+
+---
+
+# ACTUALIZACIÓN 2026-09-05 (SESIONES XXXVI–XLIV) — DEPLOY `codigos_maestros` + IDENTIDAD/LOGIN + SOLICITUDES SIN NEGOCIO + HIDRATACIÓN CENTRAL Room
+
+> Bloque vigente. HEAD del desarrollador: `f616891` (los cambios de la tanda 2026-09-04 quedaron
+> commiteados por el desarrollador). Working tree con cambios SIN commit de esta tanda (NO revertir).
+> Detalle operativo en AGENTS.md (CHECKPOINT 2026-09-05). Sin commit, sin otros deploys.
+
+## XXXVI — Diagnóstico permisos ADMIN nuevo (PC nuevo) y DEPLOY de Firestore Rules
+- Síntoma (PC nuevo, ADMIN creado desde cero tras borrar usuarios de Firebase Auth): Notificaciones →
+  PERMISSION_DENIED; Solicitudes de baja → PERMISSION_DENIED; "Mi negocio → Crear negocio" → "No tienes
+  permisos para esta operación".
+- Diagnóstico con datos reales (solo lectura vía API con sesión CLI) y reproducción en el emulador con
+  las Rules DESPLEGADAS:
+  - `usuarios/{uid}` del ADMIN nuevo existe y es correcto (`rol=ADMIN`, `activo=true`,
+    `negocioId=null`).
+  - Rules desplegadas = `cd36cbc9` (2026-09-03) **sin** `match /codigos_maestros`; la APK nueva ya
+    escribe `codigos_maestros/{codigo}` en la Transaction de `crearNegocio()` → escritura denegada por
+    el catch-all → falla toda la transacción.
+  - Notificaciones/Solicitudes (list por `negocioId` con `usuarios/{uid}.negocioId == null`) se deniegan
+    por rules-are-not-filters incluso con colecciones vacías (reproducido en emulador con el ruleset
+    desplegado).
+- **DEPLOY AUTORIZADO (único):** `firestore.rules` local validado **165/165** → ruleset
+  **`9d38a26c-0dae-41bf-b691-7f3f55138dbc`** (createTime 2026-09-04T21:24:26Z), verificado por API
+  (contiene `match /codigos_maestros` y la validación cruzada). Sin Functions/Storage/datos.
+
+## XXXVII — Fix teclado en "Mi negocio" (UX)
+- Causa: `Column` fijo sin scroll ni reserva de IME → el teclado tapaba el campo "Código maestro".
+- Fix mínimo: `verticalScroll(rememberScrollState())` + `imePadding()` (patrón ya usado en
+  AñadirClienteScreen). Diseño idéntico con el teclado oculto. `MiNegocioScreen.kt`.
+
+## XXXVIII — Aislamiento de identidad Admin1→Admin2 (PARTE A, diagnóstico + implementación)
+- Síntoma: tras logout de Admin1 y login de Admin2 (sin negocio), Admin2 veía "prueba de negocio" en
+  Home y en Mi negocio (con mensaje "no has creado tu negocio"). Verificado solo-lectura: el nombre no
+  puede venir de Firestore (Admin2 no tiene negocio) → viene de la identidad LOCAL (DataStore
+  `nombre_negocio`/`logo_negocio` + memoria del MainViewModel activity-scoped), que no se limpiaba en
+  todos los caminos.
+- Implementado:
+  - `NegocioRepository.estadoNegocioDeCuenta(): EstadoNegocioDeCuenta`
+    (`SinSesion/Error/SinNegocio/ConNegocio`) → distingue "sin negocio CONFIRMADO" de "no comprobable".
+  - `MainViewModel.refrescarIdentidadLocal()` ahora suspend y esperada antes de `Listo`;
+    `refrescarIdentidadRemota()` vacía nombre/logo (DataStore+memoria) solo con negocio confirmado
+    `null` y conserva la caché ante error/offline; `cerrarSesion()` limpia identidad en memoria y
+    DataStore (Room/owner/ficheros conservados); `decidirPropietarioIndeterminado(conservar=true)`
+    aplica la verdad remota tras adoptar. `PreferencesRepository.limpiarIdentidadNegocio()` reutilizado.
+  - Verificación: `:app` 85/85, build OK. Pruebas manuales T1–T3 pendientes del propietario.
+
+## XXXIX — Solicitudes sin negocio (PARTE B)
+- Causa del PERMISSION_DENIED: `SolicitudesScreen` ejecutaba `cargarSolicitudes()` siempre; con
+  `usuarios/{uid}.negocioId == null` la regla `list` de `solicitudes` deniega.
+- Fix: guard `negocioOk` (comprueba `existeNegocioPropio()`); sin negocio NO consulta Firestore y
+  muestra el componente compartido `SinNegocioContenido` (textos específicos + botón "Crear mi negocio"
+  → `MINEGOCIO`). Con negocio el flujo queda idéntico. No se toca repositorio/Rules/Home.
+
+## XL–XLIV — Hidratación CENTRAL de Room tras WIPE (regresión "CrossFit no reaparece")
+- Regresión real: Admin1 (servicios/1 "CrossFit", clientes…) → logout → Admin2 → logout → Admin1: los
+  clientes reaparecían (reconcile puntual de ClientesScreen) pero el servicio NO, aunque el documento
+  remoto existía.
+- Causa: solo `cliente` tenía un mecanismo Firestore→Room por pantalla; `servicio`, `sesion`, `reserva`
+  y `movimiento` son write-through (Room→Firestore) sin pull tras WIPE → la caché quedaba incompleta.
+  Gastos no tienen espejo remoto (no recuperables; limitación documentada).
+- Implementado:
+  - `data/repository/HidratadorCacheLocal.kt` (coordinador central): best-effort, transacción Room por
+    fase, insert-if-missing, orden clientes → servicios → sesiones → reservas (solo si existen su
+    cliente y su sesión) → movimientos → recálculo de morosidad/deuda por cliente afectado
+    (MovimientoMorosidad con regla fechaBaja/inicioEtapa).
+  - `util/HidratacionMapeadores.kt` (mapeos puros remoto→entidad, rechazan negocio ajeno).
+  - `ServicioRemotoRepository.obtenerServiciosRemotosDelNegocio`,
+    `SesionRemotoRepository.obtenerSesionesRemotasDelNegocio`,
+    `ReservaRemotoRepository.obtenerReservasRemotasDelNegocio`,
+    `MovimientoRemotoRepository.obtenerMovimientosRemotosDelNegocio` (todas filtran por
+    `negocioId == uid` y propagan errores); `ClienteRemotoRepository.obtenerClientesRemotosDelNegocio`
+    ya no traga el error de lista.
+  - Disparo: tras `CambioCompletado`, `decidir…false`, `Descartar` y `AdoptadoSilencioso`, SOLO con
+    negocio confirmado y `negocioId == uid`, con marcador `cache_hidratada_uid` en DataStore (un fallo
+    de red no lo marca → reintento en el siguiente login). NUNCA para una cuenta sin negocio. Al crear
+    negocio se borra el marcador.
+  - Tests: `HidratacionMapeadoresTest` (**13**) → unit `:app` **98/98**; `assembleDebug` OK. Los casos
+    de transacciones/dedupe/huérfanas/recálculo se reservan a la fase instrumentada.
+
+## DIAGNÓSTICO "Restaurar copia" (FALSA ALARMA; sin cambios funcionales)
+- Instrumentación temporal en `ExportManager.restaurarBackup` (logs `[DIAG restore]`): el backup real
+  usado contenía **`clientes=2`, `movimientos=0`**; la transacción hace **COMMIT** y Room queda
+  exactamente con el contenido del backup. Por eso "Cliente Import Test" permanece (está en el backup) y
+  el movimiento `1994741218` no aparece (el backup no lo contiene). NO había fallo de Restaurar.
+  Se retiró toda la instrumentación y se restauró el código exacto previo.
+
+## ESTADO ACTUAL (cierre 2026-09-05)
+- Rules desplegadas `9d38a26c` (con `codigos_maestros`); unit `:app` 98/98; `assembleDebug` OK; Rules
+  165/165 (antes del deploy). Producción: `usuarios`=5, negocio "prueba de negocio"/654321 (`rdKOD…`),
+  ADMIN sin negocio (`BW8a…`), `clientes`=2, `notificaciones`/`solicitudes`=0.
+- Pendientes: commit agrupado del working tree; pruebas manuales del propietario (aislamiento,
+  hidratación, Solicitudes sin negocio, keyboard); limpieza de logs de diagnóstico y
+  `fallbackToDestructiveMigration`; Storage/bucket, Blaze/Functions y resto de pendientes previos.

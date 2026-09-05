@@ -40,6 +40,50 @@
 > - El resto de secciones de este informe (esquemas, decisiones, §14-§25) sigue vigente salvo lo aquí
 >   corregido.
 
+> **🔴 ACTUALIZACIÓN 2026-09-05 (DEPLOY `codigos_maestros` + IDENTIDAD/LOGIN + HIDRATACIÓN CENTRAL Room + misc — estado real):**
+> verificado contra el árbol real. **HEAD del desarrollador: `f616891`** (ya commiteados los estilos de
+> perfil/contraseña/aislamiento de ADMIN). Working tree con cambios SIN commit de esta tanda (NO revertir;
+> lista autoritativa en el CHECKPOINT de AGENTS.md 2026-09-05). Este bloque SUPERSEDE lo anterior donde
+> contradiga:
+> - **DEPLOY AUTORIZADO de Firestore Rules (único):** `firestore.rules` local validado **165/165** se
+>   desplegó a `gestorpro-50e83` → ruleset **`9d38a26c-0dae-41bf-b691-7f3f55138dbc`** (createTime
+>   2026-09-04T21:24:26Z), verificado por API: contiene `match /codigos_maestros` y la validación cruzada
+>   en `negocios`/`negocios_publicos`. Causa del fallo de "crear negocio" con ADMIN nuevo: la APK ya
+>   escribe `codigos_maestros/{codigo}`, pero el ruleset anterior (`cd36cbc9`) no tenía esa colección. Un
+>   ADMIN con `usuarios/{uid}.negocioId == null` también recibía PERMISSION_DENIED en Notificaciones y
+>   Solicitudes (rules-are-not-filters en listados de negocio).
+> - **Identidad/aislamiento Admin1→Admin2 (`NegocioRepository`, `MainViewModel`,
+>   `PreferencesRepository`):** `estadoNegocioDeCuenta(): EstadoNegocioDeCuenta`
+>   (`SinSesion/Error/SinNegocio/ConNegocio`) para distinguir "sin negocio CONFIRMADO" de "no comprobable".
+>   `refrescarIdentidadLocal()` suspend y esperada antes de `Listo`; `refrescarIdentidadRemota()` vacía
+>   nombre/logo (DataStore+memoria) solo con negocio confirmado `null` y conserva caché ante error/offline;
+>   `cerrarSesion()` limpia identidad en memoria y DataStore (Room/owner/ficheros se conservan);
+>   `decidirPropietarioIndeterminado(conservar=true)` aplica la verdad remota tras adoptar.
+> - **Solicitudes sin negocio (`SolicitudesScreen`):** guard `negocioOk`; sin negocio NO consulta
+>   Firestore y muestra `SinNegocioContenido` (textos propios + botón "Crear mi negocio" → `MINEGOCIO`);
+>   con negocio el flujo es idéntico. Se elimina el PERMISSION_DENIED de esta situación.
+> - **Hidratación CENTRAL de Room tras WIPE (nuevo):** `data/repository/HidratadorCacheLocal.kt`
+>   (coordinador; transacción Room por fase; insert-if-missing; best-effort con marcador
+>   `cache_hidratada_uid` en DataStore) + `util/HidratacionMapeadores.kt` (mapeos puros) +
+>   `obtenerXRemotosDelNegocio()` en Servicio/Sesion/Reserva/Movimiento repos (todas filtran por
+>   `negocioId == uid` del auth y propagan errores) y `ClienteRemotoRepository` ya no traga el error de
+>   lista. Orden: clientes → servicios → sesiones → reservas (solo con cliente+sesión locales) →
+>   movimientos → recálculo de morosidad/deuda por cliente afectado (MovimientoMorosidad). Solo se ejecuta
+>   con negocio confirmado y `negocioId == uid`, tras WIPE/adopción; NUNCA para cuenta sin negocio. Los
+>   **GASTOS** no tienen espejo remoto → no recuperables tras WIPE (limitación documentada).
+> - **Fix teclado en Mi negocio (`MiNegocioScreen`):** `verticalScroll(rememberScrollState())` +
+>   `imePadding()` (patrón de AñadirClienteScreen); diseño idéntico con teclado oculto.
+> - **Diagnóstico "Restaurar copia": FALSA ALARMA.** El backup real contenía `clientes=2`,
+>   `movimientos=0`; la transacción hace COMMIT y Room queda con el contenido exacto del backup. Se
+>   retiró la instrumentación temporal sin cambios funcionales.
+> - **Verificación:** Rules **165/165** (antes del deploy); unit `:app` **98/98** (85 + 13
+>   `HidratacionMapeadoresTest`); `:app:assembleDebug` BUILD SUCCESSFUL. Sin commit, sin otros deploys.
+> - Producción (solo-lectura): ruleset `9d38a26c`; `usuarios`=5 (ADMIN `rdKOD…` con "prueba de
+>   negocio"/654321, ADMIN `BW8a…` sin negocio, 1 CLIENTE sin negocio, 2 CLIENTES vinculados a `rdKOD…`);
+>   `negocios`/`negocios_publicos`/`codigos_maestros`=1; `clientes`=2; `notificaciones`/`solicitudes`=0.
+> - El resto de secciones de este informe (esquemas, decisiones, §14–§25) sigue vigente salvo lo aquí
+>   corregido.
+
 Convención de evidencia usada en todo el informe:
 - **[CONFIRMADO]** — comprobado directamente en el código/configuración/ejecución de hoy.
 - **[INFERIDO]** — conclusión razonable por el comportamiento del código, no documentada explícitamente.
