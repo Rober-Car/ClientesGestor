@@ -1,5 +1,31 @@
 # CONTEXTO_PROYECTO.md — Documento de traspaso a nueva IA
 
+> **🟡 ACTUALIZACIÓN 2026-09-06 (continuación; cambios SIN commit en el árbol):** HEAD sigue en
+> `cb44d1e`. El working tree contiene cambios SIN commit (NO revertir) de una tanda final de UX:
+> orden de clientes por apellido→nombre (`model/Cliente` expone `apellidos`), selectores INDIVIDUAL y
+> GRUPO de CrearNotificacionScreen como Surface tonal clicable, y regla visual de Switches
+> (ON azul `#1E88E5`, excepciones morosidad/baja en rojo). Detalle y pendientes en AGENTS.md
+> (CHECKPOINT 2026-09-06) y en el último bloque de CONVERSACION_EXPORTADA.md.
+
+> **🔴 ACTUALIZACIÓN 2026-09-05 (CIERRE — HEAD `cb44d1e`, Room 18, working tree limpio):**
+> verificado contra el árbol real. HEAD del desarrollador `cb44d1e` (2026-09-05 18:27). Este bloque
+> SUPERSEDE las cifras "HEAD limpio `60cf834` / Room v15-17 / working tree sin commit" citadas abajo.
+> - **Room v18** (`MIGRACION_17_18` crea `servicio_desactivacion_pendiente`) — **migración 17→18 PROBADA
+>   en teléfono físico**: desde `5184af9` (esquema 17, datos 8 clientes/1 actividad/2 sesiones/2
+>   movimientos) a `cb44d1e` (esquema 18): `user_version` 18, tabla nueva presente, filas conservadas,
+>   sin errores ni recreación destructiva (detalle y artefactos en `%TEMP%\opencode\roomtest`).
+> - **Nuevas funcionalidades ya en HEAD** (detalle en AGENTS.md CHECKPOINT 2026-09-05): Economía como
+>   pantalla de gestión (selección/acciones masivas, editor compartido `DialogoEdicionMovimiento`,
+>   `MovimientoRepository.actualizarMovimientos/eliminarMovimientos`, `MovimientoPago.resolverLote`,
+>   filtro de fechas por `fechaInicio`), barra contextual común `BarraSeleccionContextual`, selección
+>   múltiple de clientes, estado y filtro de VINCULACIÓN (`firebaseUid`; `model/Cliente` lo expone),
+>   protecciones UX de notificaciones, arreglos de cancelación de reservas (appCliente + capacidad Admin
+>   con `CapacidadSesion`) y baja durable de actividades (`DesactivacionServicioSincronizador`).
+> - **Verificación:** `:app:testDebugUnitTest` **146/146**, `:appCliente:testDebugUnitTest` **17/17**,
+>   assembleDebug OK ambos, `git diff --check` limpio. Sin cambios de Rules/Functions/Storage.
+> - Para los pendientes de esta sesión (migraciones Room sin fallback, logs de diagnóstico, Storage/Blaze,
+>   etc.) consultar AGENTS.md y el nuevo bloque final de CONVERSACION_EXPORTADA.md.
+
 > **Fecha del informe:** 2026-09-03 (verificado contra el árbol real).
 > **Objetivo:** que una IA que no conoce ninguna conversación previa pueda continuar el desarrollo con precisión.
 > **Regla de uso:** este documento es SOLO lectura/contexto. No refleja decisiones nuevas.

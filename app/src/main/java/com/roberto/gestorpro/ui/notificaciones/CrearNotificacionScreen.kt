@@ -18,6 +18,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
@@ -202,49 +204,118 @@ fun CrearNotificacionScreen(
             when (modoDestino) {
                 ModoDestino.INDIVIDUAL.valor -> {
                     Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = clienteSeleccionado?.nombre ?: "",
-                        onValueChange = { },
-                        readOnly = true,
-                        enabled = false,
-                        label = { Text("Cliente") },
-                        placeholder = { Text("Selecciona el cliente") },
-                        trailingIcon = {
-                            Icon(Icons.Default.Person, contentDescription = null)
-                        },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                            disabledContainerColor = Color.Transparent,
-                            disabledBorderColor = MaterialTheme.colorScheme.outline,
-                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
+                    Surface(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
                             .clickable {
                                 navController.navigate(
                                     Routes.seleccionarClientes("individual")
                                 )
                                 viewModel.limpiarErrorCreacion()
+                            },
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFFE3F2FD),
+                        border = BorderStroke(1.dp, Color(0xFF90CAF9))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                tint = Color(0xFF1E88E5)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Cliente",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = clienteSeleccionado?.nombre
+                                        ?: "Selecciona el cliente",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = if (clienteSeleccionado == null) {
+                                        FontWeight.Normal
+                                    } else {
+                                        FontWeight.Medium
+                                    },
+                                    color = if (clienteSeleccionado == null) {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface
+                                    }
+                                )
                             }
-                    )
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "Abrir selección de cliente",
+                                tint = Color(0xFF1E88E5)
+                            )
+                        }
+                    }
                 }
 
                 ModoDestino.GRUPO.valor -> {
                     Spacer(modifier = Modifier.height(8.dp))
-                    AppSecondaryButton(
-                        text = if (seleccionGrupo.isEmpty()) {
-                            "Seleccionar clientes"
-                        } else {
-                            "Seleccionar clientes (${seleccionGrupo.size})"
-                        },
-                        onClick = {
-                            viewModel.iniciarSeleccionGrupo(seleccionGrupo)
-                            navController.navigate(Routes.seleccionarClientes("grupo"))
-                            viewModel.limpiarErrorCreacion()
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                viewModel.iniciarSeleccionGrupo(seleccionGrupo)
+                                navController.navigate(Routes.seleccionarClientes("grupo"))
+                                viewModel.limpiarErrorCreacion()
+                            },
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFFE3F2FD),
+                        border = BorderStroke(1.dp, Color(0xFF90CAF9))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Group,
+                                contentDescription = null,
+                                tint = Color(0xFF1E88E5)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Clientes",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = if (seleccionGrupo.isEmpty()) {
+                                        "Seleccionar clientes"
+                                    } else {
+                                        "${seleccionGrupo.size} clientes seleccionados"
+                                    },
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = if (seleccionGrupo.isEmpty()) {
+                                        FontWeight.Normal
+                                    } else {
+                                        FontWeight.Medium
+                                    },
+                                    color = if (seleccionGrupo.isEmpty()) {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface
+                                    }
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "Abrir selección de clientes",
+                                tint = Color(0xFF1E88E5)
+                            )
                         }
-                    )
+                    }
                 }
 
                 else -> {
@@ -300,7 +371,11 @@ fun CrearNotificacionScreen(
                     onCheckedChange = {
                         programar = it
                         viewModel.limpiarErrorCreacion()
-                    }
+                    },
+                    colors = androidx.compose.material3.SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = Color(0xFF1E88E5)
+                    )
                 )
             }
 

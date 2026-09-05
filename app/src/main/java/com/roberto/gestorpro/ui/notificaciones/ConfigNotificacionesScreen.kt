@@ -156,7 +156,8 @@ fun ConfigNotificacionesScreen(
                                 titulo = "Notificaciones de morosidad",
                                 descripcion = "Aviso al cliente cuando entra en MOROSO",
                                 activa = morosidadActiva,
-                                onCambio = { morosidadActiva = it }
+                                onCambio = { morosidadActiva = it },
+                                colorActivado = Color(0xFFF44336)
                             )
                             OpcionConfiguracion(
                                 titulo = "Recordatorio de morosidad",
@@ -168,7 +169,8 @@ fun ConfigNotificacionesScreen(
                                 titulo = "Baja confirmada",
                                 descripcion = "Aviso al cliente cuando se confirma su baja",
                                 activa = bajaConfirmadaActiva,
-                                onCambio = { bajaConfirmadaActiva = it }
+                                onCambio = { bajaConfirmadaActiva = it },
+                                colorActivado = Color(0xFFF44336)
                             )
                         }
                     }
@@ -220,7 +222,8 @@ private fun OpcionConfiguracion(
     titulo: String,
     descripcion: String,
     activa: Boolean,
-    onCambio: (Boolean) -> Unit
+    onCambio: (Boolean) -> Unit,
+    colorActivado: Color = Color(0xFF1E88E5)
 ) {
     Row(
         modifier = Modifier
@@ -242,6 +245,13 @@ private fun OpcionConfiguracion(
             )
         }
         Spacer(modifier = Modifier.width(12.dp))
-        Switch(checked = activa, onCheckedChange = onCambio)
+        Switch(
+            checked = activa,
+            onCheckedChange = onCambio,
+            colors = androidx.compose.material3.SwitchDefaults.colors(
+                checkedThumbColor = Color.White,
+                checkedTrackColor = colorActivado
+            )
+        )
     }
 }

@@ -1724,7 +1724,11 @@ fun PerfilClienteScreen(
                                             if (activar && fechaPagoMovimiento == null) {
                                                 fechaPagoMovimiento = System.currentTimeMillis()
                                             }
-                                        }
+                                        },
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = Color.White,
+                                            checkedTrackColor = Color(0xFF1E88E5)
+                                        )
                                     )
                                 }
 

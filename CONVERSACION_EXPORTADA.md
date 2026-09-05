@@ -2782,3 +2782,98 @@ precio final editable que no cambia históricos; Functions: automatizaciones fut
 - Pendientes: commit agrupado del working tree; pruebas manuales del propietario (aislamiento,
   hidratación, Solicitudes sin negocio, keyboard); limpieza de logs de diagnóstico y
   `fallbackToDestructiveMigration`; Storage/bucket, Blaze/Functions y resto de pendientes previos.
+
+# ACTUALIZACIÓN 2026-09-05 (CIERRE) — GESTIÓN MASIVA ECONOMÍA/CLIENTES + VINCULACIÓN + RESERVAS + BAJA DURABLE + MIGRACIÓN Room 17→18 PROBADA EN TELÉFONO
+
+> Bloque vigente. HEAD del desarrollador: `cb44d1e` (`cORRECCIONES DEPSUES DE LAS PREUBAS`,
+> 2026-09-05 18:27, rama `master`), **working tree limpio**. El desarrollador commiteó todo lo de esta
+> conversación (más commits previos `08c0c96`/`5184af9`/etc.). Resumen operativo y pendientes en
+> AGENTS.md (CHECKPOINT 2026-09-05). Sin commit/push/deploy propios.
+
+## 1) Economía → pantalla de gestión (Ingresos)
+- Selección múltiple solo sobre INGRESOS (long-press → borde #1E88E5 + checkbox; gastos intactos).
+- Barra contextual Material 3 común **`ui/components/BarraSeleccionContextual.kt`** (salir + contador
+  numérico sin "seleccionado(s)" + acciones directas; sin menú ⋮ de acciones; fondo surface + elevación
+  2-3dp). Se usa en Economía y en la lista de Clientes.
+- Acciones 1: Editar / (Marcar pagado | Marcar pendiente) / Eliminar. N: Marcar pagados (selector método
+  opcional) / Marcar pendientes / Eliminar.
+- **Editor compartido único** `ui/components/DialogoEdicionMovimiento.kt` (extraído del perfil; perfil y
+  Economía lo usan). Guarda/elimina siempre por ViewModel→Repository.
+- `MovimientoRepository.actualizarMovimientos(lista)` / `eliminarMovimientos(lista)` reutilizan el núcleo
+  individual (Room→morosidad→réplica→resumen) bajo el mismo Mutex.
+- `MovimientoPago.resolverLote` (puro): PENDIENTE→PAGADO (fecha ahora + método opcional), PAGADO→PENDIENTE
+  (limpia fecha/método), ya en estado objetivo → no se toca.
+- Filtro de fechas **solo movimientos** sobre `fechaInicio` (`util/MovimientoFiltro.kt`, borrador/aplicado;
+  inicio>hasta no aplica; deuda real intacta).
+
+## 2) Clientes → selección + vinculación
+- Selección múltiple y masivas (activar/archivar/dar de baja; Editar con 1) reutilizando operaciones
+  existentes (`reactivarCliente`/`restaurarCliente`, `archivarCliente`, `darDeBaja`). "Eliminar" y
+  "Poner moroso" **no** se implementaron (no existe operación segura; ver informe).
+- **Vinculación:** `model/Cliente` expone `firebaseUid` (única fuente). Perfil muestra "Cuenta
+  vinculada/no vinculada". `ClientesScreen`: menú `⋮` con filtro de CUENTA (Todos/Vinculados/No
+  vinculados) combinable con el estado (chips superiores; el menú ya NO duplica estado; "Limpiar
+  filtros" solo limpia Cuenta; punto azul solo con filtro de cuenta). `cumpleFiltroClientes` (puro,
+  testeable). Reconciliación local del `firebaseUid` desde Firestore al reanudar la lista (sin polling).
+- Notificaciones: no vinculados bloqueados en la resolución de destinatarios; mensaje claro Individual +
+  aviso tonal suave con icono ⚠ en la creación.
+
+## 3) Reservas (appCliente) — UX/errores
+- Cancelar ya NO se bloquea por `plazas==capacidad` (guard eliminado; Rules intactas).
+- Carrera por la última plaza → mensaje **"No quedan plazas disponibles."** solo si el PERMISSION_DENIED
+  coincide con sesión con ≤0 plazas reales (relectura; si no, se conserva el mensaje de permisos).
+- Errores obsoletos se limpian al reanudar la pantalla; tras fallar se refrescan plazas/estado.
+- Admin: al cambiar la CAPACIDAD se cuentan reservas reales de Firestore y
+  `plazasDisponibles=(nuevaCapacidad−inscritos).coerceAtLeast(0)` (`CapacidadSesion.kt`). Causa raíz del
+  bloqueo de cancelación tras reducir capacidad corregida en la edición de sesión.
+
+## 4) Baja durable de Actividades → Room v18
+- `servicio_desactivacion_pendiente` (`idServicio`, `desde` ORIGINAL de la baja) + DAO + `MIGRACION_17_18`.
+- `DesactivacionServicioSincronizador`: converge Firestore (borra reservas+sesiones futuras con la frontera
+  original, deja `activo=false`, idempotente, elimina pendiente al converger). Reintento al arranque
+  (MainViewModel) y al abrir Actividades; reactivar/reintentar convergen antes de activar.
+- `BajaServicioReglas` (frontera pasada/futura) y `Desactivacion...` tests puros.
+
+## 5) Migración Room 17→18 PROBADA EN TELÉFONO FÍSICO (2026-09-05)
+- `5184af9` (esquema 17) instalado limpio; datos: 8 clientes, 1 servicio, 2 sesiones, 2 movimientos
+  (`user_version` 17). Instalado encima `cb44d1e` (esquema 18) sin desinstalar/borrar.
+- Resultado: `user_version` 18, existe `servicio_desactivacion_pendiente` (idServicio,desde), filas
+  conservadas (8/1/2/2), sin errores de migración en logcat, sin recreación destructiva.
+- MIUI bloquea `adb install` (USER_RESTRICTED): los APK se instalan manualmente desde Descargas.
+- Worktrees/APK/backups temporales en `%TEMP%\opencode\roomtest` (se pueden limpiar).
+
+## 6) Verificación (HEAD limpio)
+- `:app:testDebugUnitTest` **146/146**; `:appCliente:testDebugUnitTest` **17/17**; assembleDebug ambos OK.
+- `git diff --check` limpio. Sin cambios de Rules/Functions/Storage. Sin commit/push/deploy.
+
+## Para REANUDAR
+1. Confirmar/decidir pendientes: retirar logs `[DIAG alta]`/`ClasesDiagnostico`, `fallbackToDestructiveMigration`
+   antes de producción, Storage/bucket + Blaze/Functions, VÍA 2/fecha nacimiento opcional, unificar botones
+   restantes, limpiar `%TEMP%\opencode\roomtest`.
+2. Las decisiones del bloque «Modelo económico definitivo»/notificaciones siguen vigentes.
+
+# ACTUALIZACIÓN 2026-09-06 (CHECKPOINT DE CONTINUIDAD) — 3 CORRECCIONES UX + SELECTOR GRUPO + DOCUMENTACIÓN
+
+> Estado de REANUDACIÓN. HEAD del desarrollador: `cb44d1e` (2026-09-05). Working tree con cambios
+> SIN commit (NO revertir). Todo lo anterior de la conversación quedó commiteado por el desarrollador
+> en `cb44d1e`/`5184af9`. Resumen operativo y pendientes en AGENTS.md (CHECKPOINT 2026-09-06).
+
+## Qué se ha hecho en esta tanda
+1. **Orden de clientes** (`ClientesScreen`): el modelo expone `apellidos` y la lista se ordena
+   alfabéticamente natural (apellido → nombre, case-insensitive) tras aplicar filtros/búsqueda.
+2. **Selectores de notificación** (`CrearNotificacionScreen`): tanto el destino INDIVIDUAL como el
+   GRUPO usan una `Surface` tonal clicable con icono + texto/placeholder + chevron (no parecen campos
+   de texto). Lógica y navegación intactas.
+3. **Colores de Switches** (regla visual): ON = azul `#1E88E5`; excepciones de riesgo (morosidad y
+   baja) conservan rojo. Afecta a perfil (Pago/Exento), editor compartido, EditarServicio,
+   ConfigNotificaciones y Recibir avisos (appCliente).
+
+## Verificación
+- `:app:testDebugUnitTest` 146/146; `:app:assembleDebug` OK.
+- `:appCliente:testDebugUnitTest` 17/17; `:appCliente:assembleDebug` OK.
+- `git diff --check` limpio. Sin cambios de Rules/backend/Firestore.
+
+## Para REANUDAR (mañana)
+1. Revisar/prueba visual de los cambios SIN commit y decidir commit agrupado.
+2. Continuar pendientes previos del CHECKPOINT 2026-09-05 (logs de diagnóstico,
+   `fallbackToDestructiveMigration`, Storage/bucket + Blaze/Functions, VÍA 2/fecha nacimiento, etc.).

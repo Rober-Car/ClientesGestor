@@ -160,7 +160,11 @@ fun EditarServicioScreen(
                     )
                     Switch(
                         checked = activo,
-                        onCheckedChange = { activo = it }
+                        onCheckedChange = { activo = it },
+                        colors = androidx.compose.material3.SwitchDefaults.colors(
+                            checkedThumbColor = androidx.compose.ui.graphics.Color.White,
+                            checkedTrackColor = androidx.compose.ui.graphics.Color(0xFF1E88E5)
+                        )
                     )
                 }
             }

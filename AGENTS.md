@@ -2,6 +2,111 @@
 
 Lee este archivo completo antes de modificar el proyecto.
 
+> ## ⚠️ CHECKPOINT 2026-09-06 (FASE FINAL PRE-BLAZE — 3 correcciones UX + selector GRUPO; continuar mañana desde aquí)
+>
+> Estado para REANUDAR. **HEAD del desarrollador: `cb44d1e`** (2026-09-05 18:27). **Working tree con
+> cambios SIN commit** (lista en `git status`; NO revertir): 3 correcciones UX (orden de clientes,
+> selector individual de notificación, colores de Switches) + el selector GRUPO de notificación +
+> esta documentación. Se hizo **commit del contenido anterior** en `cb44d1e`/`5184af9`.
+>
+> ### Cambios SIN commit en el árbol (pendientes de revisión/commit)
+> - `model/Cliente.kt` + `data/entity/ClienteEntity.kt`: el modelo expone `apellidos` (para ordenar
+>   apellido→nombre; sin migración Room).
+> - `ui/clientes/ClientesScreen.kt`: la lista se ordena alfabéticamente natural por
+>   `apellidos→nombre` (case-insensitive) DESPUÉS de filtros/búsqueda; búsqueda/filtros/selección
+>   intactos.
+> - `ui/notificaciones/CrearNotificacionScreen.kt`: el selector de cliente INDIVIDUAL y el control
+>   de selección GRUPO pasan a una `Surface` tonal clicable con icono + chevron (ya no parecen campos
+>   de texto). Lógica/navegación intactas.
+> - Switches: regla visual ON = azul corporativo `#1E88E5`; excepciones de riesgo (morosidad y baja)
+>   conservan rojo: `ui/clientes/PerfilClienteAdministradorScreen.kt` (Pago realizado azul; "Exento de
+>   morosidad" rojo), `ui/components/DialogoEdicionMovimiento.kt`, `ui/servicios/EditarServicioScreen.kt`,
+>   `ui/notificaciones/ConfigNotificacionesScreen.kt` (morosidad/baja confirmada rojo, recordatorio azul),
+>   `appCliente/.../NotificacionesScreen.kt` (Recibir avisos azul).
+> - Docs (esta petición): `AGENTS.md`, `CONTEXTO_PROYECTO.md`, `CONVERSACION_EXPORTADA.md`.
+>
+> ### Verificación
+> - `:app:testDebugUnitTest` → **146/146**; `:app:assembleDebug` → BUILD SUCCESSFUL.
+> - `:appCliente:testDebugUnitTest` → **17/17**; `:appCliente:assembleDebug` → BUILD SUCCESSFUL.
+> - `git diff --check` limpio (solo avisos CRLF preexistentes). Sin cambios de Rules/backend.
+>
+> ### Resumen del estado global (bloques anteriores)
+> HEAD `cb44d1e` ya contiene: Room v18 + `MIGRACION_17_18` (probada en teléfono físico), Economía de
+> gestión + editor compartido, barra contextual común, selección/vinculación de clientes, arreglos de
+> reservas y baja durable de actividades. Detalle en el CHECKPOINT 2026-09-05 anterior.
+>
+> ### Para mañana
+> 1. Revisar y decidir el commit agrupado de los cambios SIN commit (o aplicar correcciones que
+>    surjan de la prueba visual).
+> 2. Seguir pendientes: retirar logs `[DIAG alta]`/`ClasesDiagnostico`, `fallbackToDestructiveMigration`
+>    antes de producción, Storage/bucket + Blaze/Functions, VÍA 2/fecha nacimiento opcional, limpiar
+>    `%TEMP%\opencode\roomtest`.
+
+> ## ⚠️ CHECKPOINT 2026-09-05 (CIERRE — gestión masiva Economía/Clientes, vinculación, reservas, baja durable de actividades, Room v18 y migración 17→18 PROBADA EN DISPOSITIVO)
+>
+> Estado REAL al cierre de la tanda larga reciente. **HEAD del desarrollador: `cb44d1e`**
+> (`cORRECCIONES DEPSUES DE LAS PREUBAS`, 2026-09-05 18:27, rama `master`). **Working tree limpio**
+> (`git status` vacío). Este checkpoint SUPERSEDE al bloque 2026-09-05 anterior (que describía el árbol
+> con HEAD `f616891` y cambios SIN commit): el desarrollador commiteó esa tanda y el resto en los commits
+> `5184af9`/`08c0c96`/`cb44d1e`. **No revertir nada.**
+>
+> ### Código/esquema
+> - **Room v18** (`ClientesDatabase`, `version = 18`) con **`MIGRACION_17_18`** en `AppModule`: crea la
+>   tabla `servicio_desactivacion_pendiente` (`idServicio` PK, `desde`). La librería Room sigue en 2.8.4.
+> - **Migración 17→18 PROBADA EN TELÉFONO FÍSICO (2026-09-05):** se instaló el APK del commit `5184af9`
+>   (esquema 17, sin `MIGRACION_17_18`), se crearon datos (8 clientes, 1 actividad/servicio, 2 sesiones,
+>   2 movimientos), se instaló encima el APK de `cb44d1e` (esquema 18) **sin desinstalar ni borrar datos**,
+>   y se verificó por lectura real de la BD (WAL incluido): `user_version` 17 → **18**, existe
+>   `servicio_desactivacion_pendiente`, filas conservadas (8/1/2/2), sin errores de migración en logcat,
+>   **sin** recreación destructiva por `fallbackToDestructiveMigration()`. Datos de respaldo y worktrees
+>   temporales (`r17`/`r18`) en `%TEMP%\opencode\roomtest` (fuera del repo).
+>
+> ### Funcionalidad nueva cerrada en HEAD (esta conversación)
+> - **Economía como pantalla de gestión:** selección múltiple (long-press) solo sobre INGRESOS, barra
+>   contextual común, operaciones masivas (`MovimientoRepository.actualizarMovimientos/eliminarMovimientos`
+>   reutilizando el núcleo individual bajo el Mutex; `MovimientoPago.resolverLote`), editor de movimiento
+>   **compartido** `ui/components/DialogoEdicionMovimiento.kt` (perfil + Economía), filtro de fechas
+>   `util/MovimientoFiltro.kt` sobre `fechaInicio` (solo ingresos; borrador/aplicado).
+> - **Clientes:** selección múltiple y operaciones masivas (activar/archivar/dar de baja; Editar con 1) con
+>   barra común; estado de VINCULACIÓN en el perfil ("Cuenta vinculada/no vinculada" por `firebaseUid`),
+>   filtro de cuenta (Todos/Vinculados/No vinculados) en el menú `⋮` (el estado sigue en los chips
+>   superiores; combinables; "Limpiar filtros" solo limpia cuenta; punto azul solo con filtro de cuenta);
+>   reconcilia `firebaseUid` local desde Firestore al reanudar la lista (sin polling). `model/Cliente`
+>   ahora expone `firebaseUid`.
+> - **Notificaciones:** los no vinculados no reciben envío (resolución de destinatarios por `firebaseUid`);
+>   mensaje claro para Individual sin cuenta; aviso de destinatarios en superficie tonal suave con icono ⚠
+>   (creación de notificación). Sin cambios de Rules.
+> - **Reservas (appCliente):** cancelar NO se bloquea por `plazas==capacidad`/completa (guard eliminado);
+>   error de carrera por la última plaza se muestra como "No quedan plazas disponibles." (solo si tras un
+>   PERMISSION_DENIED la sesión real tiene ≤0 plazas; si no, se mantiene el mensaje de permisos); el error
+>   de una operación anterior se limpia al reanudar `ClasesScreen` y se refrescan las plazas tras fallar.
+> - **Reservas (Admin, edición de sesión):** al cambiar la capacidad se usan las **reservas reales de
+>   Firestore** (`ReservaRemotoRepository.contarReservasDeSesionRemoto` + `SesionViewModel
+>   .cargarSesionConReservasActivas`); `plazasDisponibles = (nuevaCapacidad − inscritos).coerceAtLeast(0)`
+>   (`util/CapacidadSesion.kt`). Arregla la causa raíz del "No tienes permisos" al cancelar tras reducir
+>   capacidad. Si `nuevaCapacidad < reservas` se conserva la regla existente (plazas = 0), sin inventar.
+> - **Baja/desactivación durable de Actividades:** la tabla `servicio_desactivacion_pendiente` persiste la
+>   desactivación con la **frontera original** (`desde`) cuando la cascada remota falla;
+>   `DesactivacionServicioSincronizador` converge de forma idempotente (sesiones futuras+reservas remotas y
+>   servicio `activo=false`), se reintenta al arrancar (`MainViewModel`) y al abrir Actividades
+>   (`ServicioViewModel.cargarServicios`), y `reactivar`/`reintentarSincronizacion` convergen antes de
+>   activar. `util/BajaServicioReglas.kt` centraliza la frontera pasada/futura. No cambia Rules ni el modelo.
+>
+> ### Verificación (HEAD, árbol limpio)
+> - `:app:testDebugUnitTest` → **146/146**; `:app:assembleDebug` → BUILD SUCCESSFUL.
+> - `:appCliente:testDebugUnitTest` → **17/17**; `:appCliente:assembleDebug` → BUILD SUCCESSFUL.
+> - `git diff --check` limpio (solo avisos CRLF preexistentes). Sin cambios de Rules (no se ejecutó suite).
+> - Migración física 17→18 verificada (ver arriba). No hubo commit/push/deploy de la parte de pruebas.
+>
+> ### Pendientes / notas para retomar
+> - Trabajo temporal (worktrees `r17`/`r18`, APK Room 17 y Room 18, backups de la BD del teléfono) en
+>   `%TEMP%\opencode\roomtest`; se puede limpiar. La app Admin del teléfono quedó en esquema 18 con los
+>   datos de prueba (los anteriores se descartaron por decisión del propietario; backup guardado).
+> - Seguir pendientes previos sin cerrar (logs de diagnóstico `[DIAG alta]`/`ClasesDiagnostico`, retirar
+>   `fallbackToDestructiveMigration` antes de producción, Storage/bucket + Blaze/Functions, etc.).
+> - Regla vigente: estado de cuenta (filtro) y estado administrativo son independientes; `firebaseUid` es
+>   la única fuente de vinculación.
+
 > ## ⚠️ CHECKPOINT 2026-09-05 (permisos ADMIN nuevo + identidad/aislamiento + hidratación central Room + misc)
 >
 > Estado REAL al cierre de la tanda de trabajo reciente. **HEAD del desarrollador: `f616891`**

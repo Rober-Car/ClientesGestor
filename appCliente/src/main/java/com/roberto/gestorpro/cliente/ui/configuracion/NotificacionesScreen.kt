@@ -138,7 +138,11 @@ fun NotificacionesScreen(
                     }
                     Switch(
                         checked = notificacionesActivadas,
-                        onCheckedChange = { viewModel.setNotificacionesActivadas(it) }
+                        onCheckedChange = { viewModel.setNotificacionesActivadas(it) },
+                        colors = androidx.compose.material3.SwitchDefaults.colors(
+                            checkedThumbColor = androidx.compose.ui.graphics.Color.White,
+                            checkedTrackColor = androidx.compose.ui.graphics.Color(0xFF1E88E5)
+                        )
                     )
                 }
             }

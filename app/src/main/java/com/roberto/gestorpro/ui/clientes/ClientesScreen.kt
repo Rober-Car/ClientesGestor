@@ -190,6 +190,13 @@ fun ClientesScreen(
                 cliente.email.orEmpty()
             ).any { it.contains(textoBusqueda, ignoreCase = true) }
         }
+        // Orden natural: apellido (principal) y nombre (secundario), robusto ante
+        // mayúsculas/minúsculas. Se aplica DESPUÉS de los filtros, sin cambiar la
+        // búsqueda ni los filtros (estado/cuenta).
+        .sortedWith(
+            compareBy<Cliente> { it.apellidos.trim().lowercase() }
+                .thenBy { it.nombre.trim().lowercase() }
+        )
 
     // En modo selección, al cambiar/limpiar el filtro se podan los ids que ya no
     // son visibles (no quedan clientes fantasma seleccionados).

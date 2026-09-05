@@ -366,7 +366,11 @@ fun DialogoEdicionMovimiento(
                             if (activar) {
                                 fechaPagoEditada = System.currentTimeMillis()
                             }
-                        }
+                        },
+                        colors = androidx.compose.material3.SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = Color(0xFF1E88E5)
+                        )
                     )
                 }
 

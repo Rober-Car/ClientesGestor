@@ -112,6 +112,7 @@ fun ClienteEntity.toCliente(): Cliente {
         moroso = moroso,
         fechaEntradaMorosidad = fechaEntradaMorosidad,
         exentoMorosidad = exentoMorosidad,
-        firebaseUid = firebaseUid
+        firebaseUid = firebaseUid,
+        apellidos = apellidos
     )
 }

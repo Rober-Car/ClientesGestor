@@ -37,5 +37,10 @@ data class Cliente(
      * null = cliente creado por el ADMIN que todavía NO ha vinculado su cuenta.
      * Es la ÚNICA fuente del estado de vinculación (no hay propiedad nueva).
      */
-    val firebaseUid: String? = null
+    val firebaseUid: String? = null,
+    /**
+     * apellidos: apellidos del cliente por separado. Se expone para poder
+     * ordenar la lista de clientes de forma natural por apellido → nombre.
+     */
+    val apellidos: String = ""
 )
