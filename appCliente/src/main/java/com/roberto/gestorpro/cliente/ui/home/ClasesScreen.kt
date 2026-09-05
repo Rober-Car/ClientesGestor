@@ -85,6 +85,10 @@ fun ClasesScreen(
 
     LifecycleResumeEffect(Unit) {
         viewModel.cargar()
+        // Al volver a la pantalla se recargan las sesiones; un error de una
+        // operación anterior (p. ej. "La sesión ya está completa") no debe
+        // permanecer si el estado actual de la sesión ya cambió.
+        reservasViewModel.limpiarError()
         onPauseOrDispose { }
     }
 

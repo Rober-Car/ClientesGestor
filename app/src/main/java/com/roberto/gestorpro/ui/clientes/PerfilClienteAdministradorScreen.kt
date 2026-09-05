@@ -101,6 +101,7 @@ import com.roberto.gestorpro.ui.components.AppDialogDangerConfirmButton
 import com.roberto.gestorpro.ui.components.AppDialogTextButton
 import com.roberto.gestorpro.ui.components.AppNavigationBackButton
 import com.roberto.gestorpro.ui.components.AppPrimaryButton
+import com.roberto.gestorpro.ui.components.DialogoEdicionMovimiento
 import com.roberto.gestorpro.ui.components.AppSecondaryButton
 import com.roberto.gestorpro.ui.components.AppTextLinkButton
 import com.roberto.gestorpro.ui.components.BotonSelectorFoto
@@ -457,145 +458,14 @@ fun PerfilClienteScreen(
         mutableStateOf<MovimientoEntity?>(null)
     }
 
-    /* ============================================================
-     * ============ ESTADO DEL DIÁLOGO DETALLE MOVIMIENTO =========
-     * ============================================================ */
     /**
      * movimientoSeleccionado
      * ---------------------
-     * ✔ TIPO: variable con estado (var) → MovimientoEntity?
-     * Es el movimiento que el administrador ha pulsado para ver su detalle.
-     * Sirve para abrir el diálogo con los datos de ese movimiento y poder editarlos o eliminarlos.
-     * Es null cuando no hay ningún movimiento seleccionado (diálogo cerrado).
+     * Movimiento pulsado en la pestana Economia del perfil. Abre el editor
+     * compartido DialogoEdicionMovimiento (unica implementacion del editor
+     * de movimientos). Es null cuando no hay ningun movimiento seleccionado.
      */
     var movimientoSeleccionado by rememberSaveable { mutableStateOf<MovimientoEntity?>(null) }
-
-    /**
-     * idsServiciosEditados
-     * --------------------
-     * IDs de los servicios ACTIVOS marcados en el diálogo de detalle (editables).
-     */
-    var idsServiciosEditados by rememberSaveable { mutableStateOf<List<Int>>(emptyList()) }
-
-    /**
-     * idsServiciosEditadosFijos
-     * -------------------------
-     * IDs del movimiento histórico que ya NO son servicios activos (de baja o
-     * eliminados). Se conservan: se muestran marcados y no se pueden quitar.
-     */
-    var idsServiciosEditadosFijos by rememberSaveable { mutableStateOf<List<Int>>(emptyList()) }
-
-    /**
-     * precioEditado
-     * -------------
-     * Campo "Precio final" editable dentro del diálogo de detalle.
-     */
-    var precioEditado by rememberSaveable { mutableStateOf("") }
-
-    /**
-     * precioEditadoManual
-     * -------------------
-     * true si el ADMIN ha tecleado el precio en la edición (no se sobrescribe
-     * de forma automática con la suma de servicios).
-     */
-    var precioEditadoManual by rememberSaveable { mutableStateOf(false) }
-
-    /**
-     * fechaInicioEditada
-     * ------------------
-     * ✔ TIPO: variable con estado (var) → Long?
-     * Es la fecha de inicio editable dentro del diálogo de detalle.
-     * Sirve para que el administrador pueda modificar la fecha de inicio del servicio.
-     */
-    var fechaInicioEditada by rememberSaveable { mutableStateOf<Long?>(null) }
-
-    /**
-     * fechaFinEditada
-     * ---------------
-     * ✔ TIPO: variable con estado (var) → Long?
-     * Es la fecha de fin editable dentro del diálogo de detalle.
-     * Sirve para que el administrador pueda modificar la fecha de fin del servicio.
-     */
-    var fechaFinEditada by rememberSaveable { mutableStateOf<Long?>(null) }
-
-    /**
-     * pagadoEditado
-     * -------------
-     * ✔ TIPO: variable con estado (var) → Boolean
-     * Es el interruptor "Pago realizado" editable dentro del diálogo de detalle.
-     * Sirve para que el administrador pueda cambiar el estado de pago del servicio.
-     */
-    var pagadoEditado by rememberSaveable { mutableStateOf(false) }
-
-    // Fecha de pago existente/elegida al editar (null si PENDIENTE).
-    var fechaPagoEditada by rememberSaveable { mutableStateOf<Long?>(null) }
-    // Método de pago existente/elegido al editar (nombre o null).
-    var metodoPagoEditadoNombre by rememberSaveable { mutableStateOf<String?>(null) }
-    var mostrarDatePickerPagoDetalle by rememberSaveable { mutableStateOf(false) }
-
-    /**
-     * observacionesEditadas
-     * ---------------------
-     * ✔ TIPO: variable con estado (var) → String
-     * Es el campo "Observaciones" editable dentro del diálogo de detalle.
-     * Sirve para que el administrador pueda modificar las notas del servicio.
-     */
-    var observacionesEditadas by rememberSaveable { mutableStateOf("") }
-
-    /**
-     * mostrarDatePickerInicioDetalle
-     * -----------------------------
-     * ✔ TIPO: variable con estado (var) → Boolean
-     * Es la variable que controla si el selector de fecha de inicio está visible en el diálogo.
-     * Sirve para abrir y cerrar el DatePickerDialog de inicio dentro del detalle.
-     */
-    var mostrarDatePickerInicioDetalle by rememberSaveable { mutableStateOf(false) }
-
-    /**
-     * mostrarDatePickerFinDetalle
-     * ---------------------------
-     * ✔ TIPO: variable con estado (var) → Boolean
-     * Es la variable que controla si el selector de fecha de fin está visible en el diálogo.
-     * Sirve para abrir y cerrar el DatePickerDialog de fin dentro del detalle.
-     */
-    var mostrarDatePickerFinDetalle by rememberSaveable { mutableStateOf(false) }
-
-    /**
-     * errorPrecioEditado
-     * ------------------
-     * ✔ TIPO: variable con estado (var) → Boolean
-     * Es el indicador de error del campo Precio en el diálogo de detalle.
-     * Sirve para resaltar el campo si el precio no es válido al pulsar Guardar cambios.
-     */
-    var errorPrecioEditado by rememberSaveable { mutableStateOf(false) }
-
-    /**
-     * errorFechaInicioEditada
-     * -----------------------
-     * ✔ TIPO: variable con estado (var) → Boolean
-     * Es el indicador de error del campo Fecha de inicio en el diálogo de detalle.
-     * Sirve para resaltar el campo si no se ha seleccionado fecha al pulsar Guardar cambios.
-     */
-    var errorFechaInicioEditada by rememberSaveable { mutableStateOf(false) }
-
-    /**
-     * errorFechaFinEditada
-     * --------------------
-     * ✔ TIPO: variable con estado (var) → Boolean
-     * Es el indicador de error del campo Fecha de fin en el diálogo de detalle.
-     * Sirve para resaltar el campo si no se ha seleccionado fecha o si es anterior a la de inicio.
-     */
-    var errorFechaFinEditada by rememberSaveable { mutableStateOf(false) }
-
-    /**
-     * mostrarConfirmarEliminar
-     * -----------------------
-     * ✔ TIPO: variable con estado (var) → Boolean
-     * Es la variable que controla si se muestra el diálogo de confirmación de eliminación.
-     * Sirve para pedir confirmación al administrador antes de borrar un movimiento definitivamente.
-     */
-    var mostrarConfirmarEliminar by rememberSaveable { mutableStateOf(false) }
-
     var mostrarConfirmarArchivar by rememberSaveable { mutableStateOf(false) }
 
     /**
@@ -685,20 +555,6 @@ fun PerfilClienteScreen(
         mostrarFormularioMovimiento = true
     }
 
-    /**
-     * alternarServicioEditado
-     * -----------------------
-     * Marca/desmarca un servicio ACTIVO en el diálogo de edición. El precio
-     * nunca se recalcula automáticamente en edición (se conserva el valor
-     * histórico/manual); el ADMIN lo ajusta a mano si lo necesita.
-     */
-    fun alternarServicioEditado(idServicio: Int) {
-        idsServiciosEditados = if (idServicio in idsServiciosEditados) {
-            idsServiciosEditados - idServicio
-        } else {
-            (idsServiciosEditados + idServicio).distinct()
-        }
-    }
 
     /**
      * mostrarDialogoServicios
@@ -708,34 +564,6 @@ fun PerfilClienteScreen(
      */
     var mostrarDialogoServicios by rememberSaveable { mutableStateOf(false) }
 
-    /**
-     * LaunchedEffect(movimientoSeleccionado)
-     * --------------------------------------
-     * ✔ TIPO: efecto de composición (LaunchedEffect)
-     * Se lanza cada vez que se selecciona un movimiento para ver su detalle.
-     * Sirve para precargar los campos editables con los datos actuales del movimiento.
-     */
-    LaunchedEffect(movimientoSeleccionado) {
-        movimientoSeleccionado?.let { mov ->
-            val activosIds = serviciosActivos.map { it.idServicio }.toSet()
-            idsServiciosEditados = mov.servicios.filter { it in activosIds }
-            idsServiciosEditadosFijos =
-                MovimientoPrecio.idsFijosHistoricos(mov.servicios, activosIds)
-            precioEditado = MovimientoPrecio.precioCampo(mov.precioFinal)
-            // En edición el importe se trata como manual: los cambios de
-            // selección NO sobrescriben el precio histórico por accidente.
-            precioEditadoManual = true
-            fechaInicioEditada = mov.fechaInicio
-            fechaFinEditada = mov.fechaFin
-            pagadoEditado = mov.estado == EstadoMovimiento.PAGADO
-            fechaPagoEditada = mov.fechaPago
-            metodoPagoEditadoNombre = mov.metodoPago?.name
-            observacionesEditadas = mov.observaciones ?: ""
-            errorPrecioEditado = false
-            errorFechaInicioEditada = false
-            errorFechaFinEditada = false
-        }
-    }
 
     /**
      * Scaffold
@@ -1009,6 +837,26 @@ fun PerfilClienteScreen(
                             )
                         }
                     }
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = if (cliente?.firebaseUid.isNullOrBlank()) {
+                            "Cuenta no vinculada"
+                        } else {
+                            "Cuenta vinculada"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (cliente?.firebaseUid.isNullOrBlank()) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            Color(0xFF2E7D32)
+                        }
+                    )
                 }
             }
 
@@ -2162,563 +2010,23 @@ fun PerfilClienteScreen(
                     }
                 }
 
-                /* ============================================================
-                 * ============ DIÁLOGO DETALLE DEL MOVIMIENTO ================
-                 * ============================================================ */
                 if (movimientoSeleccionado != null) {
-
-                    val fechaInicioFormateadaDetalle =
-                        fechaInicioEditada?.let { formatearFecha(it) } ?: ""
-
-                    val fechaFinFormateadaDetalle =
-                        fechaFinEditada?.let { formatearFecha(it) } ?: ""
-
-                    Dialog(
-                        onDismissRequest = {
-                            movimientoSeleccionado = null
-                        }
-                    ) {
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            shape = RoundedCornerShape(20.dp),
-                            color = Color.White,
-                            shadowElevation = 8.dp
-                        ) {
-
-                            Column(
-                                modifier = Modifier
-                                    .padding(20.dp)
-                                    .verticalScroll(rememberScrollState()),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-
-                                Text(
-                                    text = "Detalle",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    color = Color(0xFF1E88E5),
-                                    modifier = Modifier.fillMaxWidth(),
-                                    textAlign = TextAlign.Center
-                                )
-
-                                Column(
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(
-                                        text = "Servicios del movimiento",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    val nombresMovimientoDetalle = movimientoSeleccionado?.servicios
-                                        ?.mapNotNull { serviciosMap[it] }
-                                        ?.joinToString(" + ")
-                                        .orEmpty()
-                                    Text(
-                                        text = if (nombresMovimientoDetalle.isBlank()) {
-                                            "Sin servicio asociado"
-                                        } else {
-                                            nombresMovimientoDetalle
-                                        },
-                                        style = MaterialTheme.typography.bodyLarge
-                                    )
-                                }
-
-                                if (serviciosActivos.isEmpty() && idsServiciosEditadosFijos.isEmpty()) {
-                                    Text(
-                                        text = "No hay servicios activos para añadir",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = Color.Gray
-                                    )
-                                }
-                                serviciosActivos.forEach { servicio ->
-                                    val marcado = servicio.idServicio in idsServiciosEditados
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .clickable {
-                                                alternarServicioEditado(servicio.idServicio)
-                                            }
-                                            .padding(vertical = 4.dp, horizontal = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Checkbox(
-                                            checked = marcado,
-                                            onCheckedChange = {
-                                                alternarServicioEditado(servicio.idServicio)
-                                            }
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = servicio.nombre,
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            modifier = Modifier.weight(1f),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Text(
-                                            text = MovimientoPrecio.importeLegible(servicio.precio),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                                if (idsServiciosEditadosFijos.isNotEmpty()) {
-                                    Text(
-                                        text = "Servicios dados de baja (se conservan)",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(top = 8.dp)
-                                    )
-                                    idsServiciosEditadosFijos.forEach { idServicio ->
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 4.dp, horizontal = 4.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Checkbox(
-                                                checked = true,
-                                                onCheckedChange = null
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(
-                                                text = serviciosMap[idServicio]
-                                                    ?: "Servicio $idServicio",
-                                                style = MaterialTheme.typography.bodyLarge,
-                                                color = Color.Gray,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                    }
-                                }
-
-                                OutlinedTextField(
-                                    value = precioEditado,
-                                    onValueChange = {
-                                        precioEditado = it
-                                        errorPrecioEditado = false
-                                    },
-                                    label = { Text("Precio final (€)") },
-                                    isError = errorPrecioEditado,
-                                    supportingText = {
-                                        if (errorPrecioEditado) {
-                                            Text("Introduce un precio válido (0 o mayor)")
-                                        }
-                                    },
-                                    keyboardOptions = KeyboardOptions(
-                                        keyboardType = KeyboardType.Decimal
-                                    ),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-
-                                OutlinedTextField(
-                                    value = fechaInicioFormateadaDetalle,
-                                    onValueChange = { },
-                                    readOnly = true,
-                                    enabled = false,
-                                    label = { Text("Fecha de inicio") },
-                                    placeholder = { Text("dd/MM/aaaa") },
-                                    isError = errorFechaInicioEditada,
-                                    supportingText = {
-                                        if (errorFechaInicioEditada) {
-                                            Text("La fecha de inicio es obligatoria")
-                                        }
-                                    },
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                                        disabledContainerColor = Color.Transparent,
-                                        disabledBorderColor = MaterialTheme.colorScheme.outline,
-                                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                    ),
-                                    trailingIcon = {
-                                        Icon(
-                                            imageVector = Icons.Default.DateRange,
-                                            contentDescription = "Seleccionar fecha de inicio"
-                                        )
-                                    },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            mostrarDatePickerInicioDetalle = true
-                                        }
-                                )
-
-                                OutlinedTextField(
-                                    value = fechaFinFormateadaDetalle,
-                                    onValueChange = { },
-                                    readOnly = true,
-                                    enabled = false,
-                                    label = { Text("Fecha de fin") },
-                                    placeholder = { Text("dd/MM/aaaa") },
-                                    isError = errorFechaFinEditada,
-                                    supportingText = {
-                                        if (errorFechaFinEditada) {
-                                            Text("La fecha de fin es obligatoria")
-                                        }
-                                    },
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                                        disabledContainerColor = Color.Transparent,
-                                        disabledBorderColor = MaterialTheme.colorScheme.outline,
-                                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                    ),
-                                    trailingIcon = {
-                                        Icon(
-                                            imageVector = Icons.Default.DateRange,
-                                            contentDescription = "Seleccionar fecha de fin"
-                                        )
-                                    },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            mostrarDatePickerFinDetalle = true
-                                        }
-                                )
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(text = "Pago realizado")
-                                    Spacer(modifier = Modifier.weight(1f))
-                                    Switch(
-                                        checked = pagadoEditado,
-                                        onCheckedChange = { activar ->
-                                            pagadoEditado = activar
-                                            // Al pasar a PAGADO se propone hoy como fecha de
-                                            // pago (el ADMIN puede modificarla después).
-                                            if (activar) {
-                                                fechaPagoEditada = System.currentTimeMillis()
-                                            }
-                                        }
-                                    )
-                                }
-
-                                if (pagadoEditado) {
-                                    OutlinedTextField(
-                                        value = fechaPagoEditada?.let { formatearFecha(it) } ?: "",
-                                        onValueChange = { },
-                                        readOnly = true,
-                                        enabled = false,
-                                        label = { Text("Fecha de pago") },
-                                        placeholder = { Text("dd/MM/aaaa") },
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                                            disabledContainerColor = Color.Transparent,
-                                            disabledBorderColor = MaterialTheme.colorScheme.outline,
-                                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                        ),
-                                        trailingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Default.DateRange,
-                                                contentDescription = "Seleccionar fecha de pago"
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                mostrarDatePickerPagoDetalle = true
-                                            }
-                                    )
-
-                                    SelectorMetodoPago(
-                                        nombre = metodoPagoEditadoNombre,
-                                        onCambio = { metodoPagoEditadoNombre = it }
-                                    )
-                                }
-
-                                OutlinedTextField(
-                                    value = observacionesEditadas,
-                                    onValueChange = {
-                                        observacionesEditadas = it
-                                    },
-                                    label = { Text("Observaciones") },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-
-                                AppPrimaryButton(
-                                    onClick = {
-
-                                        val precioValido = precioEditado
-                                            .replace(",", ".")
-                                            .toDoubleOrNull()
-
-                                        errorPrecioEditado =
-                                            precioValido == null || precioValido < 0
-
-                                        errorFechaInicioEditada =
-                                            fechaInicioEditada == null
-
-                                        errorFechaFinEditada =
-                                            fechaFinEditada == null
-
-                                        val fechasValidas =
-                                            fechaInicioEditada != null &&
-                                                    fechaFinEditada != null &&
-                                                    fechaFinEditada!! >= fechaInicioEditada!!
-
-                                        if (!fechasValidas) {
-                                            errorFechaFinEditada = true
-                                        }
-
-                                        if (
-                                            !errorPrecioEditado &&
-                                            !errorFechaInicioEditada &&
-                                            !errorFechaFinEditada &&
-                                            fechasValidas
-                                        ) {
-                                            val pagoEditadoResuelto = MovimientoPago.resolver(
-                                                nuevoPagado = pagadoEditado,
-                                                eraPagado = movimientoSeleccionado!!.estado ==
-                                                    EstadoMovimiento.PAGADO,
-                                                fechaPagoElegida = fechaPagoEditada,
-                                                metodoPago = MovimientoPago.metodoPagoDe(
-                                                    metodoPagoEditadoNombre
-                                                ),
-                                                ahora = System.currentTimeMillis()
-                                            )
-
-                                            val movimientoActualizado = MovimientoEntity(
-                                                idMovimiento = movimientoSeleccionado!!.idMovimiento,
-                                                idCliente = movimientoSeleccionado!!.idCliente,
-                                                // Servicios: activos marcados + fijos históricos
-                                                // (de baja/eliminados) que se conservan. Si el
-                                                // movimiento histórico no tenía servicios, se
-                                                // mantiene la lista vacía.
-                                                servicios = (idsServiciosEditados +
-                                                        idsServiciosEditadosFijos).distinct(),
-                                                fechaInicio = fechaInicioEditada!!,
-                                                fechaFin = fechaFinEditada!!,
-                                                precioFinal = precioValido!!,
-                                                estado = pagoEditadoResuelto.estado,
-                                                fechaPago = pagoEditadoResuelto.fechaPago,
-                                                metodoPago = pagoEditadoResuelto.metodoPago,
-                                                observaciones = observacionesEditadas.ifBlank {
-                                                    null
-                                                }
-                                            )
-
-                                            movimientoViewModel.actualizarMovimiento(
-                                                movimientoActualizado
-                                            )
-
-                                            movimientoSeleccionado = null
-                                        }
-                                    },
-                                    text = "Guardar cambios"
-                                )
-
-                                AppDangerOutlinedButton(
-                                    text = "Eliminar movimiento",
-                                    onClick = {
-                                        mostrarConfirmarEliminar = true
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    if (mostrarConfirmarEliminar) {
-                        AlertDialog(
-                            onDismissRequest = {
-                                mostrarConfirmarEliminar = false
+                    val movimientoDetalle = movimientoSeleccionado
+                    if (movimientoDetalle != null) {
+                        DialogoEdicionMovimiento(
+                            movimiento = movimientoDetalle,
+                            serviciosActivos = serviciosActivos,
+                            serviciosMap = serviciosMap,
+                            onDismiss = { movimientoSeleccionado = null },
+                            onGuardar = { editado ->
+                                movimientoViewModel.actualizarMovimiento(editado)
+                                movimientoSeleccionado = null
                             },
-                            title = {
-                                Text(
-                                    text = "Eliminar movimiento",
-                                    style = MaterialTheme.typography.titleLarge
-                                )
-                            },
-                            text = {
-                                Text("¿Seguro que quieres eliminar este movimiento? Esta acción no se puede deshacer.")
-                            },
-                            confirmButton = {
-                                AppDialogDangerConfirmButton(
-                                    text = "Eliminar",
-                                    onClick = {
-                                        movimientoViewModel.eliminarMovimiento(
-                                            movimientoSeleccionado!!
-                                        )
-                                        mostrarConfirmarEliminar = false
-                                        movimientoSeleccionado = null
-                                    }
-                                )
-                            },
-                            dismissButton = {
-                                AppDialogTextButton(
-                                    text = "Cancelar",
-                                    onClick = {
-                                        mostrarConfirmarEliminar = false
-                                    }
-                                )
+                            onEliminar = { aEliminar ->
+                                movimientoViewModel.eliminarMovimiento(aEliminar)
+                                movimientoSeleccionado = null
                             }
                         )
-                    }
-
-                    /* ============================================================
-                     * ============ DATEPICKERS DEL DIÁLOGO DETALLE ==============
-                     * ============================================================ */
-                    if (mostrarDatePickerInicioDetalle) {
-
-                        val selectableDatesInicioDetalle = remember {
-                            val hoy = LocalDate.now()
-                            val fechaMinimaUtc = hoy.minusYears(120)
-                                .atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-                            object : SelectableDates {
-                                override fun isSelectableDate(utcTimeMillis: Long): Boolean =
-                                    utcTimeMillis >= fechaMinimaUtc
-
-                                override fun isSelectableYear(year: Int): Boolean =
-                                    year >= hoy.minusYears(120).year
-                            }
-                        }
-
-                        val datePickerStateInicioDetalle = rememberDatePickerState(
-                            selectableDates = selectableDatesInicioDetalle
-                        )
-
-                        DatePickerDialog(
-                            onDismissRequest = {
-                                mostrarDatePickerInicioDetalle = false
-                            },
-                            confirmButton = {
-                                TextButton(
-                                    enabled = datePickerStateInicioDetalle.selectedDateMillis != null,
-                                    onClick = {
-                                        fechaInicioEditada =
-                                            datePickerStateInicioDetalle.selectedDateMillis
-                                        mostrarDatePickerInicioDetalle = false
-                                    }
-                                ) {
-                                    Text("Aceptar")
-                                }
-                            },
-                            dismissButton = {
-                                TextButton(
-                                    onClick = {
-                                        mostrarDatePickerInicioDetalle = false
-                                    }
-                                ) {
-                                    Text("Cancelar")
-                                }
-                            }
-                        ) {
-                            DatePicker(
-                                state = datePickerStateInicioDetalle
-                            )
-                        }
-                    }
-
-                    if (mostrarDatePickerFinDetalle) {
-
-                        val selectableDatesFinDetalle = remember {
-                            val hoy = LocalDate.now()
-                            val fechaInicioUtcDetalle = fechaInicioEditada
-                                ?: hoy.minusYears(120).atStartOfDay(ZoneOffset.UTC)
-                                    .toInstant().toEpochMilli()
-                            object : SelectableDates {
-                                override fun isSelectableDate(utcTimeMillis: Long): Boolean =
-                                    utcTimeMillis >= fechaInicioUtcDetalle
-
-                                override fun isSelectableYear(year: Int): Boolean =
-                                    year >= hoy.minusYears(120).year
-                            }
-                        }
-
-                        val datePickerStateFinDetalle = rememberDatePickerState(
-                            selectableDates = selectableDatesFinDetalle
-                        )
-
-                        DatePickerDialog(
-                            onDismissRequest = {
-                                mostrarDatePickerFinDetalle = false
-                            },
-                            confirmButton = {
-                                TextButton(
-                                    enabled = datePickerStateFinDetalle.selectedDateMillis != null,
-                                    onClick = {
-                                        fechaFinEditada =
-                                            datePickerStateFinDetalle.selectedDateMillis
-                                        mostrarDatePickerFinDetalle = false
-                                    }
-                                ) {
-                                    Text("Aceptar")
-                                }
-                            },
-                            dismissButton = {
-                                TextButton(
-                                    onClick = {
-                                        mostrarDatePickerFinDetalle = false
-                                    }
-                                ) {
-                                    Text("Cancelar")
-                                }
-                            }
-                        ) {
-                            DatePicker(
-                                state = datePickerStateFinDetalle
-                            )
-                        }
-                    }
-
-                    if (mostrarDatePickerPagoDetalle) {
-
-                        val selectableDatesPagoDetalle = remember {
-                            val hoy = LocalDate.now()
-                            val fechaMinimaUtc = hoy.minusYears(120).atStartOfDay(ZoneOffset.UTC)
-                                .toInstant().toEpochMilli()
-                            object : SelectableDates {
-                                override fun isSelectableDate(utcTimeMillis: Long): Boolean =
-                                    utcTimeMillis >= fechaMinimaUtc
-
-                                override fun isSelectableYear(year: Int): Boolean =
-                                    year >= hoy.minusYears(120).year
-                            }
-                        }
-
-                        val datePickerStatePagoDetalle = rememberDatePickerState(
-                            selectableDates = selectableDatesPagoDetalle
-                        )
-
-                        DatePickerDialog(
-                            onDismissRequest = {
-                                mostrarDatePickerPagoDetalle = false
-                            },
-                            confirmButton = {
-                                TextButton(
-                                    enabled = datePickerStatePagoDetalle.selectedDateMillis != null,
-                                    onClick = {
-                                        fechaPagoEditada =
-                                            datePickerStatePagoDetalle.selectedDateMillis
-                                        mostrarDatePickerPagoDetalle = false
-                                    }
-                                ) {
-                                    Text("Aceptar")
-                                }
-                            },
-                            dismissButton = {
-                                TextButton(
-                                    onClick = {
-                                        mostrarDatePickerPagoDetalle = false
-                                    }
-                                ) {
-                                    Text("Cancelar")
-                                }
-                            }
-                        ) {
-                            DatePicker(
-                                state = datePickerStatePagoDetalle
-                            )
-                        }
                     }
                 }
 

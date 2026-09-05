@@ -1,5 +1,6 @@
 package com.roberto.gestorpro.util
 
+import com.roberto.gestorpro.data.entity.MovimientoEntity
 import com.roberto.gestorpro.data.entity.ServicioEntity
 import com.roberto.gestorpro.model.EstadoMovimiento
 import com.roberto.gestorpro.model.MetodoPago
@@ -142,5 +143,59 @@ object MovimientoPago {
             else -> null // seguía PAGADO sin fecha existente (legado: no se inventa)
         }
         return DatosPago(EstadoMovimiento.PAGADO, fechaPago, metodoPago)
+    }
+
+    /**
+     * Resuelve el cambio de estado masivo de varios movimientos (misma FASE 4).
+     *
+     * Para cada movimiento decide qué hacer SIN duplicar la lógica individual:
+     *  - pagar == true  y el movimiento está PENDIENTE  → transición a PAGADO
+     *    con `fechaPago = ahora` y el `metodoPago` indicado (null = Sin especificar).
+     *  - pagar == false y el movimiento está PAGADO     → transición a PENDIENTE
+     *    limpiando `fechaPago` y `metodoPago` (idéntico al flujo individual).
+     *  - Cualquier movimiento que YA esté en el estado objetivo NO se incluye en
+     *    el resultado: no se sobrescribe ni se inventa su método/fecha cuando la
+     *    operación no requiere modificarlos (p. ej. "marcar como pagados" con
+     *    "Sin especificar" no borra el método de un movimiento ya PAGADO).
+     */
+    fun resolverLote(
+        movimientos: List<MovimientoEntity>,
+        pagar: Boolean,
+        metodoPago: MetodoPago?,
+        ahora: Long
+    ): List<MovimientoEntity> {
+        return movimientos.mapNotNull { movimiento ->
+            when {
+                pagar && movimiento.estado == EstadoMovimiento.PENDIENTE -> {
+                    val datos = resolver(
+                        nuevoPagado = true,
+                        eraPagado = false,
+                        fechaPagoElegida = null,
+                        metodoPago = metodoPago,
+                        ahora = ahora
+                    )
+                    movimiento.copy(
+                        estado = datos.estado,
+                        fechaPago = datos.fechaPago,
+                        metodoPago = datos.metodoPago
+                    )
+                }
+                !pagar && movimiento.estado == EstadoMovimiento.PAGADO -> {
+                    val datos = resolver(
+                        nuevoPagado = false,
+                        eraPagado = true,
+                        fechaPagoElegida = null,
+                        metodoPago = null,
+                        ahora = ahora
+                    )
+                    movimiento.copy(
+                        estado = datos.estado,
+                        fechaPago = datos.fechaPago,
+                        metodoPago = datos.metodoPago
+                    )
+                }
+                else -> null // ya en el estado objetivo: se conserva tal cual.
+            }
+        }
     }
 }

@@ -1,7 +1,10 @@
 package com.roberto.gestorpro.ui.components
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -41,6 +44,7 @@ import coil3.compose.AsyncImage
 import com.roberto.gestorpro.model.EstadoCliente
 import java.io.File
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ClienteItem(
     nombre: String,
@@ -53,6 +57,7 @@ fun ClienteItem(
     onRestaurar: (() -> Unit)? = null,
     seleccionable: Boolean = false,
     seleccionado: Boolean = false,
+    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var mostrarDialogoArchivar by remember { mutableStateOf(false) }
@@ -66,10 +71,25 @@ fun ClienteItem(
         else -> Color(0xFF1E88E5)
     }
 
+    val shape = RoundedCornerShape(12.dp)
+
     Card(
-        onClick = onClick,
-        modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
+            .border(
+                border = if (seleccionado) {
+                    BorderStroke(2.dp, Color(0xFF1E88E5))
+                } else {
+                    BorderStroke(1.dp, Color.Transparent)
+                },
+                shape = shape
+            ),
+        shape = shape,
         colors = CardDefaults.cardColors(containerColor = colorEstado.copy(alpha = 0.08f))
     ) {
         Row(
@@ -137,7 +157,7 @@ fun ClienteItem(
                 )
             }
 
-            if (onArchivar != null) {
+            if (!seleccionable && onArchivar != null) {
                 IconButton(onClick = { mostrarDialogoArchivar = true }) {
                     Icon(
                         imageVector = Icons.Default.Archive,
@@ -147,7 +167,7 @@ fun ClienteItem(
                 }
             }
 
-            if (onRestaurar != null) {
+            if (!seleccionable && onRestaurar != null) {
                 IconButton(onClick = { mostrarDialogoRestaurar = true }) {
                     Icon(
                         imageVector = Icons.Default.Unarchive,

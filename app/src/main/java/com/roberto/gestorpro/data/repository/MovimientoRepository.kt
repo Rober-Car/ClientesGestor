@@ -115,11 +115,25 @@ class MovimientoRepository @Inject constructor(
      */
     suspend fun actualizarMovimiento(movimiento: MovimientoEntity) {
         ejecutarOperacionEconomica(movimiento.idCliente) {
-            movimientoDao.actualizarMovimiento(movimiento)
-            val resumen = calcularYPersistirMorosidad(movimiento.idCliente)
-            val resultadoMovimiento = movimientoRemotoRepository
-                .actualizarMovimientoRemoto(movimiento)
-            publicarResumenYResultado(movimiento.idCliente, resumen, resultadoMovimiento.exito)
+            actualizarMovimientoCore(movimiento)
+        }
+    }
+
+    /**
+     * actualizarMovimientos
+     * ---------------------
+     * Actualización MASIVA (varios movimientos). Reutiliza el mismo núcleo
+     * individual de `actualizarMovimientoCore` para cada movimiento: Room →
+     * recálculo de morosidad/deuda → réplica `movimientos/{id}` → resumen
+     * remoto. Cada elemento pasa por el mismo `ejecutarOperacionEconomica`
+     * (Mutex + IO + NonCancellable) que la operación individual; no se duplica
+     * ninguna regla de la F2 y no existe ningún delete directo desde la UI.
+     */
+    suspend fun actualizarMovimientos(movimientos: List<MovimientoEntity>) {
+        movimientos.forEach { movimiento ->
+            ejecutarOperacionEconomica(movimiento.idCliente) {
+                actualizarMovimientoCore(movimiento)
+            }
         }
     }
 
@@ -134,20 +148,26 @@ class MovimientoRepository @Inject constructor(
     suspend fun eliminarMovimiento(movimiento: MovimientoEntity) {
         if (movimiento.idMovimiento <= 0) return
         ejecutarOperacionEconomica(movimiento.idCliente) {
-            movimientoDao.eliminarMovimiento(movimiento)
-            eliminacionPendienteDao.registrarPendiente(
-                EliminacionPendienteEntity(
-                    idMovimiento = movimiento.idMovimiento,
-                    idCliente = movimiento.idCliente
-                )
-            )
-            val resumen = calcularYPersistirMorosidad(movimiento.idCliente)
-            val resultadoBorrado = movimientoRemotoRepository
-                .eliminarMovimientoRemoto(movimiento.idMovimiento)
-            if (resultadoBorrado.exito) {
-                eliminacionPendienteDao.eliminarPendiente(movimiento.idMovimiento)
+            eliminarMovimientoCore(movimiento)
+        }
+    }
+
+    /**
+     * eliminarMovimientos
+     * -------------------
+     * Eliminación MASIVA (varios movimientos). Reutiliza el mismo núcleo
+     * individual de `eliminarMovimientoCore` por movimiento conservando la
+     * secuencia y el comportamiento existentes (Room → `eliminacion_pendiente`
+     * → recálculo de morosidad/deuda → borrado remoto → reintento con el
+     * mecanismo actual). Pasa siempre por este repositorio; nunca hay un
+     * delete directo desde la UI.
+     */
+    suspend fun eliminarMovimientos(movimientos: List<MovimientoEntity>) {
+        movimientos.forEach { movimiento ->
+            if (movimiento.idMovimiento <= 0) return@forEach
+            ejecutarOperacionEconomica(movimiento.idCliente) {
+                eliminarMovimientoCore(movimiento)
             }
-            publicarResumenYResultado(movimiento.idCliente, resumen, resultadoBorrado.exito)
         }
     }
 
@@ -301,6 +321,45 @@ class MovimientoRepository @Inject constructor(
     // =========================================================
     // Internos
     // =========================================================
+
+    /**
+     * Núcleo individual de actualización de un movimiento (Room + recálculo de
+     * morosidad/deuda + réplica remota + resumen remoto). Lo comparten
+     * `actualizarMovimiento` (1) y `actualizarMovimientos` (N) para no duplicar
+     * la lógica F2. No incluye el wrapper `ejecutarOperacionEconomica` (cada
+     * llamador aporta su propio contexto de Mutex/IO/errores).
+     */
+    private suspend fun actualizarMovimientoCore(movimiento: MovimientoEntity) {
+        movimientoDao.actualizarMovimiento(movimiento)
+        val resumen = calcularYPersistirMorosidad(movimiento.idCliente)
+        val resultadoMovimiento = movimientoRemotoRepository
+            .actualizarMovimientoRemoto(movimiento)
+        publicarResumenYResultado(movimiento.idCliente, resumen, resultadoMovimiento.exito)
+    }
+
+    /**
+     * Núcleo individual de eliminación de un movimiento (Room primero, registro
+     * en `eliminacion_pendiente`, recálculo de morosidad/deuda con los restantes,
+     * borrado remoto y limpieza del pendiente si el borrado remoto es correcto).
+     * Lo comparten `eliminarMovimiento` (1) y `eliminarMovimientos` (N). No
+     * incluye el wrapper `ejecutarOperacionEconomica`.
+     */
+    private suspend fun eliminarMovimientoCore(movimiento: MovimientoEntity) {
+        movimientoDao.eliminarMovimiento(movimiento)
+        eliminacionPendienteDao.registrarPendiente(
+            EliminacionPendienteEntity(
+                idMovimiento = movimiento.idMovimiento,
+                idCliente = movimiento.idCliente
+            )
+        )
+        val resumen = calcularYPersistirMorosidad(movimiento.idCliente)
+        val resultadoBorrado = movimientoRemotoRepository
+            .eliminarMovimientoRemoto(movimiento.idMovimiento)
+        if (resultadoBorrado.exito) {
+            eliminacionPendienteDao.eliminarPendiente(movimiento.idMovimiento)
+        }
+        publicarResumenYResultado(movimiento.idCliente, resumen, resultadoBorrado.exito)
+    }
 
     /**
      * Resumen económico calculado de un cliente tras persistir morosidad.

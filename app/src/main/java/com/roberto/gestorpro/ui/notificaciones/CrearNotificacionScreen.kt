@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -346,24 +347,48 @@ fun CrearNotificacionScreen(
             )
 
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = resumenDeDestino(
-                    modoDestino = modoDestino,
-                    programar = programar,
-                    idsObjetivo = idsObjetivo,
-                    resolviendo = resolviendo,
-                    errorResolucion = errorResolucion,
-                    resolucionDestinatarios = resolucion
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (errorResolucion != null ||
-                    (resolucion != null && resolucion?.destinatarios?.isEmpty() == true && !programar)
-                ) {
-                    MaterialTheme.colorScheme.error
-                } else {
-                    Color.DarkGray
-                }
+            val textoResumen = resumenDeDestino(
+                modoDestino = modoDestino,
+                programar = programar,
+                idsObjetivo = idsObjetivo,
+                resolviendo = resolviendo,
+                errorResolucion = errorResolucion,
+                resolucionDestinatarios = resolucion
             )
+            val esAvisoDestino = errorResolucion != null ||
+                (resolucion != null && resolucion?.destinatarios?.isEmpty() == true && !programar)
+            if (esAvisoDestino) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFFFF3E0),
+                    border = BorderStroke(1.dp, Color(0xFFFFB74D).copy(alpha = 0.5f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = "Aviso",
+                            tint = Color(0xFFB26A00),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = textoResumen,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFF6D4C00)
+                        )
+                    }
+                }
+            } else {
+                Text(
+                    text = textoResumen,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.DarkGray
+                )
+            }
 
             error?.let { mensajeError ->
                 Spacer(modifier = Modifier.height(8.dp))

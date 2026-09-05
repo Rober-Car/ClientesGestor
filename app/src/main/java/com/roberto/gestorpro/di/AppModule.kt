@@ -11,6 +11,7 @@ import com.roberto.gestorpro.data.dao.GastoDao
 import com.roberto.gestorpro.data.dao.MovimientoDao
 import com.roberto.gestorpro.data.dao.ReservaDao
 import com.roberto.gestorpro.data.dao.ServicioDao
+import com.roberto.gestorpro.data.dao.ServicioDesactivacionPendienteDao
 import com.roberto.gestorpro.data.dao.SesionClaseDao
 import com.roberto.gestorpro.data.dao.SesionDao
 import com.roberto.gestorpro.data.dao.SolicitudDao
@@ -379,6 +380,25 @@ object AppModule {
     }
 
     /**
+     * MIGRACION_17_18
+     * ---------------
+     * Desactivación durable de servicios: crea la tabla
+     * `servicio_desactivacion_pendiente` para persistir la baja de una actividad
+     * cuyo estado remoto (eliminar sesiones futuras + reservas y dejar el
+     * servicio inactivo) no se confirmó en Firestore.
+     */
+    private val MIGRACION_17_18 = object : Migration(17, 18) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `servicio_desactivacion_pendiente` (" +
+                    "`idServicio` INTEGER NOT NULL, " +
+                    "`desde` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`idServicio`))"
+            )
+        }
+    }
+
+    /**
      * provideFirebaseAuth
      * -------------------
      * ✔ TIPO: método (fun) de Hilt con anotación @Provides y @Singleton → FirebaseAuth
@@ -444,7 +464,8 @@ object AppModule {
                 MIGRACION_13_14,
                 MIGRACION_14_15,
                 MIGRACION_15_16,
-                MIGRACION_16_17
+                MIGRACION_16_17,
+                MIGRACION_17_18
             )
             .fallbackToDestructiveMigration()
 
@@ -522,6 +543,19 @@ object AppModule {
     @Provides
     fun provideEliminacionPendienteDao(database: ClientesDatabase): EliminacionPendienteDao {
         return database.eliminacionPendienteDao()
+    }
+
+    /**
+     * provideServicioDesactivacionPendienteDao
+     * ----------------------------------------
+     * Provee el DAO de desactivaciones pendientes de servicios (baja durable de
+     * Actividades cuya cascada remota no se confirmó).
+     */
+    @Provides
+    fun provideServicioDesactivacionPendienteDao(
+        database: ClientesDatabase
+    ): ServicioDesactivacionPendienteDao {
+        return database.servicioDesactivacionPendienteDao()
     }
 
     /**

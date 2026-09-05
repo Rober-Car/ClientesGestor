@@ -8,6 +8,7 @@ import com.google.firebase.firestore.FirebaseFirestoreException
 import com.roberto.gestorpro.data.entity.ReservaEntity
 import com.roberto.gestorpro.model.EstadoCliente
 import com.roberto.gestorpro.model.ReservaClienteDetalle
+import com.roberto.gestorpro.util.BajaServicioReglas
 import com.roberto.gestorpro.util.HidratacionMapeadores
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -84,6 +85,36 @@ class ReservaRemotoRepository @Inject constructor(
                     negocioId
                 )
             }
+    }
+
+    /**
+     * contarReservasDeSesionRemoto
+     * ----------------------------
+     * Número de reservas activas REALES de una sesión en Firestore (hay un
+     * documento de reserva por reserva). Se usa al cambiar la CAPACIDAD de una
+     * sesión desde el Admin para no basar el cálculo en el valor local de Room,
+     * que puede estar desactualizado respecto a las reservas creadas por
+     * appCliente. Devuelve null si no hay sesión autenticada o si la consulta
+     * falla (el llamador usará su respaldo).
+     */
+    suspend fun contarReservasDeSesionRemoto(idSesion: Int): Int? {
+        val negocioId = auth.currentUser?.uid ?: return null
+        return try {
+            db.collection(COLECCION_RESERVAS)
+                .whereEqualTo("sesionId", idSesion)
+                .whereEqualTo("negocioId", negocioId)
+                .get()
+                .esperar()
+                .size()
+        } catch (e: Exception) {
+            val codigo = (e as? FirebaseFirestoreException)?.code?.name ?: "NO_FIRESTORE_CODE"
+            Log.e(
+                TAG,
+                "contarReservasDeSesionRemoto: idSesion=$idSesion falló. códigoFirebase=$codigo",
+                e
+            )
+            null
+        }
     }
 
     /**
@@ -476,7 +507,13 @@ class ReservaRemotoRepository @Inject constructor(
         return snapshots.documents.mapNotNull { documento ->
             val id = documento.getLong("idSesion")?.toInt()
             val fecha = documento.getLong("fecha")
-            if (id != null && fecha != null && fecha >= desde) id else null
+            if (id != null && fecha != null &&
+                BajaServicioReglas.esSesionFuturaEnBaja(fecha, desde)
+            ) {
+                id
+            } else {
+                null
+            }
         }
     }
 

@@ -31,5 +31,11 @@ data class Cliente(
     val serviciosContratados: List<Int> = emptyList(),
     val moroso: Boolean = false,
     val fechaEntradaMorosidad: Long? = null,
-    val exentoMorosidad: Boolean = false
+    val exentoMorosidad: Boolean = false,
+    /**
+     * firebaseUid: UID de la cuenta de la app Cliente vinculada a esta ficha.
+     * null = cliente creado por el ADMIN que todavía NO ha vinculado su cuenta.
+     * Es la ÚNICA fuente del estado de vinculación (no hay propiedad nueva).
+     */
+    val firebaseUid: String? = null
 )

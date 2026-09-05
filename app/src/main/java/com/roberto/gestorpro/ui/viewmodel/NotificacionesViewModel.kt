@@ -239,8 +239,12 @@ class NotificacionesViewModel @Inject constructor(
             } else {
                 val resolucion = _resolucion.value
                 if (resolucion == null || resolucion.destinatarios.isEmpty()) {
-                    _error.value =
+                    _error.value = if (modoDestino == "INDIVIDUAL") {
+                        "Este cliente no tiene su cuenta vinculada.\n" +
+                            "Debe vincular su cuenta para poder recibir notificaciones."
+                    } else {
                         "No hay clientes vinculados para recibir la notificación"
+                    }
                     return@launch
                 }
                 resolucion.destinatarios

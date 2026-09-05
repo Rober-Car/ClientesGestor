@@ -23,6 +23,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -201,6 +202,109 @@ class ClienteViewModel @Inject constructor(
             initialValue = emptySet()
         )
 
+    // ---- Selección múltiple de clientes (lista principal) ----
+    private val _modoSeleccionClientes = MutableStateFlow(false)
+    val modoSeleccionClientes = _modoSeleccionClientes.asStateFlow()
+
+    private val _clientesSeleccionados = MutableStateFlow<Set<Int>>(emptySet())
+    val clientesSeleccionados: StateFlow<Set<Int>> = _clientesSeleccionados.asStateFlow()
+
+    fun entrarEnSeleccionCliente(idCliente: Int) {
+        _modoSeleccionClientes.value = true
+        _clientesSeleccionados.value = setOf(idCliente)
+    }
+
+    fun alternarSeleccionCliente(idCliente: Int) {
+        _clientesSeleccionados.value = alternarIdEnSeleccion(_clientesSeleccionados.value, idCliente)
+    }
+
+    fun salirSeleccionClientes() {
+        _modoSeleccionClientes.value = false
+        _clientesSeleccionados.value = emptySet()
+    }
+
+    fun limpiarSeleccionClientes() {
+        _clientesSeleccionados.value = emptySet()
+    }
+
+    /**
+     * podarSeleccionClientes
+     * ----------------------
+     * Elimina de la selección los IDs que ya no existen en la lista actual
+     * (por ejemplo tras borrar/archivar en otra pantalla o refrescar Room).
+     * Evita clientes fantasma seleccionados y errores al operar.
+     */
+    fun podarSeleccionClientes(idsExistentes: Set<Int>) {
+        _clientesSeleccionados.value =
+            podarSeleccion(_clientesSeleccionados.value, idsExistentes)
+    }
+
+    /**
+     * activarClientesSeleccionados
+     * ----------------------------
+     * "Activar / dar de alta" MASIVO. Reutiliza las operaciones individuales
+     * existentes según el estado de cada cliente (sin inventar transiciones):
+     *  - ARCHIVADO  → restaurarCliente (mismo comportamiento que el perfil);
+     *  - BAJA / REGISTRADO → reactivarCliente (misma lógica que el perfil:
+     *    prepararReactivacion renueva fechaAlta y conserva fechaBaja, recalcula
+     *    morosidad y replica);
+     *  - ACTIVO     → no se toca.
+     */
+    fun activarClientesSeleccionados(ids: List<Int>) {
+        viewModelScope.launch {
+            for (id in ids) {
+                val entidad = clienteRepository.obtenerClientePorIdRepo(id) ?: continue
+                when (entidad.estado) {
+                    EstadoCliente.ACTIVO -> {}
+                    EstadoCliente.ARCHIVADO -> restaurarCliente(entidad)
+                    else -> reactivarCliente(entidad.toCliente())
+                }
+            }
+            salirSeleccionClientes()
+        }
+    }
+
+    /**
+     * archivarClientesSeleccionados
+     * -----------------------------
+     * "Archivar" MASIVO reutilizando `archivarCliente` (mismo comportamiento que
+     * la lista/perfil actuales). Los clientes ya archivados no se tocan.
+     */
+    fun archivarClientesSeleccionados(ids: List<Int>) {
+        viewModelScope.launch {
+            for (id in ids) {
+                val entidad = clienteRepository.obtenerClientePorIdRepo(id) ?: continue
+                if (entidad.estado != EstadoCliente.ARCHIVADO) {
+                    archivarCliente(entidad)
+                }
+            }
+            salirSeleccionClientes()
+        }
+    }
+
+    /**
+     * darDeBajaClientesSeleccionados
+     * ------------------------------
+     * "Dar de baja" MASIVO reutilizando `darDeBaja` (la MISMA operación que usa
+     * el perfil/aceptación de solicitud): cliente → BAJA con fechaBaja actual,
+     * cancelación de reservas futuras (Room + Firestore liberando plazas),
+     * recálculo de morosidad, réplica y BAJA_CONFIRMADA según configuración.
+     * Solo aplica a clientes ACTIVO/REGISTRADO; BAJA y ARCHIVADO no se tocan.
+     */
+    fun darDeBajaClientesSeleccionados(ids: List<Int>) {
+        viewModelScope.launch {
+            for (id in ids) {
+                val entidad = clienteRepository.obtenerClientePorIdRepo(id) ?: continue
+                if (entidad.estado == EstadoCliente.ACTIVO ||
+                    entidad.estado == EstadoCliente.REGISTRADO
+                ) {
+                    darDeBaja(entidad)
+                }
+            }
+            salirSeleccionClientes()
+        }
+    }
+
     /**
      * _serviciosMap / serviciosMap
      * ----------------------------
@@ -357,6 +461,7 @@ class ClienteViewModel @Inject constructor(
                 if (remotos.isEmpty()) return@launch
 
                 var incorporados = 0
+                var vinculacionesActualizadas = 0
                 for (remoto in remotos) {
                     val existePorId =
                         clienteRepository.obtenerClientePorIdRepo(remoto.idCliente) != null
@@ -365,11 +470,29 @@ class ClienteViewModel @Inject constructor(
                     if (!existePorId && !existePorDni) {
                         clienteRepository.insertarClienteRepo(remoto)
                         incorporados++
+                    } else {
+                        // La ficha ya existe: se actualiza SOLO el estado de
+                        // vinculación local (firebaseUid) a la verdad remota,
+                        // para reflejar un cliente que se vinculó en la app
+                        // Cliente sin duplicar la ficha ni tocar sus datos.
+                        val local = if (existePorId) {
+                            clienteRepository.obtenerClientePorIdRepo(remoto.idCliente)
+                        } else {
+                            clienteRepository.obtenerClientePorDniRepo(remoto.dni)
+                        }
+                        if (local != null && local.firebaseUid != remoto.firebaseUid) {
+                            clienteRepository.actualizarFirebaseUidRepo(
+                                local.idCliente,
+                                remoto.firebaseUid
+                            )
+                            vinculacionesActualizadas++
+                        }
                     }
                 }
                 Log.i(
                     TAG,
-                    "Clientes remotos incorporados a Room: $incorporados de ${remotos.size}"
+                    "Clientes remotos reconciliados: $incorporados incorporados, " +
+                        "$vinculacionesActualizadas vinculaciones actualizadas"
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "No se pudieron recuperar los clientes remotos", e)
@@ -748,3 +871,24 @@ internal fun aplicarBaja(
     ahora: Long
 ): ClienteEntity =
     entidad.copy(estado = EstadoCliente.BAJA, fechaBaja = ahora)
+
+/**
+ * alternarIdEnSeleccion
+ * ---------------------
+ * Alterna (seleccionar/deseleccionar) un id de cliente dentro de la selección
+ * actual. Función PURA para poder testearse sin UI ni ViewModel.
+ */
+internal fun alternarIdEnSeleccion(seleccion: Set<Int>, id: Int): Set<Int> =
+    if (id in seleccion) seleccion - id else seleccion + id
+
+/**
+ * podarSeleccion
+ * --------------
+ * Conserva solo los ids que siguen existiendo en la lista actual (evita
+ * clientes fantasma seleccionados). Función PURA para poder testearse.
+ */
+internal fun podarSeleccion(
+    seleccion: Set<Int>,
+    idsExistentes: Set<Int>
+): Set<Int> =
+    seleccion intersect idsExistentes

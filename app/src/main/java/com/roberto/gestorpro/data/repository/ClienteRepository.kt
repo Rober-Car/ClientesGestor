@@ -56,6 +56,16 @@ class ClienteRepository(
     }
 
     /**
+     * actualizarFirebaseUidRepo
+     * -------------------------
+     * Actualiza SOLO el estado de vinculación local (firebaseUid) a partir de la
+     * verdad remota. No toca el resto de campos de la ficha.
+     */
+    suspend fun actualizarFirebaseUidRepo(idCliente: Int, firebaseUid: String?) {
+        clienteDao.actualizarFirebaseUidDao(idCliente, firebaseUid)
+    }
+
+    /**
      * eliminarClienteRepo
      * -------------------
      * ✔ TIPO: método (fun) suspend de Kotlin

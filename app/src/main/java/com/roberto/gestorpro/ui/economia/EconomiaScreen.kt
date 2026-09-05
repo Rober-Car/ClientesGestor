@@ -1,7 +1,11 @@
 package com.roberto.gestorpro.ui.economia
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +35,8 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -39,7 +45,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -66,13 +75,19 @@ import androidx.navigation.NavHostController
 import com.roberto.gestorpro.data.entity.GastoEntity
 import com.roberto.gestorpro.data.entity.MovimientoEntity
 import com.roberto.gestorpro.model.EstadoMovimiento
+import com.roberto.gestorpro.model.MetodoPago
+import com.roberto.gestorpro.ui.components.AccionSeleccionContextual
 import com.roberto.gestorpro.ui.components.AppDialogConfirmButton
 import com.roberto.gestorpro.ui.components.AppDialogDangerConfirmButton
 import com.roberto.gestorpro.ui.components.AppDialogTextButton
 import com.roberto.gestorpro.ui.components.AppIconDangerButton
 import com.roberto.gestorpro.ui.components.AppIconPrimaryButton
 import com.roberto.gestorpro.ui.components.AppNavigationBackButton
+import com.roberto.gestorpro.ui.components.BarraSeleccionContextual
+import com.roberto.gestorpro.ui.components.DialogoEdicionMovimiento
 import com.roberto.gestorpro.ui.viewmodel.EconomiaViewModel
+import com.roberto.gestorpro.util.MovimientoFiltro
+import com.roberto.gestorpro.util.MovimientoPago
 import java.text.NumberFormat
 import java.time.Instant
 import java.time.LocalDate
@@ -125,6 +140,22 @@ fun EconomiaScreen(
     val gastos by viewModel.gastos.collectAsStateWithLifecycle()
     val clientesMap by viewModel.clientesMap.collectAsStateWithLifecycle()
     val serviciosMap by viewModel.serviciosMap.collectAsStateWithLifecycle()
+    val serviciosActivos by viewModel.serviciosActivos.collectAsStateWithLifecycle()
+
+    // Estado de selección múltiple (solo movimientos/ingresos)
+    val modoSeleccion by viewModel.modoSeleccion.collectAsStateWithLifecycle()
+    val seleccionadas by viewModel.seleccionadas.collectAsStateWithLifecycle()
+
+    // Feedback de sincronización (StateFlow reutilizado del repositorio)
+    val errorSincronizacion by viewModel.errorSincronizacion.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(errorSincronizacion) {
+        val mensaje = errorSincronizacion
+        if (mensaje != null) {
+            snackbarHostState.showSnackbar(mensaje)
+        }
+    }
 
     var filtroSeleccionado by rememberSaveable(
         stateSaver = Saver<FiltroEconomia, String>(
@@ -137,6 +168,46 @@ fun EconomiaScreen(
 
     var textoBusqueda by rememberSaveable { mutableStateOf("") }
     var ordenarDescendente by rememberSaveable { mutableStateOf(true) }
+
+    // Filtro de fechas (solo movimientos/ingresos, sobre fechaInicio).
+    // Se distingue el BORRADOR (lo que muestra el campo) del filtro APLICADO
+    // (lo que realmente filtra): Aplicar valida el rango y solo copia al estado
+    // aplicado si es válido; un rango inválido (Desde > Hasta) NO se aplica.
+    var desdeBorrador by rememberSaveable { mutableStateOf<Long?>(null) }
+    var hastaBorrador by rememberSaveable { mutableStateOf<Long?>(null) }
+    var desdeAplicado by rememberSaveable { mutableStateOf<Long?>(null) }
+    var hastaAplicado by rememberSaveable { mutableStateOf<Long?>(null) }
+    var errorRangoFechas by rememberSaveable { mutableStateOf(false) }
+    var mostrarDatePickerDesde by rememberSaveable { mutableStateOf(false) }
+    var mostrarDatePickerHasta by rememberSaveable { mutableStateOf(false) }
+
+    fun formatearFiltroFecha(millis: Long?): String =
+        millis?.let {
+            Instant.ofEpochMilli(it)
+                .atZone(ZoneId.systemDefault())
+                .toLocalDate()
+                .format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+        } ?: ""
+
+    fun aplicarRangoFechas() {
+        val desde = desdeBorrador
+        val hasta = hastaBorrador
+        if (MovimientoFiltro.rangoValido(desde, hasta)) {
+            desdeAplicado = desde
+            hastaAplicado = hasta
+            errorRangoFechas = false
+        } else {
+            errorRangoFechas = true
+        }
+    }
+
+    fun limpiarRangoFechas() {
+        desdeBorrador = null
+        hastaBorrador = null
+        desdeAplicado = null
+        hastaAplicado = null
+        errorRangoFechas = false
+    }
 
     val totalIngresos = movimientos.sumOf { it.precioFinal }
     val totalGastos = gastos.sumOf { it.importe }
@@ -151,7 +222,10 @@ fun EconomiaScreen(
         lista
     }
 
-    val itemsFiltrados = remember(items, filtroSeleccionado, textoBusqueda, ordenarDescendente, clientesMap, serviciosMap) {
+    val itemsFiltrados = remember(
+        items, filtroSeleccionado, textoBusqueda, ordenarDescendente, clientesMap, serviciosMap,
+        desdeAplicado, hastaAplicado
+    ) {
         val filtrados = when (filtroSeleccionado) {
             FiltroEconomia.TODOS -> items
             FiltroEconomia.INGRESOS -> items.filterIsInstance<ItemEconomia.Ingreso>()
@@ -182,10 +256,29 @@ fun EconomiaScreen(
             }
         }
 
-        if (ordenarDescendente) {
-            resultados.sortedByDescending { it.fecha() }
+        // Filtro de fechas EN MEMORIA. Solo afecta a los movimientos (Ingreso),
+        // nunca a los gastos. La deuda real y los totales se calculan aparte
+        // sobre el conjunto completo (no sobre esta lista filtrada).
+        val conRangoFechas = if (desdeAplicado == null && hastaAplicado == null) {
+            resultados
         } else {
-            resultados.sortedBy { it.fecha() }
+            resultados.filter { item ->
+                when (item) {
+                    is ItemEconomia.Ingreso ->
+                        MovimientoFiltro.enRango(
+                            item.movimiento.fechaInicio,
+                            desdeAplicado,
+                            hastaAplicado
+                        )
+                    is ItemEconomia.Gasto -> true
+                }
+            }
+        }
+
+        if (ordenarDescendente) {
+            conRangoFechas.sortedByDescending { it.fecha() }
+        } else {
+            conRangoFechas.sortedBy { it.fecha() }
         }
     }
 
@@ -194,17 +287,32 @@ fun EconomiaScreen(
     var movimientoSeleccionado by remember { mutableStateOf<MovimientoEntity?>(null) }
     var mostrarConfirmarEliminar by remember { mutableStateOf(false) }
 
+    // Estado de acciones desde Economía (modo selección).
+    var movimientoEnEdicion by remember { mutableStateOf<MovimientoEntity?>(null) }
+    var mostrarSelectorPagoMasivo by remember { mutableStateOf(false) }
+    var metodoPagoMasivoNombre by rememberSaveable { mutableStateOf<String?>(null) }
+    var movimientosAEliminar by remember { mutableStateOf<List<MovimientoEntity>?>(null) }
+
+    val movimientosSeleccionados = remember(movimientos, seleccionadas) {
+        movimientos.filter { it.idMovimiento in seleccionadas }
+    }
+    val unicoSeleccionado =
+        if (seleccionadas.size == 1) movimientosSeleccionados.singleOrNull() else null
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { mostrarDialogNuevoGasto = true },
-                containerColor = Color(0xFF1E88E5)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Añadir gasto",
-                    tint = Color.White
-                )
+            if (!modoSeleccion) {
+                FloatingActionButton(
+                    onClick = { mostrarDialogNuevoGasto = true },
+                    containerColor = Color(0xFF1E88E5)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Añadir gasto",
+                        tint = Color.White
+                    )
+                }
             }
         }
     ) { innerPadding ->
@@ -213,18 +321,20 @@ fun EconomiaScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                AppNavigationBackButton(onClick = { navController.popBackStack() })
-                Spacer(modifier = Modifier.width(16.dp))
-                Text(
-                    text = "Economía",
-                    style = MaterialTheme.typography.titleLarge
-                )
+            if (!modoSeleccion) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AppNavigationBackButton(onClick = { navController.popBackStack() })
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(
+                        text = "Economía",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                }
             }
 
             Row(
@@ -331,9 +441,103 @@ fun EconomiaScreen(
                 }
             }
 
+            // Filtro de fechas (Desde / Hasta): afecta solo a los movimientos
+            // (filtrando por fechaInicio). Los gastos no se filtran nunca.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = formatearFiltroFecha(desdeBorrador),
+                    onValueChange = { },
+                    readOnly = true,
+                    enabled = false,
+                    label = { Text("Desde") },
+                    placeholder = { Text("dd/MM/aaaa") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                        disabledContainerColor = Color(0xFFF5F5F5),
+                        disabledBorderColor = Color.Transparent,
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    trailingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.DateRange,
+                            contentDescription = "Seleccionar fecha desde",
+                            tint = Color(0xFF1E88E5)
+                        )
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { mostrarDatePickerDesde = true }
+                )
+                OutlinedTextField(
+                    value = formatearFiltroFecha(hastaBorrador),
+                    onValueChange = { },
+                    readOnly = true,
+                    enabled = false,
+                    label = { Text("Hasta") },
+                    placeholder = { Text("dd/MM/aaaa") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                        disabledContainerColor = Color(0xFFF5F5F5),
+                        disabledBorderColor = Color.Transparent,
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    trailingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.DateRange,
+                            contentDescription = "Seleccionar fecha hasta",
+                            tint = Color(0xFF1E88E5)
+                        )
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { mostrarDatePickerHasta = true }
+                )
+            }
+
+            if (errorRangoFechas) {
+                Text(
+                    text = "La fecha 'Desde' no puede ser posterior a 'Hasta'. Revisa el rango.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = { limpiarRangoFechas() }) {
+                    Text("Limpiar")
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                TextButton(onClick = { aplicarRangoFechas() }) {
+                    Text("Aplicar")
+                }
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
 
             LazyColumn(
+                modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)
             ) {
@@ -346,7 +550,22 @@ fun EconomiaScreen(
                                 .mapNotNull { serviciosMap[it] }
                                 .joinToString(" + ")
                                 .ifBlank { "Sin servicio asociado" },
-                            onClick = { movimientoSeleccionado = item.movimiento }
+                            enModoSeleccion = modoSeleccion,
+                            seleccionado = item.movimiento.idMovimiento in seleccionadas,
+                            onClick = {
+                                if (modoSeleccion) {
+                                    viewModel.alternarSeleccion(item.movimiento.idMovimiento)
+                                } else {
+                                    movimientoSeleccionado = item.movimiento
+                                }
+                            },
+                            onLongClick = {
+                                if (modoSeleccion) {
+                                    viewModel.alternarSeleccion(item.movimiento.idMovimiento)
+                                } else {
+                                    viewModel.entrarEnSeleccion(item.movimiento.idMovimiento)
+                                }
+                            }
                         )
                         is ItemEconomia.Gasto -> ItemGasto(
                             gasto = item.gasto,
@@ -356,6 +575,78 @@ fun EconomiaScreen(
                         )
                     }
                 }
+            }
+
+            if (modoSeleccion) {
+                val acciones = mutableListOf<AccionSeleccionContextual>()
+                val unico = unicoSeleccionado
+                if (seleccionadas.size == 1 && unico != null) {
+                    acciones += AccionSeleccionContextual(
+                        etiqueta = "Editar",
+                        onClick = { movimientoEnEdicion = unico },
+                        color = Color(0xFF1E88E5)
+                    )
+                    if (unico.estado == EstadoMovimiento.PENDIENTE) {
+                        acciones += AccionSeleccionContextual(
+                            etiqueta = "Marcar pagado",
+                            onClick = {
+                                viewModel.cambiarEstadoMovimientos(
+                                    movimientos = listOf(unico),
+                                    pagar = true,
+                                    metodoPago = null
+                                )
+                            },
+                            color = Color(0xFF2E7D32)
+                        )
+                    } else {
+                        acciones += AccionSeleccionContextual(
+                            etiqueta = "Marcar pendiente",
+                            onClick = {
+                                viewModel.cambiarEstadoMovimientos(
+                                    movimientos = listOf(unico),
+                                    pagar = false,
+                                    metodoPago = null
+                                )
+                            },
+                            color = Color(0xFFFF8F00)
+                        )
+                    }
+                    acciones += AccionSeleccionContextual(
+                        etiqueta = "Eliminar",
+                        onClick = { movimientosAEliminar = listOf(unico) },
+                        color = Color(0xFFD32F2F)
+                    )
+                } else if (movimientosSeleccionados.size > 1) {
+                    acciones += AccionSeleccionContextual(
+                        etiqueta = "Marcar pagados",
+                        onClick = {
+                            metodoPagoMasivoNombre = null
+                            mostrarSelectorPagoMasivo = true
+                        },
+                        color = Color(0xFF2E7D32)
+                    )
+                    acciones += AccionSeleccionContextual(
+                        etiqueta = "Marcar pendientes",
+                        onClick = {
+                            viewModel.cambiarEstadoMovimientos(
+                                movimientos = movimientosSeleccionados,
+                                pagar = false,
+                                metodoPago = null
+                            )
+                        },
+                        color = Color(0xFFFF8F00)
+                    )
+                    acciones += AccionSeleccionContextual(
+                        etiqueta = "Eliminar",
+                        onClick = { movimientosAEliminar = movimientosSeleccionados },
+                        color = Color(0xFFD32F2F)
+                    )
+                }
+                BarraSeleccionContextual(
+                    numeroSeleccionados = movimientosSeleccionados.size,
+                    onSalir = { viewModel.salirDeSeleccion() },
+                    accionesPrincipales = acciones
+                )
             }
         }
     }
@@ -432,6 +723,226 @@ fun EconomiaScreen(
             }
         )
     }
+
+    val movimientoEnEdicionActual = movimientoEnEdicion
+    if (movimientoEnEdicionActual != null) {
+        // Editor COMPARTIDO (única implementación): se reutiliza la misma
+        // extracción que usa el perfil del cliente.
+        DialogoEdicionMovimiento(
+            movimiento = movimientoEnEdicionActual,
+            serviciosActivos = serviciosActivos,
+            serviciosMap = serviciosMap,
+            onDismiss = { movimientoEnEdicion = null },
+            onGuardar = { editado ->
+                viewModel.editarMovimiento(editado)
+                movimientoEnEdicion = null
+            },
+            onEliminar = { aEliminar ->
+                viewModel.eliminarMovimientos(listOf(aEliminar))
+                movimientoEnEdicion = null
+            }
+        )
+    }
+
+    if (mostrarSelectorPagoMasivo) {
+        val listaAPagar = movimientosSeleccionados
+        if (listaAPagar.isNotEmpty()) {
+            Dialog(
+                onDismissRequest = { mostrarSelectorPagoMasivo = false }
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color.White,
+                    shadowElevation = 8.dp
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "Marcar ${listaAPagar.size} movimientos como pagados",
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = Color(0xFF1E88E5),
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            text = "Selecciona el método de pago (opcional).",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        val opcionesMetodo = listOf(
+                            null,
+                            MetodoPago.EFECTIVO,
+                            MetodoPago.BIZUM,
+                            MetodoPago.TRANSFERENCIA
+                        )
+                        opcionesMetodo.forEach { opcion ->
+                            val opcionNombre = opcion?.name
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { metodoPagoMasivoNombre = opcionNombre }
+                                    .padding(vertical = 4.dp, horizontal = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = metodoPagoMasivoNombre == opcionNombre,
+                                    onClick = { metodoPagoMasivoNombre = opcionNombre }
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = MovimientoPago.metodoPagoLabel(opcion),
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            AppDialogTextButton(
+                                text = "Cancelar",
+                                onClick = { mostrarSelectorPagoMasivo = false }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            AppDialogConfirmButton(
+                                text = "Confirmar",
+                                onClick = {
+                                    val metodo = MovimientoPago.metodoPagoDe(
+                                        metodoPagoMasivoNombre
+                                    )
+                                    viewModel.cambiarEstadoMovimientos(
+                                        movimientos = listaAPagar,
+                                        pagar = true,
+                                        metodoPago = metodo
+                                    )
+                                    mostrarSelectorPagoMasivo = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    val pendientesAEliminar = movimientosAEliminar
+    if (pendientesAEliminar != null) {
+        AlertDialog(
+            onDismissRequest = { movimientosAEliminar = null },
+            title = {
+                Text(
+                    text = if (pendientesAEliminar.size == 1) {
+                        "Eliminar movimiento"
+                    } else {
+                        "Eliminar movimientos"
+                    },
+                    style = MaterialTheme.typography.titleLarge
+                )
+            },
+            text = {
+                Text(
+                    if (pendientesAEliminar.size == 1) {
+                        "¿Seguro que quieres eliminar este movimiento? Esta acción no se puede deshacer."
+                    } else {
+                        "¿Eliminar ${pendientesAEliminar.size} movimientos?\n\nEsta acción no se puede deshacer."
+                    }
+                )
+            },
+            confirmButton = {
+                AppDialogDangerConfirmButton(
+                    text = "Eliminar",
+                    onClick = {
+                        viewModel.eliminarMovimientos(pendientesAEliminar)
+                        movimientosAEliminar = null
+                    }
+                )
+            },
+            dismissButton = {
+                AppDialogTextButton(
+                    text = "Cancelar",
+                    onClick = { movimientosAEliminar = null }
+                )
+            }
+        )
+    }
+
+    if (mostrarDatePickerDesde) {
+        val selectableDatesDesde = remember {
+            val hoy = LocalDate.now()
+            object : androidx.compose.material3.SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean = true
+                override fun isSelectableYear(year: Int): Boolean =
+                    year >= hoy.minusYears(120).year
+            }
+        }
+        val datePickerStateDesde = rememberDatePickerState(
+            selectableDates = selectableDatesDesde
+        )
+        DatePickerDialog(
+            onDismissRequest = { mostrarDatePickerDesde = false },
+            confirmButton = {
+                TextButton(
+                    enabled = datePickerStateDesde.selectedDateMillis != null,
+                    onClick = {
+                        desdeBorrador = datePickerStateDesde.selectedDateMillis
+                        errorRangoFechas = false
+                        mostrarDatePickerDesde = false
+                    }
+                ) {
+                    Text("Aceptar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarDatePickerDesde = false }) {
+                    Text("Cancelar")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerStateDesde)
+        }
+    }
+
+    if (mostrarDatePickerHasta) {
+        val selectableDatesHasta = remember {
+            val hoy = LocalDate.now()
+            object : androidx.compose.material3.SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean = true
+                override fun isSelectableYear(year: Int): Boolean =
+                    year >= hoy.minusYears(120).year
+            }
+        }
+        val datePickerStateHasta = rememberDatePickerState(
+            selectableDates = selectableDatesHasta
+        )
+        DatePickerDialog(
+            onDismissRequest = { mostrarDatePickerHasta = false },
+            confirmButton = {
+                TextButton(
+                    enabled = datePickerStateHasta.selectedDateMillis != null,
+                    onClick = {
+                        hastaBorrador = datePickerStateHasta.selectedDateMillis
+                        errorRangoFechas = false
+                        mostrarDatePickerHasta = false
+                    }
+                ) {
+                    Text("Aceptar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarDatePickerHasta = false }) {
+                    Text("Cancelar")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerStateHasta)
+        }
+    }
 }
 
 /* ============================================================
@@ -503,12 +1014,16 @@ fun FilterChipEconomia(
 /* ============================================================
  * ============ COMPONENTE: Fila de movimiento ==============
  * ============================================================ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ItemMovimiento(
     movimiento: MovimientoEntity,
     nombreCliente: String,
     nombreServicios: String,
-    onClick: () -> Unit = {}
+    enModoSeleccion: Boolean = false,
+    seleccionado: Boolean = false,
+    onClick: () -> Unit = {},
+    onLongClick: (() -> Unit)? = null
 ) {
     val formatter = remember { NumberFormat.getCurrencyInstance(Locale("es", "ES")) }
     val fechaFinFormateada = remember(movimiento.fechaFin) {
@@ -528,11 +1043,25 @@ fun ItemMovimiento(
         EstadoMovimiento.PAGADO -> Color(0xFF4CAF50)
     }
 
+    val shape = RoundedCornerShape(12.dp)
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() },
-        shape = RoundedCornerShape(12.dp),
+            .clip(shape)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
+            .border(
+                border = if (seleccionado) {
+                    BorderStroke(2.dp, Color(0xFF1E88E5))
+                } else {
+                    BorderStroke(1.dp, Color.Transparent)
+                },
+                shape = shape
+            ),
+        shape = shape,
         colors = CardDefaults.cardColors(containerColor = colorFondo)
     ) {
         Row(
@@ -541,6 +1070,14 @@ fun ItemMovimiento(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (enModoSeleccion) {
+                Checkbox(
+                    checked = seleccionado,
+                    onCheckedChange = null,
+                    colors = CheckboxDefaults.colors(checkedColor = Color(0xFF1E88E5))
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+            }
             Icon(
                 imageVector = Icons.Default.AttachMoney,
                 contentDescription = null,

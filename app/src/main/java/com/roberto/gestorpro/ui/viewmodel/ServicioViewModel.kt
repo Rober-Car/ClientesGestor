@@ -11,6 +11,7 @@ import com.roberto.gestorpro.data.repository.ReservaRepository
 import com.roberto.gestorpro.data.repository.ServicioRepository
 import com.roberto.gestorpro.data.repository.SesionRepository
 import com.roberto.gestorpro.data.firebase.SesionRemotoRepository
+import com.roberto.gestorpro.data.repository.DesactivacionServicioSincronizador
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,7 +36,8 @@ class ServicioViewModel @Inject constructor(
     private val servicioRemotoRepository: ServicioRemotoRepository,
     private val reservaRemotoRepository: ReservaRemotoRepository,
     private val sesionRepository: SesionRepository,
-    private val sesionRemotoRepository: SesionRemotoRepository
+    private val sesionRemotoRepository: SesionRemotoRepository,
+    private val desactivacionServicioSincronizador: DesactivacionServicioSincronizador
 ) : ViewModel() {
 
     private val _activos = MutableStateFlow<List<ServicioEntity>>(emptyList())
@@ -91,6 +93,11 @@ class ServicioViewModel @Inject constructor(
      * Observa en tiempo real los servicios activos e inactivos.
      */
     fun cargarServicios() {
+        // Al entrar a gestionar Actividades se reintentan las desactivaciones
+        // pendientes que no llegaron a converger en Firestore (best-effort).
+        viewModelScope.launch {
+            desactivacionServicioSincronizador.reintentarPendientes()
+        }
         viewModelScope.launch {
             servicioRepository.obtenerServiciosActivos().collect { _activos.value = it }
         }
@@ -221,13 +228,32 @@ class ServicioViewModel @Inject constructor(
             _operando.value = true
             _error.value = null
             try {
+                // Frontera temporal ORIGINAL de la baja (inicio del día). Se
+                // reutiliza también en el reintento durable para no redefinir
+                // retroactivamente qué sesiones eran "futuras".
                 val desde = inicioDeHoy()
                 reservaRepository.eliminarReservasYSesionesFuturasDelServicio(
                     servicio.idServicio,
                     desde
                 )
                 servicioRepository.actualizarServicio(servicio.copy(activo = false))
-                replicar(servicio.copy(activo = false), OperacionServicio.DESACTIVAR)
+
+                // Réplica remota: elimina reservas + sesiones futuras y deja el
+                // servicio inactivo. Ante un fallo queda un pendiente DURABLE
+                // (con su frontera original) para reintentarlo más adelante.
+                val resultadoRemoto = desactivacionServicioSincronizador
+                    .convergerDesactivacion(servicio.idServicio, desde)
+                if (resultadoRemoto.exito) {
+                    _errorSincronizacion.value = null
+                    _servicioSinSincronizar.value = null
+                } else {
+                    _errorSincronizacion.value =
+                        "Cambio guardado en el dispositivo, pero no sincronizado con la nube: ${resultadoRemoto.mensaje}"
+                    _servicioSinSincronizar.value = PendienteServicio(
+                        OperacionServicio.DESACTIVAR,
+                        servicio.copy(activo = false)
+                    )
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "darDeBaja: error al dar de baja el servicio ${servicio.idServicio}", e)
                 _error.value =
@@ -241,8 +267,11 @@ class ServicioViewModel @Inject constructor(
     /**
      * reactivar
      * ---------
-     * Pasa el servicio a activo. No recupera las sesiones eliminadas.
-     * Replica la reactivación a Firestore.
+     * Pasa el servicio a activo. NO recupera las sesiones eliminadas.
+     * Replica la reactivación a Firestore. Si existe un pendiente DURABLE de
+     * desactivación para este servicio, se converge primero (con su frontera
+     * ORIGINAL) para no dejar en la nube `activo=true` junto a sesiones futuras
+     * que la baja debía haber eliminado.
      */
     fun reactivar(servicio: ServicioEntity) {
         viewModelScope.launch {
@@ -250,6 +279,22 @@ class ServicioViewModel @Inject constructor(
             _error.value = null
             try {
                 servicioRepository.actualizarServicio(servicio.copy(activo = true))
+
+                val pendiente = desactivacionServicioSincronizador
+                    .obtenerPendiente(servicio.idServicio)
+                if (pendiente != null) {
+                    val convergido = desactivacionServicioSincronizador
+                        .convergerDesactivacion(pendiente.idServicio, pendiente.desde)
+                    if (!convergido.exito) {
+                        _errorSincronizacion.value =
+                            "Cambio guardado en el dispositivo, pero no sincronizado con la nube: ${convergido.mensaje}"
+                        _servicioSinSincronizar.value = PendienteServicio(
+                            OperacionServicio.REACTIVAR,
+                            servicio.copy(activo = true)
+                        )
+                        return@launch
+                    }
+                }
                 replicar(servicio.copy(activo = true), OperacionServicio.REACTIVAR)
             } catch (e: Exception) {
                 Log.e(TAG, "reactivar: error al reactivar el servicio ${servicio.idServicio}", e)
@@ -274,6 +319,9 @@ class ServicioViewModel @Inject constructor(
             try {
                 reservaRepository.eliminarReservasYSesionesDelServicio(servicio.idServicio)
                 servicioRepository.eliminarServicio(servicio)
+                // La eliminación borra TODAS las sesiones/reservas y el servicio:
+                // si quedaba una desactivación durable pendiente, ya no aplica.
+                desactivacionServicioSincronizador.eliminarPendiente(servicio.idServicio)
                 replicar(servicio, OperacionServicio.ELIMINAR)
             } catch (e: Exception) {
                 Log.e(TAG, "eliminar: error al eliminar el servicio ${servicio.idServicio}", e)
@@ -288,11 +336,32 @@ class ServicioViewModel @Inject constructor(
     /**
      * reintentarSincronizacion
      * ------------------------
-     * Repite la última operación remota pendiente de un servicio.
+     * Repite la última operación remota pendiente de un servicio. Antes de
+     * reintentar se converge cualquier desactivación DURABLE pendiente de ese
+     * servicio (con su frontera original), de modo que nunca se active en la
+     * nube un servicio con sesiones futuras que la baja debía haber eliminado.
      */
     fun reintentarSincronizacion() {
         val pendiente = _servicioSinSincronizar.value ?: return
         viewModelScope.launch {
+            val durable = desactivacionServicioSincronizador
+                .obtenerPendiente(pendiente.servicio.idServicio)
+            if (durable != null) {
+                val convergido = desactivacionServicioSincronizador
+                    .convergerDesactivacion(durable.idServicio, durable.desde)
+                if (!convergido.exito) {
+                    _errorSincronizacion.value =
+                        "Cambio guardado en el dispositivo, pero no sincronizado con la nube: ${convergido.mensaje}"
+                    return@launch
+                }
+                // Si la operación pendiente era precisamente la desactivación,
+                // ya ha convergido con el reintento durable.
+                if (pendiente.operacion == OperacionServicio.DESACTIVAR) {
+                    _errorSincronizacion.value = null
+                    _servicioSinSincronizar.value = null
+                    return@launch
+                }
+            }
             replicar(pendiente.servicio, pendiente.operacion)
         }
     }

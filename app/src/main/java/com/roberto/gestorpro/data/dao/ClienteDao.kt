@@ -59,6 +59,17 @@ interface ClienteDao {
     suspend fun actualizarClienteDao(cliente: ClienteEntity)
 
     /**
+     * actualizarFirebaseUidDao
+     * ------------------------
+     * Actualiza SOLO el campo `firebaseUid` de una ficha local (sincronización
+     * del estado de vinculación desde la verdad remota de Firestore). Se usa
+     * al reconciliar la lista/perfil con la nube: la fuente de la vinculación
+     * es remota y este cambio local NO toca el resto de campos.
+     */
+    @Query("UPDATE cliente SET firebaseUid = :firebaseUid WHERE idCliente = :idCliente")
+    suspend fun actualizarFirebaseUidDao(idCliente: Int, firebaseUid: String?)
+
+    /**
      * eliminarClienteDao
      * ------------------
      * ✔ TIPO: método (fun) de Room con anotación @Delete

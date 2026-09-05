@@ -50,6 +50,21 @@ class ReservaRepository @Inject constructor(
             } ?: return true
             return System.currentTimeMillis() >= apertura
         }
+
+        /**
+         * mensajeSinPlazasSiProcede
+         * -------------------------
+         * Función PURA: si la sesión ya no tiene plazas (0 o menos) devuelve el
+         * mensaje de "no quedan plazas"; en otro caso null (no se debe transformar
+         * el error). Permite distinguir la carrera por la última plaza de un
+         * PERMISSION_DENIED real sin debilitar ninguna Rule.
+         */
+        fun mensajeSinPlazasSiProcede(plazasActuales: Int?): String? =
+            if (plazasActuales != null && plazasActuales <= 0) {
+                "No quedan plazas disponibles."
+            } else {
+                null
+            }
     }
 
     /**
@@ -160,7 +175,40 @@ class ReservaRepository @Inject constructor(
         } catch (e: ReservaException) {
             ResultadoAutenticacion(false, e.message ?: "No se pudo realizar la reserva")
         } catch (e: Exception) {
-            ResultadoAutenticacion(false, mensajeDe(e))
+            // En la carrera por la última plaza, la Transaction puede ser
+            // rechazada por las Rules con PERMISSION_DENIED (el decremento ya
+            // no encaja porque la plaza se agotó). Ese NO es un problema de
+            // permisos: se relee el estado REAL de la sesión para distinguirlo.
+            val plazasActuales = plazasDisponiblesActuales(sesionId)
+            val mensajePlazas = mensajeSinPlazasSiProcede(plazasActuales)
+            if (e is FirebaseFirestoreException &&
+                e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED &&
+                mensajePlazas != null
+            ) {
+                ResultadoAutenticacion(false, mensajePlazas)
+            } else {
+                ResultadoAutenticacion(false, mensajeDe(e))
+            }
+        }
+    }
+
+    /**
+     * plazasDisponiblesActuales
+     * -------------------------
+     * Lee el valor ACTUAL de `plazasDisponibles` de la sesión en Firestore.
+     * Devuelve null si la lectura falla (para no transformar un error de
+     * permisos real cuando no se puede comprobar el estado).
+     */
+    private suspend fun plazasDisponiblesActuales(sesionId: Int): Int? {
+        return try {
+            db.collection(COLECCION_SESIONES)
+                .document(sesionId.toString())
+                .get()
+                .esperar()
+                .getLong("plazasDisponibles")
+                ?.toInt()
+        } catch (_: Exception) {
+            null
         }
     }
 
@@ -195,13 +243,12 @@ class ReservaRepository @Inject constructor(
                     throw ReservaException("La sesión no pertenece a tu negocio")
                 }
 
+                // Un cliente que YA tiene reservada la sesión puede cancelarla
+                // SIEMPRE, aunque la sesión esté completa (plazas == capacidad o
+                // disponibles == 0). La disponibilidad solo limita NUEVAS
+                // reservas, nunca la cancelación de una reserva propia.
                 val plazas = sesion.getLong("plazasDisponibles")?.toInt()
                     ?: throw ReservaException("La sesión no tiene plazas disponibles")
-                val capacidad = sesion.getLong("capacidad")?.toInt()
-                    ?: throw ReservaException("La sesión no tiene capacidad válida")
-                if (plazas >= capacidad) {
-                    throw ReservaException("La sesión ya está completa")
-                }
 
                 transaction.delete(reservaRef)
                 transaction.update(

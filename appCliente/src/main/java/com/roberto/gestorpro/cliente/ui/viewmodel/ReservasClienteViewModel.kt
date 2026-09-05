@@ -88,6 +88,20 @@ class ReservasClienteViewModel @Inject constructor(
     fun estaReservada(sesionId: Int): Boolean =
         _reservas.value.any { it.sesionId == sesionId }
 
+    /**
+     * limpiarError
+     * ------------
+     * Descarta un error de una operación de reserva ANTERIOR. Se invoca cuando
+     * la pantalla se recarga (p. ej. al volver a ella tras un cambio de la
+     * sesión por parte del centro), para que un error obsoleto (p. ej.
+     * "La sesión ya está completa") no permanezca cuando el estado actual de la
+     * sesión ya ha cambiado. Los errores de operaciones nuevas siguen
+     * mostrándose con normalidad.
+     */
+    fun limpiarError() {
+        _error.value = null
+    }
+
     private fun operar(
         accion: suspend (clienteId: Int, negocioId: String) -> ResultadoAutenticacion
     ) {
@@ -104,8 +118,12 @@ class ReservasClienteViewModel @Inject constructor(
                 val resultado = accion(identidad.first, identidad.second)
                 if (!resultado.exito) {
                     _error.value = resultado.mensaje
+                    // Aunque falle (p. ej. el segundo cliente pierde la carrera
+                    // por la última plaza), se refresca el estado real de la
+                    // sesión para que la pantalla deje de mostrar plazas obsoletas.
+                    refrescarTrasOperacion(identidad.first, identidad.second)
                 } else {
-                    cargarReservasVisibles(identidad.first, identidad.second)
+                    refrescarTrasOperacion(identidad.first, identidad.second)
                     _actualizacion.value++
                 }
             } catch (e: CancellationException) {
@@ -116,6 +134,22 @@ class ReservasClienteViewModel @Inject constructor(
                 _operando.value = false
             }
         }
+    }
+
+    /**
+     * refrescarTrasOperacion
+     * ----------------------
+     * Recarga las reservas visibles y notifica a la pantalla (actualizacion)
+     * para que recargue también las sesiones. Best-effort: si la lectura falla
+     * no aborta la operación.
+     */
+    private suspend fun refrescarTrasOperacion(clienteId: Int, negocioId: String) {
+        try {
+            cargarReservasVisibles(clienteId, negocioId)
+        } catch (_: Exception) {
+            // Se ignora: el estado se recalculará en la próxima carga.
+        }
+        _actualizacion.value++
     }
 
     private suspend fun identidad(): Pair<Int, String>? {

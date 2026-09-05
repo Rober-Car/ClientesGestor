@@ -61,6 +61,17 @@ class SesionViewModel @Inject constructor(
     private val _plazasDisponiblesRemoto = MutableStateFlow<Int?>(null)
     val plazasDisponiblesRemoto: StateFlow<Int?> = _plazasDisponiblesRemoto.asStateFlow()
 
+    /**
+     * _reservasActivasSesion / reservasActivasSesion
+     * ------------------------------------------------
+     * Número REAL de reservas activas de la sesión en edición, leído desde
+     * Firestore (un documento por reserva). null = aún sin leer o lectura
+     * fallida. Se usa para recalcular plazasDisponibles al cambiar la capacidad
+     * sin depender de un valor Room potencialmente desactualizado.
+     */
+    private val _reservasActivasSesion = MutableStateFlow<Int?>(null)
+    val reservasActivasSesion: StateFlow<Int?> = _reservasActivasSesion.asStateFlow()
+
     private val _operando = MutableStateFlow(false)
     val operando: StateFlow<Boolean> = _operando.asStateFlow()
 
@@ -109,6 +120,24 @@ class SesionViewModel @Inject constructor(
     fun cargarSesion(idSesion: Int) {
         viewModelScope.launch {
             _sesionDetalle.value = sesionRepository.obtenerSesionPorId(idSesion)
+        }
+    }
+
+    /**
+     * cargarSesionConReservasActivas
+     * ------------------------------
+     * Carga la sesión (Room) y, además, el número REAL de reservas activas de
+     * la sesión desde Firestore. Es la versión que usa la pantalla de edición
+     * de sesión para recalcular plazasDisponibles al cambiar la capacidad con
+     * datos remotos actualizados (no el Room local, que puede ignorar reservas
+     * creadas por appCliente). Si la lectura remota falla, reservasActivasSesion
+     * queda a null y la pantalla usará su respaldo local.
+     */
+    fun cargarSesionConReservasActivas(idSesion: Int) {
+        viewModelScope.launch {
+            _sesionDetalle.value = sesionRepository.obtenerSesionPorId(idSesion)
+            _reservasActivasSesion.value =
+                reservaRemotoRepository.contarReservasDeSesionRemoto(idSesion)
         }
     }
 

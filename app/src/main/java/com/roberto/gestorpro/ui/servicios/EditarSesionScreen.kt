@@ -48,6 +48,7 @@ import com.roberto.gestorpro.ui.components.AppDialogTextButton
 import com.roberto.gestorpro.ui.components.AppNavigationBackButton
 import com.roberto.gestorpro.ui.components.AppPrimaryButton
 import com.roberto.gestorpro.ui.viewmodel.SesionViewModel
+import com.roberto.gestorpro.util.CapacidadSesion
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
@@ -70,6 +71,7 @@ fun EditarSesionScreen(
     viewModel: SesionViewModel = hiltViewModel()
 ) {
     val sesion by viewModel.sesionDetalle.collectAsStateWithLifecycle()
+    val reservasActivas by viewModel.reservasActivasSesion.collectAsStateWithLifecycle()
 
     var fecha by remember { mutableStateOf<Long?>(null) }
     var hora by remember { mutableStateOf("") }
@@ -88,7 +90,7 @@ fun EditarSesionScreen(
     var errorCapacidad by remember { mutableStateOf(false) }
 
     LaunchedEffect(idSesion) {
-        viewModel.cargarSesion(idSesion)
+        viewModel.cargarSesionConReservasActivas(idSesion)
     }
 
     LaunchedEffect(sesion) {
@@ -104,8 +106,21 @@ fun EditarSesionScreen(
     }
 
     val original = sesion
-    val inscritos = original?.let { it.capacidad - it.plazasDisponibles } ?: 0
-    val plazasMostrar = if (original != null) (capacidad.toIntOrNull() ?: original.capacidad) - inscritos else 0
+    // Inscritos REALES: se prefiere el conteo remoto (reservas en Firestore,
+    // incluidas las creadas por appCliente). Solo si no se pudo leer se usa el
+    // valor derivado de la Room local como respaldo.
+    val inscritosLocal = original?.let {
+        CapacidadSesion.inscritosDesdeDatosLocales(it.capacidad, it.plazasDisponibles)
+    } ?: 0
+    val inscritos = reservasActivas ?: inscritosLocal
+    val plazasMostrar = if (original != null) {
+        CapacidadSesion.plazasDisponiblesTrasCambioCapacidad(
+            capacidad.toIntOrNull() ?: original.capacidad,
+            inscritos
+        )
+    } else {
+        0
+    }
 
     val formatter = remember { DateTimeFormatter.ofPattern("dd/MM/yyyy") }
     val fechaFormateada = fecha?.let {
@@ -295,7 +310,8 @@ fun EditarSesionScreen(
 
                         if (!errorFecha && !errorHora && !errorDuracion && !errorCapacidad) {
                             val nuevaCapacidad = capacidad.toInt()
-                            val nuevasPlazas = (nuevaCapacidad - inscritos).coerceAtLeast(0)
+                            val nuevasPlazas = CapacidadSesion
+                                .plazasDisponiblesTrasCambioCapacidad(nuevaCapacidad, inscritos)
                             viewModel.actualizarSesion(
                                 original.copy(
                                     fecha = fecha!!,

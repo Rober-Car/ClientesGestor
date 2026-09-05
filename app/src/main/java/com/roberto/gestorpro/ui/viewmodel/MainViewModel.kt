@@ -7,6 +7,7 @@ import com.roberto.gestorpro.data.firebase.AutenticacionRepository
 import com.roberto.gestorpro.data.firebase.EstadoNegocioDeCuenta
 import com.roberto.gestorpro.data.firebase.NegocioRepository
 import com.roberto.gestorpro.data.local.PreparadorLocalCuenta
+import com.roberto.gestorpro.data.repository.DesactivacionServicioSincronizador
 import com.roberto.gestorpro.data.repository.HidratadorCacheLocal
 import com.roberto.gestorpro.data.repository.MovimientoRepository
 import com.roberto.gestorpro.data.repository.PreferencesRepository
@@ -29,7 +30,8 @@ class MainViewModel @Inject constructor(
     private val negocioRepository: NegocioRepository,
     private val movimientoRepository: MovimientoRepository,
     private val preparadorLocalCuenta: PreparadorLocalCuenta,
-    private val hidratadorCacheLocal: HidratadorCacheLocal
+    private val hidratadorCacheLocal: HidratadorCacheLocal,
+    private val desactivacionServicioSincronizador: DesactivacionServicioSincronizador
 ) : ViewModel() {
 
     /**
@@ -266,6 +268,7 @@ class MainViewModel @Inject constructor(
     private fun lanzarReintentoDeEliminacionesPendientes() {
         viewModelScope.launch {
             movimientoRepository.reintentarEliminacionesPendientesGlobal()
+            desactivacionServicioSincronizador.reintentarPendientes()
         }
     }
 
