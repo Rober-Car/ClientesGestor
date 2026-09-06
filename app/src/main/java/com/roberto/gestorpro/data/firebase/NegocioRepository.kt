@@ -387,6 +387,10 @@ class NegocioRepository @Inject constructor(
      * No se guarda la imagen en Firestore, solo la URL. El archivo local solo se
      * usa como origen de la subida. Si falla la subida o el Batch se devuelve el
      * error sin marcar la operación como exitosa (el logo local queda para reintentar).
+     *
+     * Cache-busting: la URL guardada incorpora `?rev=<epoch>`. El caché del logo
+     * (LogoNegocioCache) se identifica por la URL completa, así que al reemplazar
+     * el logo la URL cambia y el siguiente acceso descarga la imagen nueva.
      */
     suspend fun guardarLogoRemoto(rutaLocal: String): ResultadoLogo {
         val uid = auth.currentUser?.uid
@@ -397,7 +401,9 @@ class NegocioRepository @Inject constructor(
         return try {
             val referencia = storage.reference.child("negocios/$negocioId/logo.jpg")
             referencia.putFile(Uri.fromFile(File(rutaLocal))).esperar()
-            val url = referencia.downloadUrl.esperar().toString()
+            val urlBase = referencia.downloadUrl.esperar().toString()
+            val separador = if (urlBase.contains("?")) "&" else "?"
+            val url = "$urlBase${separador}rev=${System.currentTimeMillis()}"
 
             val batch = db.batch()
             batch.update(

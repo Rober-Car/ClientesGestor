@@ -55,6 +55,7 @@ import coil3.compose.AsyncImage
 import com.roberto.gestorpro.cliente.navigation.Routes
 import com.roberto.gestorpro.cliente.model.EstadoIndicadorCliente
 import com.roberto.gestorpro.cliente.ui.components.AppPrimaryButton
+import com.roberto.gestorpro.cliente.ui.components.LogoNegocioAutenticado
 import com.roberto.gestorpro.cliente.ui.viewmodel.MainViewModel
 import java.time.Instant
 import java.time.ZoneId
@@ -99,15 +100,24 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (logoNegocio.isNotBlank()) {
-                            AsyncImage(
-                                model = logoNegocio,
-                                contentDescription = "Logo del centro",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
+                            if (logoNegocio.startsWith("http")) {
+                                LogoNegocioAutenticado(
+                                    url = logoNegocio,
+                                    contentDescription = "Logo del centro",
+                                    tamano = 48.dp
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                            } else {
+                                AsyncImage(
+                                    model = logoNegocio,
+                                    contentDescription = "Logo del centro",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                            }
                         }
 
                         Text(

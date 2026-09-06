@@ -407,20 +407,15 @@ class ReservaRemotoRepository @Inject constructor(
     ): ResultadoAutenticacion {
         val negocioId = auth.currentUser?.uid
             ?: return ResultadoAutenticacion(false, "No hay ningún usuario autenticado")
-        Log.d("DIAG sesiones", "cascada eliminarSesionesFuturas: idServicio=$idServicio, desde=$desde, negocioId=$negocioId")
         return try {
             val idsFuturas = obtenerIdsSesionesFuturasDelServicio(
                 idServicio,
                 desde,
                 negocioId
             )
-            Log.d("DIAG sesiones", "cascada: ${idsFuturas.size} sesiones futuras encontradas")
             val resultado = eliminarSesionesConReservas(idsFuturas)
-            Log.d("DIAG sesiones", "cascada resultado: exito=${resultado.exito}, mensaje=${resultado.mensaje}")
             resultado
         } catch (e: Exception) {
-            val code = (e as? FirebaseFirestoreException)?.code
-            Log.e("DIAG sesiones", "ERROR cascada: code=$code, message=${e.message}, full=${e.javaClass.simpleName}: $e")
             resultadoDeError(
                 "Query de sesiones futuras del servicio $idServicio",
                 e
@@ -497,13 +492,11 @@ class ReservaRemotoRepository @Inject constructor(
         desde: Long,
         negocioId: String
     ): List<Int> {
-        Log.d("DIAG sesiones", "obtenerIdsSesionesFuturasDelServicio: idServicio=$idServicio, negocioId=$negocioId, desde=$desde")
         val snapshots = db.collection(COLECCION_SESIONES)
             .whereEqualTo("idServicio", idServicio)
             .whereEqualTo("negocioId", negocioId)
             .get()
             .esperar()
-        Log.d("DIAG sesiones", "query resultado: ${snapshots.size()} documentos")
         return snapshots.documents.mapNotNull { documento ->
             val id = documento.getLong("idSesion")?.toInt()
             val fecha = documento.getLong("fecha")

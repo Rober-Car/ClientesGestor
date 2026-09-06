@@ -32,7 +32,7 @@ class SesionRemotoRepository @Inject constructor(
 
     companion object {
         private const val COLECCION_SESIONES = "sesiones"
-        private const val TAG = "DIAG sesiones"
+        private const val TAG = "SesionRemotoRepository"
 
         /**
          * El negocioId del ADMIN es su propio UID, igual que en los demás
@@ -232,37 +232,25 @@ class SesionRemotoRepository @Inject constructor(
         val uid = auth.currentUser?.uid
             ?: return ResultadoAutenticacion(false, "No hay ningún usuario autenticado")
         val negocioId = negocioIdDeAdmin(uid)
-        Log.d(TAG, "sincronizarSesionesGeneradas: idServicio=$idServicio, " +
-            "negocioId=$negocioId, desde=$desde, sesiones=${sesiones.size}, uid=$uid")
         return try {
-            Log.d(TAG, "query: whereEqualTo(idServicio=$idServicio) " +
-                "whereEqualTo(negocioId=$negocioId)")
             val idsFuturas = obtenerIdsSesionesDelServicio(
                 idServicio,
                 negocioId
             ) { fecha -> fecha >= desde }
-            Log.d(TAG, "documentos encontrados (futuros): ${idsFuturas.size}")
 
             val batch = db.batch()
             idsFuturas.forEach { id ->
                 batch.delete(db.collection(COLECCION_SESIONES).document(id.toString()))
             }
             sesiones.forEach { sesion ->
-                val doc = mapaDeSesion(sesion, negocioId)
-                Log.d(TAG, "  batch.set sesiones/${sesion.idSesion}: $doc")
                 batch.set(
                     db.collection(COLECCION_SESIONES).document(sesion.idSesion.toString()),
-                    doc
+                    mapaDeSesion(sesion, negocioId)
                 )
             }
-            Log.d(TAG, "batch: deletes=${idsFuturas.size}, sets=${sesiones.size}")
             batch.commit().esperar()
-            Log.d(TAG, "commit OK: ${sesiones.size} sesiones sincronizadas")
             ResultadoAutenticacion(true, "Programación sincronizada")
         } catch (e: Exception) {
-            val code = (e as? FirebaseFirestoreException)?.code
-            val msg = e.message ?: "error desconocido"
-            Log.e(TAG, "ERROR sincronizarSesionesGeneradas: code=$code, message=$msg, full=${e.javaClass.simpleName}: $e")
             ResultadoAutenticacion(false, mensajeDe(e))
         }
     }
@@ -306,13 +294,11 @@ class SesionRemotoRepository @Inject constructor(
         negocioId: String,
         aceptarFecha: (Long) -> Boolean
     ): List<Int> {
-        Log.d(TAG, "obtenerIdsSesionesDelServicio: idServicio=$idServicio, negocioId=$negocioId")
         val snapshots = db.collection(COLECCION_SESIONES)
             .whereEqualTo("idServicio", idServicio)
             .whereEqualTo("negocioId", negocioId)
             .get()
             .esperar()
-        Log.d(TAG, "query resultado: ${snapshots.size()} documentos")
         return snapshots.documents.mapNotNull { documento ->
             val idSesion = documento.getLong("idSesion")?.toInt()
             val fecha = documento.getLong("fecha")

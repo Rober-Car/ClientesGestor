@@ -39,7 +39,7 @@ class SesionViewModel @Inject constructor(
 ) : ViewModel() {
 
     companion object {
-        private const val TAG = "DIAG sesiones"
+        private const val TAG = "SesionViewModel"
     }
 
     private val _sesiones = MutableStateFlow<List<SesionEntity>>(emptyList())
@@ -206,10 +206,6 @@ class SesionViewModel @Inject constructor(
         _errorSincronizacion.value = null
         _sesionSinSincronizar.value = null
 
-        Log.d(TAG, "replicar: operacion=${pendiente.operacion}, " +
-            "idServicio=${pendiente.servicio?.idServicio}, desde=${pendiente.desde}, " +
-            "sesionesNuevas=${pendiente.sesionesNuevas.size}")
-
         val resultado = when (pendiente.operacion) {
             OperacionSesion.ACTUALIZAR ->
                 sesionRemotoRepository.actualizarSesionRemoto(pendiente.sesion!!)
@@ -221,9 +217,7 @@ class SesionViewModel @Inject constructor(
                 )
         }
 
-        if (resultado.exito) {
-            Log.d(TAG, "réplica OK: ${resultado.mensaje}")
-        } else {
+        if (!resultado.exito) {
             Log.e(TAG, "ERROR réplica: exito=${resultado.exito}, mensaje=${resultado.mensaje}")
             _errorSincronizacion.value =
                 "Cambio guardado en el dispositivo, pero no sincronizado con la nube: ${resultado.mensaje}"
@@ -264,11 +258,6 @@ class SesionViewModel @Inject constructor(
             try {
                 val inicioHoy = ServicioViewModel.inicioDeHoy()
 
-                Log.d(TAG, "generarSesiones: idServicio=${servicio.idServicio}, " +
-                    "negocioId=${servicio.negocioId}, desde=$desde, hasta=$hasta, " +
-                    "dias=${horariosPorDia.keys}, aperturaReservas=$aperturaReservas, " +
-                    "duracion=$duracionMinutos, capacidad=$capacidad, inicioHoy=$inicioHoy")
-
                 val nuevas = generar(
                     servicio = servicio,
                     desde = desde,
@@ -279,31 +268,15 @@ class SesionViewModel @Inject constructor(
                     capacidad = capacidad
                 )
 
-                Log.d(TAG, "sesiones generadas: ${nuevas.size}")
-                nuevas.forEach { s ->
-                    Log.d(TAG, "  -> idSesion=${s.idSesion}, fecha=${s.fecha}, " +
-                        "hora=${s.hora}, apertura=${s.horaDesdeReserva}, " +
-                        "idServicio=${s.idServicio}, negocioId=${s.negocioId}")
-                }
-
-                Log.d(TAG, "Room: regenerarProgramacion...")
                 reservaRepository.regenerarProgramacion(
                     idServicio = servicio.idServicio,
                     desde = inicioHoy,
                     nuevas = nuevas
                 )
-                Log.d(TAG, "Room OK: ${nuevas.size} sesiones insertadas")
 
-                Log.d(TAG, "Room: leyendo sesiones con IDs reales...")
                 val sesionesConIds = sesionRepository.obtenerSesionesFuturasPorServicioSync(
                     servicio.idServicio, inicioHoy
                 )
-                Log.d(TAG, "Sesiones reales de Room: ${sesionesConIds.size}")
-                sesionesConIds.forEach { s ->
-                    Log.d(TAG, "  -> idSesion=${s.idSesion}, fecha=${s.fecha}, " +
-                        "hora=${s.hora}, apertura=${s.horaDesdeReserva}, " +
-                        "idServicio=${s.idServicio}, negocioId=${s.negocioId}")
-                }
 
                 if (sesionesConIds.isEmpty() && nuevas.isNotEmpty()) {
                     throw IllegalStateException(
@@ -316,7 +289,6 @@ class SesionViewModel @Inject constructor(
                     )
                 }
 
-                Log.d(TAG, "servicio remoto: asegurando réplica del servicio ${servicio.idServicio}...")
                 val servicioRemoto = servicioRemotoRepository.crearServicioRemoto(servicio)
                 if (!servicioRemoto.exito) {
                     Log.e(TAG, "ERROR réplica de servicio: ${servicioRemoto.mensaje}")
@@ -329,13 +301,10 @@ class SesionViewModel @Inject constructor(
                     return@launch
                 }
 
-                Log.d(TAG, "cascada remota: eliminarSesionesFuturas...")
                 val cascada = reservaRemotoRepository
                     .eliminarSesionesFuturasConReservasRemoto(servicio.idServicio, inicioHoy)
-                Log.d(TAG, "cascada remota resultado: exito=${cascada.exito}, mensaje=${cascada.mensaje}")
 
                 if (cascada.exito) {
-                    Log.d(TAG, "replicar: sincronizarSesionesGeneradas (con IDs reales)...")
                     val replica = replicar(
                         PendienteSesion(
                             operacion = OperacionSesion.GENERAR,

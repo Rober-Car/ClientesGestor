@@ -55,6 +55,7 @@ import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
 import com.roberto.gestorpro.ui.components.AppNavigationBackButton
 import com.roberto.gestorpro.ui.components.AppPrimaryButton
+import com.roberto.gestorpro.ui.components.LogoNegocioAutenticado
 import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
 import java.io.File
@@ -305,24 +306,27 @@ fun MiNegocioScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (logo.isNotBlank()) {
-
-                    /**
-                     * AsyncImage del logo
-                     * -------------------
-                     * ✔ TIPO: bloque condicional + Composable (AsyncImage)
-                     * Es la vista previa circular del logo elegido. El modelo puede
-                     * ser una URL remota (cargada de Firestore/DataStore) o un archivo
-                     * local recién seleccionado.
-                     */
-                    AsyncImage(
-                        model = if (esUrlLogo(logo)) logo else File(logo),
-                        contentDescription = "Logo del negocio",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(140.dp)
-                            .clip(CircleShape)
-                            .border(2.dp, Color(0xFF1E88E5), CircleShape)
-                    )
+                    if (esUrlLogo(logo)) {
+                        // Logo remoto: se descarga con el SDK autenticado/caché
+                        // (mismo patrón que Home/Login), nunca con GET HTTP anónimo.
+                        LogoNegocioAutenticado(
+                            url = logo,
+                            contentDescription = "Logo del negocio",
+                            tamano = 140.dp,
+                            bordeColor = Color(0xFF1E88E5),
+                            bordeAncho = 2.dp
+                        )
+                    } else {
+                        AsyncImage(
+                            model = File(logo),
+                            contentDescription = "Logo del negocio",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(140.dp)
+                                .clip(CircleShape)
+                                .border(2.dp, Color(0xFF1E88E5), CircleShape)
+                        )
+                    }
                 } else {
 
                     /**

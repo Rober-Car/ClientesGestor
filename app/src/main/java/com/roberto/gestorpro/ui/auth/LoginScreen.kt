@@ -49,6 +49,7 @@ import coil3.compose.AsyncImage
 import com.roberto.gestorpro.navigation.Routes
 import com.roberto.gestorpro.ui.components.AppPrimaryButton
 import com.roberto.gestorpro.ui.components.AppTextLinkButton
+import com.roberto.gestorpro.ui.components.LogoNegocioAutenticado
 import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 import java.io.File
 import kotlinx.coroutines.launch
@@ -149,22 +150,22 @@ fun LoginScreen(
          * si no, mantiene el icono de persona clásico de GestorPro.
          */
         if (logoNegocio.isNotBlank()) {
-
-            /**
-             * logoDelNegocio
-             * --------------
-             * ✔ TIPO: Composable (coil3.compose.AsyncImage)
-             * Es la imagen del logo cargada desde memoria interna con Coil.
-             * Sirve para identificar visualmente el negocio al iniciar sesión.
-             */
-            AsyncImage(
-                model = modeloLogo(logoNegocio),
-                contentDescription = "Logo del negocio",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(CircleShape)
-            )
+            if (logoNegocio.startsWith("http")) {
+                LogoNegocioAutenticado(
+                    url = logoNegocio,
+                    contentDescription = "Logo del negocio",
+                    tamano = 80.dp
+                )
+            } else {
+                AsyncImage(
+                    model = File(logoNegocio),
+                    contentDescription = "Logo del negocio",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                )
+            }
         } else {
             Icon(
                 imageVector = Icons.Default.Person,
@@ -359,19 +360,5 @@ fun LoginScreen(
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(bottom = 24.dp)
         )
-    }
-}
-
-/**
- * modeloLogo
- * ----------
- * Modelo de Coil para el logo: URL remota (futuro Firebase Storage) → String;
- * ruta local → File. Nunca File(...) sobre una URL.
- */
-private fun modeloLogo(valor: String): Any {
-    return if (valor.startsWith("http://") || valor.startsWith("https://")) {
-        valor
-    } else {
-        File(valor)
     }
 }

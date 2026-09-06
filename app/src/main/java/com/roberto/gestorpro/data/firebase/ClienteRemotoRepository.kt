@@ -225,60 +225,7 @@ class ClienteRemotoRepository @Inject constructor(
         val negocioId = negocioIdDelAdmin(uid)
         val idIndice = indiceId(negocioId, entidad.dni)
 
-        // ============================================================
-        // DIAGNÓSTICO TEMPORAL (FASE 3.1) — SOLO LECTURA / REGISTRO.
-        // No altera el comportamiento del Batch. Se retirará al cerrar
-        // la investigación. No registra contraseñas ni datos sensibles.
-        // ============================================================
         val mapaClientes = mapaDeAlta(entidad, negocioId)
-        Log.d(
-            TAG,
-            "[DIAG alta] uid=${uid} " +
-                "negocioId=$negocioId (${negocioId::class.java.simpleName}) " +
-                "idCliente=${entidad.idCliente} (${entidad.idCliente::class.java.simpleName}) " +
-                "docClientes=${entidad.idCliente} " +
-                "docIndice=$idIndice " +
-                "dni='${entidad.dni.trim().uppercase()}' (String) " +
-                "clienteIdIndice=${entidad.idCliente} (Int) " +
-                "negocioIdIndice=$negocioId (String) " +
-                "negocioIdPrivados=$negocioId (String) " +
-                "serviciosContratados=${entidad.serviciosContratados} " +
-                "(${entidad.serviciosContratados::class.java.simpleName}, ${entidad.serviciosContratados.size} elem) " +
-                "firebaseUid=${entidad.firebaseUid} " +
-                "clavesClientes=${mapaClientes.keys.sorted()} " +
-                "tiposClientes=" +
-                "negocioId=${mapaClientes["negocioId"]?.let { it::class.java.simpleName }}, " +
-                "idCliente=${mapaClientes["idCliente"]?.let { it::class.java.simpleName }}, " +
-                "dni=${mapaClientes["dni"]?.let { it::class.java.simpleName }}, " +
-                "serviciosContratados=${mapaClientes["serviciosContratados"]?.let { it::class.java.simpleName }}"
-        )
-
-        // Existencia previa de los documentos objetivo (solo diagnóstico):
-        // si uno ya existe, batch.set() se evalua como UPDATE y las Rules
-        // lo deniegan (indices_clientes update:false, clientes update hasOnly
-        // de edicion que no incluye firebaseUid/idCliente/negocioId/fechaRegistro).
-        val existiaCliente = try {
-            db.collection(COLECCION_CLIENTES).document(entidad.idCliente.toString()).get().esperar().exists()
-        } catch (e: Exception) {
-            false
-        }
-        val existiaIndice = try {
-            db.collection(COLECCION_INDICES).document(idIndice).get().esperar().exists()
-        } catch (e: Exception) {
-            false
-        }
-        val existiaPrivado = try {
-            db.collection(COLECCION_PRIVADOS).document(entidad.idCliente.toString()).get().esperar().exists()
-        } catch (e: Exception) {
-            false
-        }
-        Log.d(
-            TAG,
-            "[DIAG alta] existencia previa -> " +
-                "clientes/${entidad.idCliente}=$existiaCliente, " +
-                "indices_clientes/$idIndice=$existiaIndice, " +
-                "clientes_privados/${entidad.idCliente}=$existiaPrivado"
-        )
 
         return try {
             val batch = db.batch()

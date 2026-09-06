@@ -42,6 +42,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
 import com.roberto.gestorpro.navigation.Routes
+import com.roberto.gestorpro.ui.components.LogoNegocioAutenticado
 import com.roberto.gestorpro.ui.components.MenuCard
 import com.roberto.gestorpro.ui.viewmodel.MainViewModel
 import java.io.File
@@ -70,14 +71,22 @@ fun HomeScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (logoNegocio.isNotBlank()) {
-                    AsyncImage(
-                        model = modeloLogo(logoNegocio),
-                        contentDescription = "Logo del negocio",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                    )
+                    if (logoNegocio.startsWith("http")) {
+                        LogoNegocioAutenticado(
+                            url = logoNegocio,
+                            contentDescription = "Logo del negocio",
+                            tamano = 44.dp
+                        )
+                    } else {
+                        AsyncImage(
+                            model = File(logoNegocio),
+                            contentDescription = "Logo del negocio",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                        )
+                    }
                 } else {
                     Box(
                         modifier = Modifier
@@ -195,20 +204,5 @@ fun HomeScreen(
                 }
             }
         }
-    }
-}
-
-/**
- * modeloLogo
- * ----------
- * Devuelve el modelo correcto para Coil: si el valor es una URL remota (futuro
- * Firebase Storage) usa el propio String; si es una ruta local usa File. Evita
- * usar File(...) con una URL.
- */
-private fun modeloLogo(valor: String): Any {
-    return if (valor.startsWith("http://") || valor.startsWith("https://")) {
-        valor
-    } else {
-        File(valor)
     }
 }
