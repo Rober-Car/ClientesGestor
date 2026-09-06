@@ -46,6 +46,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
 import com.roberto.gestorpro.cliente.data.firebase.PerfilPendiente
+import com.roberto.gestorpro.cliente.data.firebase.FotoClienteStorage
 import com.roberto.gestorpro.cliente.model.Cliente
 import com.roberto.gestorpro.cliente.navigation.Routes
 import com.roberto.gestorpro.cliente.ui.components.AppNavigationBackButton
@@ -68,9 +69,23 @@ fun MiPerfilScreen(
     val idCliente by mainViewModel.idCliente.collectAsStateWithLifecycle()
     val cliente by mainViewModel.cliente.collectAsStateWithLifecycle()
     val perfilPendiente by mainViewModel.perfilPendiente.collectAsStateWithLifecycle()
+    val fotoPerfil by mainViewModel.fotoPerfil.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
         mainViewModel.cargarPerfilVista()
+    }
+
+    LaunchedEffect(cliente?.idCliente, cliente?.foto) {
+        val c = cliente
+        if (c != null) {
+            if (FotoClienteStorage.esUrlFoto(c.foto)) {
+                mainViewModel.cargarFotoPerfil(c)
+            } else {
+                mainViewModel.limpiarFotoPerfil()
+            }
+        } else {
+            mainViewModel.limpiarFotoPerfil()
+        }
     }
 
     val datos = if (idCliente != null) {
@@ -123,9 +138,18 @@ fun MiPerfilScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                if (datos.foto.isNotBlank()) {
+                val modeloFotoPerfil: Any? = if (FotoClienteStorage.esUrlFoto(datos.foto)) {
+                    // Foto remota: se muestra el fichero local descargado con el SDK
+                    // autenticado (nunca la URL HTTP directa).
+                    fotoPerfil
+                } else if (datos.foto.isNotBlank()) {
+                    File(datos.foto)
+                } else {
+                    null
+                }
+                if (modeloFotoPerfil != null) {
                     AsyncImage(
-                        model = File(datos.foto),
+                        model = modeloFotoPerfil,
                         contentDescription = "Foto de perfil",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier

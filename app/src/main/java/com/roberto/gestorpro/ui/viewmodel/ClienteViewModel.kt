@@ -12,6 +12,9 @@ import com.roberto.gestorpro.data.entity.ServicioEntity
 import com.roberto.gestorpro.data.entity.toCliente
 import com.roberto.gestorpro.data.firebase.BajaClienteRemotoRepository
 import com.roberto.gestorpro.data.firebase.ClienteRemotoRepository
+import com.roberto.gestorpro.data.firebase.FotoClienteCache
+import com.roberto.gestorpro.data.firebase.FotoClienteStorage
+import com.google.firebase.storage.FirebaseStorage
 import com.roberto.gestorpro.data.repository.ClienteRepository
 import com.roberto.gestorpro.data.repository.MovimientoRepository
 import com.roberto.gestorpro.data.repository.ReservaRepository
@@ -20,11 +23,13 @@ import com.roberto.gestorpro.model.Cliente
 import com.roberto.gestorpro.model.EstadoCliente
 import com.roberto.gestorpro.util.IdCliente
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.io.File
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -66,7 +71,9 @@ class ClienteViewModel @Inject constructor(
     private val clienteRemotoRepository: ClienteRemotoRepository,
     private val servicioRepository: ServicioRepository,
     private val reservaRepository: ReservaRepository,
-    private val bajaClienteRemotoRepository: BajaClienteRemotoRepository
+    private val bajaClienteRemotoRepository: BajaClienteRemotoRepository,
+    private val storage: FirebaseStorage,
+    private val fotoClienteCache: FotoClienteCache
 ) : ViewModel() {
 
     /**
@@ -80,6 +87,7 @@ class ClienteViewModel @Inject constructor(
         viewModelScope.launch {
             movimientoRepository.reintentarEliminacionesPendientesGlobal()
         }
+        reintentarFotosPendientes()
     }
 
     companion object {
@@ -145,9 +153,29 @@ class ClienteViewModel @Inject constructor(
      */
     val error = _error.asStateFlow()
 
+    /**
+     * _guardandoAlta / guardandoAlta
+     * ------------------------------
+     * Bloqueo REAL del alta de cliente en el ViewModel: mientras `insertarCliente`
+     * está en curso (subida de foto + creación remota + Room) no se admite una
+     * segunda llamada, evitando subidas duplicadas y altas dobles.
+     */
+    private val _guardandoAlta = MutableStateFlow(false)
+    val guardandoAlta: StateFlow<Boolean> = _guardandoAlta.asStateFlow()
+
     private val _clienteSeleccionado = MutableStateFlow<Cliente?>(null)
 
     val clienteSeleccionado = _clienteSeleccionado.asStateFlow()
+
+    /**
+     * _fotoPerfil
+     * -----------
+     * Fichero local de la foto del cliente mostrado en el perfil (descargado con
+     * el SDK de Storage autenticado y cacheado). null mientras no hay foto, es
+     * local/legacy o falla la descarga sin caché disponible.
+     */
+    private val _fotoPerfil = MutableStateFlow<File?>(null)
+    val fotoPerfil: StateFlow<File?> = _fotoPerfil.asStateFlow()
 
     /**
      * _clienteEditando
@@ -401,18 +429,20 @@ class ClienteViewModel @Inject constructor(
      * entregando el id del cliente creado (por ejemplo para guardar la sesión en Mi perfil).
      */
     fun insertarCliente(cliente: ClienteEntity, onExito: (Int) -> Unit = {}) {
+        // Bloqueo real en el ViewModel: no se admite un segundo alta mientras
+        // el primero esté en curso (evita subidas duplicadas y altas dobles).
+        if (_guardandoAlta.value) return
+        _guardandoAlta.value = true
         viewModelScope.launch {
-
-            _error.value = null
-
-            val existe = clienteRepository.obtenerClientePorDniRepo(cliente.dni) != null
-
-            if (existe) {
-                _error.value = "El DNI ya está registrado"
-                return@launch
-            }
-
             try {
+                _error.value = null
+
+                val existe = clienteRepository.obtenerClientePorDniRepo(cliente.dni) != null
+                if (existe) {
+                    _error.value = "El DNI ya está registrado"
+                    return@launch
+                }
+
                 // Id ESTABLE de ámbito alto (IdCliente): no depende del
                 // autoincrement de Room (que en cada PC/instalación vuelve a
                 // empezar en 1 y podría colisionar con clientes ya existentes
@@ -435,12 +465,149 @@ class ClienteViewModel @Inject constructor(
                     return@launch
                 }
 
-                clienteRepository.insertarClienteRepo(entidad)
-                if (replicar(entidad, esAlta = true)) {
-                    onExito(entidad.idCliente)
+                // FOTO OBLIGATORIA en el ALTA (el formulario ya la exige).
+                if (entidad.foto.isBlank()) {
+                    _error.value = "La foto es obligatoria para crear el cliente"
+                    return@launch
                 }
-            } catch (e: SQLiteConstraintException) {
-                _error.value = "El DNI ya está registrado"
+
+                val idClienteAlta = entidad.idCliente
+
+                // ============================================================
+                // ALTA ADMIN — DOC-FIRST
+                //   1) Room con la foto LOCAL (solo en el dispositivo; sirve
+                //      como pendiente para reintentar si la subida falla);
+                //   2) ficha Firestore con foto="" (NUNCA la ruta local);
+                //   3) subir foto (la ficha ya existe -> esAdminDelCliente);
+                //   4) obtener URL;
+                //   5) actualizar clientes/{id}.foto con la URL;
+                //   6) Room con la URL y limpieza del fichero local.
+                // Si fallan 3/4/5, queda en Room un cliente con foto local que
+                // reintentarFotosPendientes() completa al abrir la app/pantalla.
+                // ============================================================
+
+                // 1) Room con la foto local.
+                try {
+                    clienteRepository.insertarClienteRepo(entidad)
+                } catch (e: SQLiteConstraintException) {
+                    _error.value = "El DNI ya está registrado"
+                    return@launch
+                }
+
+                // 2) Ficha remota con foto vacía.
+                val altaRemota =
+                    clienteRemotoRepository.crearClienteRemoto(entidad.copy(foto = ""))
+                if (!altaRemota.exito) {
+                    _error.value =
+                        "El cliente se guardó en el dispositivo, pero no se pudo crear en la nube: ${altaRemota.mensaje}"
+                    return@launch
+                }
+
+                // 3) + 4) Subida y URL.
+                val url = FotoClienteStorage.subirFotoCliente(
+                    storage,
+                    idClienteAlta,
+                    entidad.foto
+                )
+                if (url == null) {
+                    // Falló la subida o la URL: la foto local se conserva y el
+                    // reintento la subirá más tarde.
+                    _error.value =
+                        "El cliente se creó, pero no se pudo subir su foto. Se reintentará automáticamente."
+                    return@launch
+                }
+
+                // 5) Actualizar clientes/{id}.foto con la URL.
+                val fotoRemota =
+                    clienteRemotoRepository.actualizarFotoClienteRemoto(idClienteAlta, url)
+                if (!fotoRemota.exito) {
+                    _error.value =
+                        "El cliente se creó, pero no se pudo actualizar su foto en la nube. Se reintentará automáticamente."
+                    return@launch
+                }
+
+                // 6) Room con la URL + limpieza del fichero local.
+                val entidadConUrl = entidad.copy(foto = url)
+                clienteRepository.actualizarClienteRepo(entidadConUrl)
+                try {
+                    java.io.File(entidad.foto).delete()
+                } catch (_: Exception) {
+                }
+
+                onExito(idClienteAlta)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error inesperado en el alta del cliente", e)
+                _error.value = "No se pudo crear el cliente. Inténtalo de nuevo"
+            } finally {
+                _guardandoAlta.value = false
+            }
+        }
+    }
+
+    /**
+     * reintentarFotosPendientes
+     * -------------------------
+     * Reintento automático de las fotos del alta que quedaron pendientes
+     * (clientes en Room cuya `foto` sigue siendo una ruta local). Se lanza al
+     * crear el ViewModel (al abrir la gestión de clientes) y converge de forma
+     * idempotente:
+     *   - si la ficha remota no existe -> se crea con foto="";
+     *   - si la remota ya tiene una URL -> solo se sincroniza Room y se borra
+     *     el fichero local;
+     *   - si no -> se sube la foto, se obtiene la URL y se actualiza
+     *     clientes/{id}.foto y Room.
+     * NUNCA escribe una ruta local en Firestore.
+     */
+    fun reintentarFotosPendientes() {
+        viewModelScope.launch {
+            try {
+                val pendientes = clienteRepository.obtenerClientesRepo()
+                    .first()
+                    .filter { c ->
+                        c.foto.isNotBlank() && !FotoClienteStorage.esUrlFoto(c.foto)
+                    }
+                for (cliente in pendientes) {
+                    try {
+                        val idCliente = cliente.idCliente
+                        if (!clienteRemotoRepository.existeClienteRemoto(idCliente)) {
+                            val alta = clienteRemotoRepository.crearClienteRemoto(
+                                cliente.copy(foto = "")
+                            )
+                            if (!alta.exito) continue
+                        }
+
+                        val fotoRemota = clienteRemotoRepository.fotoRemotaDelCliente(idCliente)
+                        if (FotoClienteStorage.esUrlFoto(fotoRemota) && fotoRemota != null) {
+                            clienteRepository.actualizarClienteRepo(
+                                cliente.copy(foto = fotoRemota)
+                            )
+                            try {
+                                java.io.File(cliente.foto).delete()
+                            } catch (_: Exception) {
+                            }
+                            continue
+                        }
+
+                        val url = FotoClienteStorage.subirFotoCliente(
+                            storage,
+                            idCliente,
+                            cliente.foto
+                        ) ?: continue
+                        val actualizada = clienteRemotoRepository
+                            .actualizarFotoClienteRemoto(idCliente, url)
+                        if (!actualizada.exito) continue
+
+                        clienteRepository.actualizarClienteRepo(cliente.copy(foto = url))
+                        try {
+                            java.io.File(cliente.foto).delete()
+                        } catch (_: Exception) {
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "No se pudo reintentar la foto del cliente ${cliente.idCliente}", e)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "No se pudieron revisar las fotos pendientes", e)
             }
         }
     }
@@ -606,11 +773,24 @@ class ClienteViewModel @Inject constructor(
             // baja" (frontera de la nueva etapa). Los movimientos cerrados antes
             // de esa baja no cuentan para la morosidad por fecha
             // (ver MovimientoMorosidad y prepararReactivacion).
-            val clienteAEscribir = prepararReactivacion(
+            var clienteAEscribir = prepararReactivacion(
                 entidad = cliente,
                 fichaPrevia = fichaPrevia,
                 ahora = System.currentTimeMillis()
             )
+
+            // FOTO: migración progresiva a Storage. Si se quita la foto de un
+            // cliente que tenía foto remota, se elimina el objeto de Storage.
+            if (cliente.foto.isBlank()) {
+                if (FotoClienteStorage.esUrlFoto(fichaPrevia?.foto)) {
+                    FotoClienteStorage.eliminarFotoCliente(storage, cliente.idCliente)
+                }
+            } else if (!FotoClienteStorage.esUrlFoto(cliente.foto)) {
+                FotoClienteStorage.subirFotoCliente(storage, cliente.idCliente, cliente.foto)
+                    ?.let { url ->
+                        clienteAEscribir = clienteAEscribir.copy(foto = url)
+                    }
+            }
 
             try {
                 clienteRepository.actualizarClienteRepo(clienteAEscribir)
@@ -801,6 +981,38 @@ class ClienteViewModel @Inject constructor(
             _clienteSeleccionado.value = clienteEntity?.toCliente()
         }
     }
+
+    /**
+     * cargarFotoPerfil
+     * ----------------
+     * Carga (o devuelve de caché) la foto del cliente seleccionado para
+     * mostrarla con Coil desde un fichero local (nunca con GET HTTP anónimo a
+     * la URL). Las rutas locales/legacy no pasan por aquí (las muestran las
+     * pantallas con File directo).
+     */
+    suspend fun cargarFotoPerfil(cliente: Cliente) {
+        _fotoPerfil.value =
+            if (FotoClienteStorage.esUrlFoto(cliente.foto)) {
+                fotoClienteCache.obtener(cliente.idCliente, cliente.foto)
+            } else {
+                null
+            }
+    }
+
+    /** Limpia el fichero de foto en memoria (p. ej. al salir del perfil). */
+    fun limpiarFotoPerfil() {
+        _fotoPerfil.value = null
+    }
+
+    /**
+     * cargarFotoLocal
+     * ---------------
+     * Devuelve el fichero cacheado/descargado (SDK autenticado) de la foto
+     * remota de un cliente concreto. Se usa desde listas (ClienteItem) sin
+     * tocar el estado del perfil.
+     */
+    suspend fun cargarFotoLocal(clienteId: Int, foto: String): File? =
+        fotoClienteCache.obtener(clienteId, foto)
 
     /**
      * obtenerClienteParaEditar

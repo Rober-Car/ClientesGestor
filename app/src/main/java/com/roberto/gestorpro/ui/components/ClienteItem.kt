@@ -30,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,6 +42,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.roberto.gestorpro.data.firebase.FotoClienteStorage
 import com.roberto.gestorpro.model.EstadoCliente
 import java.io.File
 
@@ -51,6 +53,8 @@ fun ClienteItem(
     telefono: String,
     estado: EstadoCliente,
     foto: String,
+    idCliente: Int? = null,
+    obtenerFotoCacheada: (suspend (Int, String) -> File?)? = null,
     esMoroso: Boolean = false,
     onClick: () -> Unit,
     onArchivar: (() -> Unit)? = null,
@@ -98,9 +102,29 @@ fun ClienteItem(
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (foto.isNotEmpty()) {
+            var fotoCacheada by remember(idCliente, foto) {
+                mutableStateOf<File?>(null)
+            }
+            LaunchedEffect(idCliente, foto, obtenerFotoCacheada) {
+                val id = idCliente
+                val cargar = obtenerFotoCacheada
+                if (id != null && cargar != null && FotoClienteStorage.esUrlFoto(foto)) {
+                    fotoCacheada = cargar(id, foto)
+                } else {
+                    fotoCacheada = null
+                }
+            }
+            val modeloFoto: Any? = when {
+                FotoClienteStorage.esUrlFoto(foto) ->
+                    // Con cargador autenticado se muestra el File cacheado; sin él
+                    // (llamadas legacy sin integrar) se conserva el comportamiento URL.
+                    if (idCliente != null && obtenerFotoCacheada != null) fotoCacheada else foto
+                foto.isNotBlank() -> File(foto)
+                else -> null
+            }
+            if (modeloFoto != null) {
                 AsyncImage(
-                    model = File(foto),
+                    model = modeloFoto,
                     contentDescription = "Foto del cliente",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier

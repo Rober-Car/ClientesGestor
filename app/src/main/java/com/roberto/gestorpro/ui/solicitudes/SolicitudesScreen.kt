@@ -475,8 +475,16 @@ private fun SolicitudCard(
         Column(modifier = Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (cliente != null && cliente.foto.isNotBlank()) {
+                    val modeloFoto: Any? = if (
+                        com.roberto.gestorpro.data.firebase.FotoClienteStorage
+                            .esUrlFoto(cliente.foto)
+                    ) {
+                        cliente.foto
+                    } else {
+                        File(cliente.foto)
+                    }
                     AsyncImage(
-                        model = File(cliente.foto),
+                        model = modeloFoto,
                         contentDescription = "Foto del cliente",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier

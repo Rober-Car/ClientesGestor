@@ -4,42 +4,39 @@ service firebase.storage {
 
     // =========================================================
     // LOGO DEL NEGOCIO
-    // Ruta: negocios/{negocioId}/logo.jpg  (negocioId = uid del ADMIN)
+    // Ruta definitiva: negocios/{negocioId}/logo.jpg
+    //   - READ : cualquier usuario autenticado (ADMIN o CLIENTE).
+    //   - WRITE: solamente el ADMIN propietario del negocio.
     // =========================================================
 
-    // Un usuario autenticado (ADMIN o CLIENTE) puede descargar el logo
-    // de cualquier negocio.
-    match /negocios/{negocioId}/{archivo=**} {
+    match /negocios/{negocioId}/logo.jpg {
       allow read: if request.auth != null;
 
-      // Solo el ADMIN propietario del negocio puede subir, sobrescribir o
-      // borrar el logo de SU negocio (usuarios/{uid}.negocioId == negocioId).
-      // Un ADMIN de otro negocio, un CLIENTE o un no autenticado, no.
       allow write: if request.auth != null
         && esAdminDelNegocio(negocioId);
     }
 
     // =========================================================
-    // FOTOS DE CLIENTES (migración futura desde almacenamiento local)
-    // Ruta estable: clientes/{clienteId}/foto.jpg
+    // FOTO DE PERFIL DEL CLIENTE
+    // Ruta definitiva: clientes/{clienteId}/foto.jpg
+    //   - READ  : ADMIN del negocio del cliente  |  CLIENTE propietario.
+    //   - WRITE (subir/reemplazar/eliminar): ADMIN del negocio del cliente
+    //            |  CLIENTE propietario. Requiere que clientes/{clienteId}
+    //            exista (alta doc-first: la ficha se crea antes de subir).
+    //   Solo imágenes (image/*) y máx. 10 MB cuando hay recurso nuevo.
     // =========================================================
 
     match /clientes/{clienteId}/foto.jpg {
-      // Lectura:
-      //  - el ADMIN del negocio al que pertenece el cliente;
-      //  - el CLIENTE únicamente de su propia foto (firebaseUid == uid).
       allow read: if request.auth != null
         && (esAdminDelCliente(clienteId) || esDuenioDeLaFoto(clienteId));
 
-      // Escritura (subir/sustituir/borrar): solo el ADMIN del negocio del
-      // cliente. Un usuario nunca puede escribir en la ruta de otro.
-      // Se valida tipo de archivo (image/*) y tamaño máximo (5 MB).
-      allow write: if esAdminDelCliente(clienteId)
-        && esImagenValida();
+      allow write: if request.auth != null
+        && (esAdminDelCliente(clienteId) || esDuenioDeLaFoto(clienteId))
+        && (request.resource == null || esImagenValida());
     }
 
     // =========================================================
-    // BLOQUEO POR DEFECTO
+    // BLOQUEO POR DEFECTO: cualquier otra ruta queda bloqueada.
     // =========================================================
 
     match /{todo=**} {
@@ -48,11 +45,14 @@ service firebase.storage {
   }
 }
 
+// El ADMIN es propietario del negocio si su documento usuarios/{uid}
+// tiene rol ADMIN y negocioId == negocioId.
 function esAdminDelNegocio(negocioId) {
   let u = firestore.get(
     /databases/(default)/documents/usuarios/$(request.auth.uid)
   ).data;
-  return u.rol == 'ADMIN'
+  return u != null
+    && u.rol == 'ADMIN'
     && u.negocioId == negocioId;
 }
 
@@ -71,7 +71,9 @@ function esAdminDelCliente(clienteId) {
     && c.data.negocioId == u.data.negocioId;
 }
 
-// El CLIENTE solo accede a su propia foto.
+// El CLIENTE es propietario de la foto si clientes/{clienteId}.firebaseUid
+// coincide con el usuario autenticado (misma relación de vinculación que el
+// resto del proyecto; no hay ninguna relación nueva).
 function esDuenioDeLaFoto(clienteId) {
   let c = firestore.get(
     /databases/(default)/documents/clientes/$(clienteId)
@@ -80,9 +82,9 @@ function esDuenioDeLaFoto(clienteId) {
     && c.data.firebaseUid == request.auth.uid;
 }
 
-// Imagen válida: tipo image/* y máximo 5 MB.
+// Imagen válida: tipo image/* y máximo 10 MB.
 function esImagenValida() {
   return request.resource != null
-    && request.resource.size <= 5 * 1024 * 1024
+    && request.resource.size <= 10 * 1024 * 1024
     && request.resource.contentType.matches('image/.*');
 }

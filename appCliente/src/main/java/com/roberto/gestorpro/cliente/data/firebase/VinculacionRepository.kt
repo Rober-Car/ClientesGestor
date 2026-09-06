@@ -4,6 +4,7 @@ import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.storage.FirebaseStorage
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.random.Random
@@ -56,7 +57,8 @@ sealed class ResultadoIndice {
 class VinculacionRepository @Inject constructor(
     private val auth: FirebaseAuth,
     private val db: FirebaseFirestore,
-    private val perfilPendienteRepository: PerfilPendienteRepository
+    private val perfilPendienteRepository: PerfilPendienteRepository,
+    private val storage: FirebaseStorage
 ) {
 
     companion object {
@@ -289,6 +291,11 @@ class VinculacionRepository @Inject constructor(
                 )
             }.esperar()
 
+            // Regla definitiva de la foto en VÍA 1: si la ficha del ADMIN ya
+            // tiene foto REMOTA, prevalece. Si NO tiene foto remota y el perfil
+            // pendiente trae una foto local, se transfiere a Storage.
+            transferirFotoPendienteSiProcede(uid, clienteId)
+
             // Aviso idempotente en la bandeja del ADMIN (notificaciones/{id}).
             notificarVinculacionAlAdmin(negocioId, clienteId)
 
@@ -396,7 +403,7 @@ class VinculacionRepository @Inject constructor(
                                 "dni" to dni,
                                 "telefono" to perfil.telefono,
                                 "email" to perfil.email,
-                                "foto" to perfil.foto,
+                                "foto" to "",
                                 "fechaNacimiento" to perfil.fechaNacimiento,
                                 "fechaRegistro" to com.google.firebase.Timestamp.now(),
                                 "fechaAlta" to null,
@@ -424,6 +431,10 @@ class VinculacionRepository @Inject constructor(
                         )
                     }.esperar()
 
+                    // VÍA 2: la ficha recién creada parte sin foto remota; si el
+                    // perfil pendiente traía una foto local, se transfiere.
+                    transferirFotoPendienteSiProcede(uid, idCliente)
+
                     // Aviso idempotente en la bandeja del ADMIN.
                     notificarVinculacionAlAdmin(negocioId, idCliente)
 
@@ -450,6 +461,41 @@ class VinculacionRepository @Inject constructor(
             ResultadoVinculacion(false, "No se pudo crear la ficha. Inténtalo de nuevo")
         } catch (e: Exception) {
             ResultadoVinculacion(false, mensajeDe(e))
+        }
+    }
+
+    /**
+     * transferirFotoPendienteSiProcede
+     * --------------------------------
+     * Aplica la regla DEFINITIVA de la foto durante la vinculación:
+     *  - Si la ficha (creada por el ADMIN o recién creada) ya tiene una foto
+     *    REMOTA, esa prevalece: la foto local del perfil pendiente NO la
+     *    sobrescribe.
+     *  - Si la ficha NO tiene foto remota y el perfil pendiente tiene una foto
+     *    local, se sube a `clientes/{clienteId}/foto.jpg` y se guarda la URL.
+     *  - Si ninguno tiene foto, la ficha se queda sin foto.
+     * Best-effort: un fallo (red, permisos) no bloquea la vinculación.
+     */
+    private suspend fun transferirFotoPendienteSiProcede(uid: String, clienteId: Int) {
+        try {
+            val ficha = db.collection(COLECCION_CLIENTES)
+                .document(clienteId.toString())
+                .get()
+                .esperar()
+            if (!ficha.exists()) return
+            val fotoRemota = ficha.getString("foto")
+            if (FotoClienteStorage.esUrlFoto(fotoRemota)) return
+            val perfil = leerPerfilPendiente(uid) ?: return
+            val fotoLocal = perfil.foto
+            if (fotoLocal.isBlank()) return
+            val url = FotoClienteStorage.subirFotoCliente(storage, clienteId, fotoLocal)
+                ?: return
+            db.collection(COLECCION_CLIENTES)
+                .document(clienteId.toString())
+                .update(mapOf("foto" to url))
+                .esperar()
+        } catch (_: Exception) {
+            // Best-effort: no debe impedir que la vinculación se complete.
         }
     }
 

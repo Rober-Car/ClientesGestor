@@ -70,6 +70,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
 import com.roberto.gestorpro.data.entity.ClienteEntity
+import com.roberto.gestorpro.data.firebase.FotoClienteStorage
 import com.roberto.gestorpro.model.EstadoCliente
 import com.roberto.gestorpro.navigation.Routes
 import com.roberto.gestorpro.ui.components.AppDialogDangerConfirmButton
@@ -361,6 +362,7 @@ fun AñadirClienteScreen(
      * Sirve para mostrarlo al usuario cuando el guardado no se puede completar.
      */
     val error by viewModel.error.collectAsState()
+    val guardandoAlta by viewModel.guardandoAlta.collectAsState()
 
     /**
      * snackbarHostState
@@ -501,6 +503,16 @@ fun AñadirClienteScreen(
     var foto by rememberSaveable { mutableStateOf("") }
 
     /**
+     * fotoRemotaPreview
+     * -----------------
+     * ✔ TIPO: variable con estado (var) → File?
+     * Es el fichero local (descargado con el SDK autenticado y cacheado) que
+     * representa la foto REMOTA del cliente al editar. Solo se usa para la
+     * previsualización: el estado `foto` conserva la URL para el guardado.
+     */
+    var fotoRemotaPreview by remember(idCliente) { mutableStateOf<File?>(null) }
+
+    /**
      * fotoTemporal
      * ------------
      * ✔ TIPO: variable con estado (var) → File?
@@ -572,6 +584,15 @@ fun AñadirClienteScreen(
             fechaNacimiento = clienteCargado.fechaNacimiento
             esActivo = clienteCargado.estado != EstadoCliente.BAJA
             observaciones = clienteCargado.observaciones ?: ""
+
+            // Foto remota (URL de Storage): se resuelve a un fichero local de la
+            // caché autenticada SOLO para la previsualización; el estado `foto`
+            // conserva la URL para el guardado (actualizarCliente no re-subirá).
+            fotoRemotaPreview = if (FotoClienteStorage.esUrlFoto(clienteCargado.foto)) {
+                viewModel.cargarFotoLocal(clienteCargado.idCliente, clienteCargado.foto)
+            } else {
+                null
+            }
         }
     }
 
@@ -896,9 +917,15 @@ fun AñadirClienteScreen(
              * Es la vista previa circular de la foto elegida por el usuario.
              * Sirve para mostrar en pantalla la foto guardada y confirmar visualmente la selección.
              */
-            if (foto.isNotEmpty()) {
+            val modeloFotoFormulario: Any? = when {
+                // Foto remota (URL de Storage): fichero de la caché autenticada.
+                FotoClienteStorage.esUrlFoto(foto) -> fotoRemotaPreview
+                foto.isNotEmpty() -> File(foto)
+                else -> null
+            }
+            if (modeloFotoFormulario != null) {
                 AsyncImage(
-                    model = File(foto),
+                    model = modeloFotoFormulario,
                     contentDescription = "Foto del cliente",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
@@ -1093,7 +1120,12 @@ fun AñadirClienteScreen(
                             // antigua si cambió y volver a la lista.
                             val alGuardar: () -> Unit = {
                                 if (foto.isNotBlank() && original.foto.isNotBlank() && foto != original.foto) {
-                                    File(original.foto).delete()
+                                    // Solo se elimina la foto local antigua si es un archivo local
+                                    // (las fotos ya migradas a Storage se reemplazan en el bucket).
+                                    val archivoAnterior = File(original.foto)
+                                    if (archivoAnterior.exists()) {
+                                        archivoAnterior.delete()
+                                    }
                                 }
                                 navController.popBackStack()
                             }
@@ -1137,6 +1169,7 @@ fun AñadirClienteScreen(
                 }
             },
             text = if (idCliente != null) "Guardar cambios" else "Guardar cliente",
+            enabled = !guardandoAlta,
             modifier = Modifier
                 .fillMaxWidth(0.7f)
                 .align(Alignment.CenterHorizontally)

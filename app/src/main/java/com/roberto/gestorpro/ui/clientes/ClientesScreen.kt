@@ -370,6 +370,8 @@ fun ClientesScreen(
                             telefono = cliente.telefono,
                             estado = cliente.estado,
                             foto = cliente.foto,
+                            idCliente = cliente.idCliente,
+                            obtenerFotoCacheada = viewModel::cargarFotoLocal,
                             esMoroso = cliente.idCliente in morososIds,
                             seleccionable = modoSeleccion,
                             seleccionado = cliente.idCliente in seleccionadas,

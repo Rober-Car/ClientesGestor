@@ -9,6 +9,8 @@ import com.google.firebase.firestore.FirebaseFirestoreException
 import com.roberto.gestorpro.cliente.data.firebase.AutenticacionRepository
 import com.roberto.gestorpro.cliente.data.firebase.ClienteRepository
 import com.roberto.gestorpro.cliente.data.firebase.DispositivoRepository
+import com.roberto.gestorpro.cliente.data.firebase.FotoClienteCache
+import com.roberto.gestorpro.cliente.data.firebase.FotoClienteStorage
 import com.roberto.gestorpro.cliente.data.firebase.NegocioRepository
 import com.roberto.gestorpro.cliente.data.firebase.PerfilPendiente
 import com.roberto.gestorpro.cliente.data.firebase.PerfilPendienteRepository
@@ -16,6 +18,7 @@ import com.roberto.gestorpro.cliente.data.firebase.SolicitudRepository
 import com.roberto.gestorpro.cliente.data.firebase.VinculacionRepository
 import com.roberto.gestorpro.cliente.data.firebase.esperar
 import com.roberto.gestorpro.cliente.data.repository.PreferencesRepository
+import com.google.firebase.storage.FirebaseStorage
 import com.roberto.gestorpro.cliente.model.Cliente
 import com.roberto.gestorpro.cliente.model.EstadoCliente
 import com.roberto.gestorpro.cliente.model.EstadoHomeCliente
@@ -23,6 +26,7 @@ import com.roberto.gestorpro.cliente.model.EstadoIndicadorCliente
 import com.roberto.gestorpro.cliente.model.SolicitudBaja
 import com.roberto.gestorpro.cliente.navigation.Routes
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.io.File
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -71,7 +75,9 @@ class MainViewModel @Inject constructor(
     private val vinculacionRepository: VinculacionRepository,
     private val clienteRepository: ClienteRepository,
     private val dispositivoRepository: DispositivoRepository,
-    private val solicitudRepository: SolicitudRepository
+    private val solicitudRepository: SolicitudRepository,
+    private val storage: FirebaseStorage,
+    private val fotoClienteCache: FotoClienteCache
 ) : ViewModel() {
 
     private val _autenticando = MutableStateFlow(false)
@@ -407,6 +413,37 @@ class MainViewModel @Inject constructor(
     }
 
     /**
+     * _fotoPerfil
+     * -----------
+     * Fichero local de la foto del cliente vinculado (descargado con el SDK de
+     * Storage autenticado y cacheado). null mientras no hay foto o falla la
+     * descarga sin caché disponible.
+     */
+    private val _fotoPerfil = MutableStateFlow<File?>(null)
+    val fotoPerfil: StateFlow<File?> = _fotoPerfil.asStateFlow()
+
+    /**
+     * Carga (o devuelve de caché) la foto del cliente vinculado para mostrarla
+     * con Coil desde un fichero local (nunca con GET HTTP anónimo a la URL).
+     */
+    suspend fun cargarFotoPerfil(cliente: Cliente) {
+        _fotoPerfil.value =
+            if (FotoClienteStorage.esUrlFoto(cliente.foto)) {
+                fotoClienteCache.obtener(cliente.idCliente, cliente.foto)
+            } else {
+                null
+            }
+    }
+
+    /** Devuelve el fichero cacheado para una URL remota concreta (p. ej. en Editar perfil). */
+    suspend fun cargarFotoRemotaPara(clienteId: Int, foto: String): File? =
+        fotoClienteCache.obtener(clienteId, foto)
+
+    fun limpiarFotoPerfil() {
+        _fotoPerfil.value = null
+    }
+
+    /**
      * cargarPerfilVista
      * -----------------
      * Carga el perfil a mostrar en Mi perfil / Editar perfil según el estado:
@@ -547,8 +584,21 @@ class MainViewModel @Inject constructor(
 
         _operandoRemoto.value = true
         try {
+            // Foto: si se quita y la ficha tenía foto remota se borra el objeto;
+            // si es una ruta local nueva se sube y se guarda la URL.
+            val fichaActual = clienteRepository.leerFicha(id)
+            var fotoFinal = foto
+            if (foto.isBlank()) {
+                if (FotoClienteStorage.esUrlFoto(fichaActual?.foto)) {
+                    FotoClienteStorage.eliminarFotoCliente(storage, id)
+                }
+            } else if (!FotoClienteStorage.esUrlFoto(foto)) {
+                FotoClienteStorage.subirFotoCliente(storage, id, foto)?.let {
+                    fotoFinal = it
+                }
+            }
             val resultado = clienteRepository.actualizarDatosPersonales(
-                id, nombre, apellidos, telefono, email, foto, fechaNacimiento
+                id, nombre, apellidos, telefono, email, fotoFinal, fechaNacimiento
             )
             if (!resultado.exito) return resultado.mensaje
             _cliente.value = clienteRepository.leerFicha(id)

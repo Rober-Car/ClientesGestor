@@ -75,6 +75,45 @@ class ClienteRemotoRepository @Inject constructor(
     }
 
     /**
+     * fotoRemotaDelCliente
+     * --------------------
+     * Lee SOLO el campo `foto` de `clientes/{idCliente}` en Firestore. Devuelve
+     * null si la ficha no existe o no se puede leer.
+     */
+    suspend fun fotoRemotaDelCliente(idCliente: Int): String? {
+        return try {
+            db.collection(COLECCION_CLIENTES)
+                .document(idCliente.toString())
+                .get()
+                .esperar()
+                .getString("foto")
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * actualizarFotoClienteRemoto
+     * ---------------------------
+     * Actualiza SOLO `foto` de `clientes/{idCliente}` con la URL de Storage
+     * (alta doc-first y reintentos de foto). No toca ningún otro campo.
+     */
+    suspend fun actualizarFotoClienteRemoto(idCliente: Int, url: String): ResultadoAutenticacion {
+        val uid = auth.currentUser?.uid
+            ?: return ResultadoAutenticacion(false, "No hay ningún usuario autenticado")
+        return try {
+            db.collection(COLECCION_CLIENTES)
+                .document(idCliente.toString())
+                .update(mapOf("foto" to url))
+                .esperar()
+            ResultadoAutenticacion(true, "Foto actualizada")
+        } catch (e: Exception) {
+            Log.e(TAG, "No se pudo actualizar la foto del cliente $idCliente", e)
+            ResultadoAutenticacion(false, mensajeDe(e))
+        }
+    }
+
+    /**
      * obtenerClientesRemotosDelNegocio
      * --------------------------------
      * Recupera TODOS los clientes del negocio del ADMIN autenticado desde
@@ -306,9 +345,16 @@ class ClienteRemotoRepository @Inject constructor(
                 db.collection(COLECCION_CLIENTES).document(entidad.idCliente.toString()),
                 mapaDeEdicion(entidad)
             )
-            batch.update(
+            // set (no update): funciona tanto si clientes_privados/{id} ya
+            // existe como si NO (clientes VIA 2 sin privados). Con el doc
+            // existente la regla de update permite escribir `observaciones`;
+            // si no existe, la regla de create valida {negocioId, observaciones}.
+            batch.set(
                 db.collection(COLECCION_PRIVADOS).document(entidad.idCliente.toString()),
-                mapOf("observaciones" to entidad.observaciones)
+                mapOf(
+                    "negocioId" to negocioId,
+                    "observaciones" to entidad.observaciones
+                )
             )
             if (dniViejo != null && dniViejo != dniNuevo) {
                 batch.delete(

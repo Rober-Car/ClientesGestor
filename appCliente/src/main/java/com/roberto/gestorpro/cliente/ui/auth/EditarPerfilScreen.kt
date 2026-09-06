@@ -50,6 +50,7 @@ import coil3.compose.AsyncImage
 import com.roberto.gestorpro.cliente.data.firebase.PerfilPendiente
 import com.roberto.gestorpro.cliente.ui.components.AppNavigationBackButton
 import com.roberto.gestorpro.cliente.ui.components.AppPrimaryButton
+import com.roberto.gestorpro.cliente.data.firebase.FotoClienteStorage
 import com.roberto.gestorpro.cliente.ui.components.BotonSelectorFoto
 import com.roberto.gestorpro.cliente.ui.utils.crearFotoTemporal
 import com.roberto.gestorpro.cliente.ui.utils.guardaFotoEnInterna
@@ -121,6 +122,19 @@ fun EditarPerfilScreen(
         }
     }
 
+    // Foto remota vigente (antes de cambiarla): se muestra desde la caché local
+    // descargada con el SDK autenticado, no con la URL HTTP directa.
+    var fotoRemotaPreview by remember { mutableStateOf<File?>(null) }
+    LaunchedEffect(vinculado, idCliente, foto) {
+        val id = idCliente
+        fotoRemotaPreview =
+            if (vinculado && FotoClienteStorage.esUrlFoto(foto) && id != null) {
+                mainViewModel.cargarFotoRemotaPara(id, foto)
+            } else {
+                null
+            }
+    }
+
     val launcherFoto = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
@@ -185,13 +199,22 @@ fun EditarPerfilScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            val modeloFotoEditar: Any? = if (FotoClienteStorage.esUrlFoto(foto)) {
+                // Foto remota: fichero de la caché autenticada (File local).
+                fotoRemotaPreview
+            } else if (foto.isNotBlank()) {
+                File(foto)
+            } else {
+                null
+            }
+
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                if (foto.isNotBlank()) {
+                if (modeloFotoEditar != null) {
                     AsyncImage(
-                        model = File(foto),
+                        model = modeloFotoEditar,
                         contentDescription = "Foto de perfil",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier

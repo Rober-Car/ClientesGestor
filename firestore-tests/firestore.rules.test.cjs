@@ -25,7 +25,8 @@ const {
 const {
     ref: storageRef,
     uploadBytes,
-    getBytes
+    getBytes,
+    deleteObject
 } = require("firebase/storage");
 
 const PROJECT_ID = "gestorpro-rules-test";
@@ -1514,6 +1515,255 @@ test("PRUEBA 19: Storage - el ADMIN propietario sube su logo y el resto no puede
     await assertFails(
         getBytes(storageRef(storageNoAuth, ruta))
     );
+
+    // 7. El ADMIN propietario puede reemplazar su logo (misma ruta).
+    await assertSucceeds(
+        uploadBytes(storageRef(storageAdminA, ruta), bytes)
+    );
+
+    // 8. El ADMIN propietario puede leer su logo.
+    await assertSucceeds(
+        getBytes(storageRef(storageAdminA, ruta))
+    );
+});
+
+test("PRUEBA 19-STOR-FOTO-ADMIN: fotos de cliente - ADMIN propietario sube/reemplaza/lee/elimina y otro ADMIN no", async () => {
+    const adminA = "admin-foto-a";
+    const adminB = "admin-foto-b";
+    const negocioA = "negocio-foto-a";
+    const negocioB = "negocio-foto-b";
+    const idCliente = "cliente-foto-1";
+    const ruta = `clientes/${idCliente}/foto.jpg`;
+    const bytes = new Uint8Array([1, 2, 3, 4]);
+    const metadatosImagen = { contentType: "image/jpeg" };
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", adminA), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId: negocioA
+        });
+        await setDoc(doc(database, "usuarios", adminB), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId: negocioB
+        });
+        await setDoc(doc(database, "clientes", idCliente), {
+            idCliente: parseInt(idCliente.replace(/\D/g, ""), 10),
+            negocioId: negocioA,
+            firebaseUid: null,
+            nombre: "Cliente", apellidos: "Foto", dni: "12345678F",
+            telefono: "600000000", email: "c@test.com", foto: "",
+            estado: "ACTIVO", serviciosContratados: []
+        });
+    });
+
+    const storageAdminA = testEnvironment.authenticatedContext(adminA).storage();
+    const storageAdminB = testEnvironment.authenticatedContext(adminB).storage();
+
+    // ADMIN propietario: subir y reemplazar.
+    await assertSucceeds(uploadBytes(storageRef(storageAdminA, ruta), bytes, metadatosImagen));
+    await assertSucceeds(uploadBytes(storageRef(storageAdminA, ruta), bytes, metadatosImagen));
+    // ADMIN propietario: leer y eliminar.
+    await assertSucceeds(getBytes(storageRef(storageAdminA, ruta)));
+    await assertSucceeds(deleteObject(storageRef(storageAdminA, ruta)));
+
+    // ADMIN de otro negocio: no puede leer, escribir ni eliminar.
+    await assertSucceeds(uploadBytes(storageRef(storageAdminA, ruta), bytes, metadatosImagen));
+    await assertFails(getBytes(storageRef(storageAdminB, ruta)));
+    await assertFails(uploadBytes(storageRef(storageAdminB, ruta), bytes, metadatosImagen));
+    await assertFails(deleteObject(storageRef(storageAdminB, ruta)));
+});
+
+test("PRUEBA 19-STOR-FOTO-ALTA (doc-first): con la ficha EXISTENTE el ADMIN sube/lee/borra la foto; SIN ficha no hay autorización; CLIENTE y no-auth no pueden", async () => {
+    // negocioId del ADMIN = su UID (igual que producción).
+    const uidA = "admin-foto-alta-a";
+    const uidB = "admin-foto-alta-b";
+    const negocioA = uidA;
+    const negocioB = uidB;
+    const clienteUid = "cliente-foto-alta-x";
+    // idNuevo: en el alta doc-first la ficha SE CREA ANTES de subir (foto="").
+    const idNuevo = "cliente-foto-alta-nuevo";
+    const idNuevoB = "cliente-foto-alta-nuevo-b";
+    const ruta = `clientes/${idNuevo}/foto.jpg`;
+    const rutaB = `clientes/${idNuevoB}/foto.jpg`;
+    const bytes = new Uint8Array([15, 16, 17, 18]);
+    const mdImagen = { contentType: "image/jpeg" };
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", uidA), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId: negocioA
+        });
+        await setDoc(doc(database, "usuarios", uidB), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId: negocioB
+        });
+        await setDoc(doc(database, "usuarios", clienteUid), {
+            rol: "CLIENTE", activo: true, clienteId: null, negocioId: negocioA
+        });
+        // Fichas reales (alta doc-first: existen con foto="" antes de subir).
+        await setDoc(doc(database, "clientes", idNuevo), {
+            idCliente: 1, negocioId: negocioA, firebaseUid: null,
+            nombre: "Alta", apellidos: "DocFirst", dni: "44444444Z",
+            telefono: "600000000", email: "a@test.com", foto: "", estado: "ACTIVO",
+            serviciosContratados: []
+        });
+        await setDoc(doc(database, "clientes", idNuevoB), {
+            idCliente: 2, negocioId: negocioB, firebaseUid: null,
+            nombre: "AltaB", apellidos: "DocFirstB", dni: "55555555B",
+            telefono: "600000000", email: "b@test.com", foto: "", estado: "ACTIVO",
+            serviciosContratados: []
+        });
+        await setDoc(doc(database, "clientes", "cliente-foto-alta-existente"), {
+            idCliente: 999991, negocioId: negocioA, firebaseUid: null,
+            nombre: "Existente", apellidos: "Alta", dni: "33333333E",
+            telefono: "600000000", email: "e@test.com", foto: "", estado: "ACTIVO",
+            serviciosContratados: []
+        });
+        // Ficha SIN DOCUMENTO en Firestore: su foto NO debe poderse subir.
+    });
+
+    const storageAdminA = testEnvironment.authenticatedContext(uidA).storage();
+    const storageAdminB = testEnvironment.authenticatedContext(uidB).storage();
+    const storageCliente = testEnvironment.authenticatedContext(clienteUid).storage();
+    const storageNoAuth = testEnvironment.unauthenticatedContext().storage();
+
+    // ALTA doc-first: con la ficha YA existente el ADMIN sube la foto y la lee.
+    await assertSucceeds(uploadBytes(storageRef(storageAdminA, ruta), bytes, mdImagen));
+    await assertSucceeds(getBytes(storageRef(storageAdminA, ruta)));
+
+    // El ADMIN puede eliminar el objeto (compensación/reemplazo).
+    await assertSucceeds(deleteObject(storageRef(storageAdminA, ruta)));
+    await assertSucceeds(uploadBytes(storageRef(storageAdminA, ruta), bytes, mdImagen));
+
+    // CLIENTE (no propietario de esa ficha): no puede subir, leer ni borrar.
+    await assertFails(uploadBytes(storageRef(storageCliente, ruta), bytes, mdImagen));
+    await assertFails(getBytes(storageRef(storageCliente, ruta)));
+    await assertFails(deleteObject(storageRef(storageCliente, ruta)));
+
+    // No autenticado: no puede leer ni escribir.
+    await assertFails(getBytes(storageRef(storageNoAuth, ruta)));
+    await assertFails(uploadBytes(storageRef(storageNoAuth, ruta), bytes, mdImagen));
+
+    // ADMIN de OTRO negocio: no puede leer, escribir ni borrar la de negocioA.
+    await assertFails(getBytes(storageRef(storageAdminB, ruta)));
+    await assertFails(uploadBytes(storageRef(storageAdminB, ruta), bytes, mdImagen));
+    await assertFails(deleteObject(storageRef(storageAdminB, ruta)));
+
+    // adminB SÍ puede gestionar la foto de SU ficha (idNuevoB).
+    await assertSucceeds(uploadBytes(storageRef(storageAdminB, rutaB), bytes, mdImagen));
+    await assertSucceeds(getBytes(storageRef(storageAdminB, rutaB)));
+
+    // SIN ficha en Firestore: el ADMIN NO tiene autorización para subir
+    // (el alta ya no depende de metadata ni de autorizaciones temporales).
+    const rutaSinFicha = "clientes/cliente-foto-sin-ficha/foto.jpg";
+    await assertFails(uploadBytes(storageRef(storageAdminA, rutaSinFicha), bytes, mdImagen));
+    await assertFails(getBytes(storageRef(storageAdminA, rutaSinFicha)));
+
+    // Ficha EXISTENTE de negocioA: el ADMIN propietario lee/subiere igual.
+    const rutaExistente = "clientes/cliente-foto-alta-existente/foto.jpg";
+    await assertSucceeds(uploadBytes(storageRef(storageAdminA, rutaExistente), bytes, mdImagen));
+    await assertFails(uploadBytes(storageRef(storageAdminB, rutaExistente), bytes, mdImagen));
+    await assertFails(deleteObject(storageRef(storageAdminB, rutaExistente)));
+    await assertFails(getBytes(storageRef(storageAdminB, rutaExistente)));
+    await assertSucceeds(getBytes(storageRef(storageAdminA, rutaExistente)));
+});
+
+test("PRUEBA 19-STOR-FOTO-CLIENTE: fotos de cliente - el CLIENTE propietario gestiona la suya y otro CLIENTE no", async () => {
+    const duenioUid = "cliente-dueno-2";
+    const otroUid = "cliente-otro-2";
+    const negocioX = "negocio-foto-x";
+    const idPropia = "cliente-foto-propia";
+    const idAjena = "cliente-foto-ajena";
+    const ruta = `clientes/${idPropia}/foto.jpg`;
+    const rutaAjena = `clientes/${idAjena}/foto.jpg`;
+    const bytes = new Uint8Array([5, 6, 7, 8]);
+    const metadatosImagen = { contentType: "image/jpeg" };
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", duenioUid), {
+            rol: "CLIENTE", activo: true, clienteId: parseInt(idPropia.replace(/\D/g, ""), 10),
+            negocioId: negocioX
+        });
+        await setDoc(doc(database, "usuarios", otroUid), {
+            rol: "CLIENTE", activo: true, clienteId: parseInt(idAjena.replace(/\D/g, ""), 10),
+            negocioId: negocioX
+        });
+        await setDoc(doc(database, "clientes", idPropia), {
+            idCliente: parseInt(idPropia.replace(/\D/g, ""), 10),
+            negocioId: negocioX, firebaseUid: duenioUid,
+            nombre: "Dueño", apellidos: "Foto", dni: "11111111D",
+            telefono: "600000000", email: "d@test.com", foto: "", estado: "ACTIVO",
+            serviciosContratados: []
+        });
+        await setDoc(doc(database, "clientes", idAjena), {
+            idCliente: parseInt(idAjena.replace(/\D/g, ""), 10),
+            negocioId: negocioX, firebaseUid: otroUid,
+            nombre: "Otro", apellidos: "Foto", dni: "22222222O",
+            telefono: "600000000", email: "o@test.com", foto: "", estado: "ACTIVO",
+            serviciosContratados: []
+        });
+    });
+
+    const storageDuenio = testEnvironment.authenticatedContext(duenioUid).storage();
+    const storageOtro = testEnvironment.authenticatedContext(otroUid).storage();
+
+    // CLIENTE propietario: subir, reemplazar, leer y eliminar su foto.
+    await assertSucceeds(uploadBytes(storageRef(storageDuenio, ruta), bytes, metadatosImagen));
+    await assertSucceeds(uploadBytes(storageRef(storageDuenio, ruta), bytes, metadatosImagen));
+    await assertSucceeds(getBytes(storageRef(storageDuenio, ruta)));
+    await assertSucceeds(deleteObject(storageRef(storageDuenio, ruta)));
+
+    // CLIENTE de otro cliente: no puede leer, escribir ni eliminar la ajena.
+    await assertFails(getBytes(storageRef(storageOtro, ruta)));
+    await assertFails(uploadBytes(storageRef(storageOtro, ruta), bytes, metadatosImagen));
+    await assertFails(deleteObject(storageRef(storageOtro, ruta)));
+});
+
+test("PRUEBA 19-STOR-FOTO-VALIDACION: no autenticado, tamaño >10MB, no imagen y rutas fuera quedan bloqueadas", async () => {
+    const adminUid = "admin-foto-val";
+    const negocioId = "negocio-foto-val";
+    const idCliente = "cliente-foto-val";
+    const ruta = `clientes/${idCliente}/foto.jpg`;
+    const rutaFuera = `clientes/${idCliente}/otra.jpg`;
+    const rutaLogoFuera = "negocios/negocio-foto-val/otro.jpg";
+    const bytes = new Uint8Array([9, 10, 11, 12]);
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        const database = context.firestore();
+        await setDoc(doc(database, "usuarios", adminUid), {
+            rol: "ADMIN", activo: true, clienteId: null, negocioId
+        });
+        await setDoc(doc(database, "clientes", idCliente), {
+            idCliente: parseInt(idCliente.replace(/\D/g, ""), 10),
+            negocioId, firebaseUid: null,
+            nombre: "Val", apellidos: "Foto", dni: "12345678V",
+            telefono: "600000000", email: "v@test.com", foto: "", estado: "ACTIVO",
+            serviciosContratados: []
+        });
+        // Objeto de prueba para comprobar DELETE sin autenticar.
+        await context.storage().ref().child(ruta).put(bytes, { contentType: "image/jpeg" });
+        await context.storage().ref().child(rutaFuera).put(bytes, { contentType: "image/jpeg" });
+        await context.storage().ref().child(rutaLogoFuera).put(bytes, { contentType: "image/jpeg" });
+    });
+
+    const storageAdmin = testEnvironment.authenticatedContext(adminUid).storage();
+    const storageNoAuth = testEnvironment.unauthenticatedContext().storage();
+    const grande = new Uint8Array(10 * 1024 * 1024 + 1).fill(13);
+
+    // No autenticado: no puede leer, escribir ni eliminar.
+    await assertFails(getBytes(storageRef(storageNoAuth, ruta)));
+    await assertFails(uploadBytes(storageRef(storageNoAuth, ruta), bytes, { contentType: "image/jpeg" }));
+    await assertFails(deleteObject(storageRef(storageNoAuth, ruta)));
+
+    // Archivo > 10 MB rechazado.
+    await assertFails(uploadBytes(storageRef(storageAdmin, ruta), grande, { contentType: "image/jpeg" }));
+
+    // Archivo que no es imagen rechazado.
+    await assertFails(uploadBytes(storageRef(storageAdmin, ruta), bytes, { contentType: "text/plain" }));
+
+    // Rutas fuera de las permitidas bloqueadas (incluso por el ADMIN propietario).
+    await assertFails(uploadBytes(storageRef(storageAdmin, rutaFuera), bytes, { contentType: "image/jpeg" }));
+    await assertFails(getBytes(storageRef(storageAdmin, rutaFuera)));
+    await assertFails(uploadBytes(storageRef(storageAdmin, rutaLogoFuera), bytes, { contentType: "image/jpeg" }));
 });
 
 test("PRUEBA 20: el ADMIN guarda el logo en negocios y negocios_publicos; el CLIENTE no", async () => {

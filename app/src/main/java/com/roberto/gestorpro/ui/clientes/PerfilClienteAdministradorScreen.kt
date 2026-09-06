@@ -129,6 +129,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.text.input.KeyboardType
 import com.roberto.gestorpro.data.entity.MovimientoEntity
+import com.roberto.gestorpro.data.firebase.FotoClienteStorage
 import com.roberto.gestorpro.model.EstadoMovimiento
 import com.roberto.gestorpro.model.MetodoPago
 
@@ -234,6 +235,23 @@ fun PerfilClienteScreen(
     val errorSincronizacion by viewModel.errorSincronizacion.collectAsStateWithLifecycle()
 
     val clienteSinSincronizar by viewModel.clienteSinSincronizar.collectAsStateWithLifecycle()
+
+    val fotoPerfil by viewModel.fotoPerfil.collectAsStateWithLifecycle()
+
+    // Refresca la foto (cacheada con el SDK autenticado) cuando cambia el
+    // cliente o su foto (p. ej. al volver de "Modificar cliente").
+    LaunchedEffect(cliente?.idCliente, cliente?.foto) {
+        val c = cliente
+        if (c != null) {
+            if (FotoClienteStorage.esUrlFoto(c.foto)) {
+                viewModel.cargarFotoPerfil(c)
+            } else {
+                viewModel.limpiarFotoPerfil()
+            }
+        } else {
+            viewModel.limpiarFotoPerfil()
+        }
+    }
 
     val errorSincronizacionPeriodo by movimientoViewModel.errorSincronizacion.collectAsStateWithLifecycle()
     val periodosPendientes by movimientoViewModel.periodosPendientes.collectAsStateWithLifecycle()
@@ -740,9 +758,18 @@ fun PerfilClienteScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
 
-                val fotoMostrar = fotoSeleccionada ?: cliente?.foto ?: null
+                val fotoElegida = fotoSeleccionada
+                val fotoMostrar = fotoElegida ?: cliente?.foto ?: null
+                val modeloFotoCabecera: Any? = when {
+                    // Foto recién elegida (local) o legacy local: File directo.
+                    fotoElegida != null -> File(fotoElegida)
+                    // Foto remota: fichero de la caché autenticada (nunca la URL HTTP).
+                    FotoClienteStorage.esUrlFoto(cliente?.foto) -> fotoPerfil
+                    fotoMostrar != null -> File(fotoMostrar)
+                    else -> null
+                }
 
-                if (fotoMostrar == null) {
+                if (modeloFotoCabecera == null) {
                     /**
                      * Box del placeholder de la foto
                      * ------------------------------
@@ -767,7 +794,7 @@ fun PerfilClienteScreen(
                     }
                 } else {
                     AsyncImage(
-                        model = fotoMostrar?.let { File(it) } ?: null,
+                        model = modeloFotoCabecera,
                         contentDescription = "Foto del cliente",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
