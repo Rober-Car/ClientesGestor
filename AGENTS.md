@@ -2,6 +2,54 @@
 
 Lee este archivo completo antes de modificar el proyecto.
 
+> ## ⚠️ CHECKPOINT 2026-09-07 — MARCA TRAZYS + PRE-BETA + UGC (REANUDAR AQUÍ)
+>
+> Estado REAL al cierre de la última tanda. **HEAD del desarrollador:** `b863397` ("foto storage
+> implementado"). El **working tree tiene cambios SIN commit** (NO revertir): rebranding Trazys,
+> eliminación de cuenta, web Trazys, Términos (parcial) y verificación general. **Sin commit por
+> nuestra parte.** No inventar: todo lo descrito está verificado en el árbol o desplegado.
+>
+> ### Marca
+> - Nombre visible **Trazys** (Admin) / **Trazys Cliente** (Cliente): `app_name`, textos/fallbacks
+>   visibles, copyright, política de privacidad (apps + web), `ORIGEN_APP`, backup `trazys_backup.zip`,
+>   `settings.gradle.kts` rootProject. NO se cambiaron applicationId/namespace/paquetes/clases/Firebase
+>   (Project ID `gestorpro-50e83`). Repositorio GitHub sigue como `Rober-Car/GestorPro` (remote sin
+>   cambiar). Icono sin rediseñar.
+>
+> ### Firebase desplegado (verificado por API)
+> - Firestore Rules doc-first: release `cloud.firestore` → ruleset `b4559665-ca2f-424b-80ea-3d2e133cc9b9`.
+> - Storage Rules doc-first: release `firebase.storage/…` → `c68b395b-c4c6-4aa3-94b1-564f75311600`.
+> - Function callable v2 **`eliminarMiCuenta`** en `europe-west1` (Node 20). `functions/package.json`
+>   engines subido a 20 (Node 18 retirado). `npm install` hecho en `functions/`.
+> - Hosting site **`trazys`** creado y **desplegado**: `https://trazys.web.app` (+ `/privacidad`,
+>   `/eliminar-cuenta`). Estructura `web/` con carpetas `index.html` y CSS compartido.
+> - Eliminación cuenta (Function): CLIENTE borra cuenta + datos personales y **conserva** movimientos,
+>   índice y ficha mínima (idCliente, negocioId, nombre, apellidos, dni, firebaseUid null, foto "");
+>   ADMIN borra todo el negocio. Sin cambios de Rules. Auth se borra al final. Idempotente.
+>
+> ### Términos de uso (FASE 1 parcial)
+> - Núcleo listo: `TerminosDeUso.VERSION="1.0"` (claves uid/version/fecha en DataStore),
+>   `PreferencesRepository.terminosAceptados(uid)/guardarAceptacionTerminos(uid)`,
+>   `MainViewModel.terminosAceptados()/aceptarTerminos()` (Admin y Cliente), tests del verificador.
+> - Pantallas reales `TerminosDeUsoScreen` en `:app` y `:appCliente`; rutas/navegación (Admin ruta
+>   nueva `TERMINOS_CONDICIONES`; Cliente repunta la existente), acceso en Configuración (Admin añadida).
+> - **PENDIENTE FASE 1:** checkbox obligatorio + enlaces en Registro de ambas apps (bloquea registrar
+>   sin aceptar); tests de flujo de Registro.
+> - Fases posteriores (aún NO): gates de subida de UGC (foto/logo/notificaciones), denuncias/
+>   retirada, moderación, web `/terminos`.
+> - UGC según Play: sí (foto de perfil del CLIENTE visible al ADMIN, logo del negocio visible a
+>   clientes, notificaciones del ADMIN a clientes). Observaciones privadas del ADMIN NO son UGC.
+>
+> ### Pendientes pre-beta conocidos
+> - Terminar Fase 1 UGC (Registro), gates y web `/terminos` + denuncias.
+> - Commitear el working tree; renombrar repositorio GitHub a Trazys y actualizar `origin` (requiere
+>   acción del propietario); nombre visible del proyecto Firebase en consola.
+> - Revisión de política: sustituir afirmaciones obsoletas ya corregidas en apps/web (logo en Storage,
+>   FCM); revisar detalle de Funciones/FCM para producción.
+>
+> - Estado anterior en los CHECKPOINT previos de este archivo y en AGENTS/CONTEXTO (histórico).
+
+
 > ## ⚠️ CHECKPOINT 2026-09-06 (FASE FINAL PRE-BLAZE — 3 correcciones UX + selector GRUPO; continuar mañana desde aquí)
 >
 > Estado para REANUDAR. **HEAD del desarrollador: `cb44d1e`** (2026-09-05 18:27). **Working tree con

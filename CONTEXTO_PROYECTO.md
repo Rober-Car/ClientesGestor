@@ -1,5 +1,18 @@
 # CONTEXTO_PROYECTO.md — Documento de traspaso a nueva IA
 
+> **🔴 ACTUALIZACIÓN 2026-09-07 — MARCA TRAZYS + PRE-BETA (estado vigente):** el proyecto pasa a
+> llamarse **Trazys** de forma visible (apps, web, textos), sin tocar identificadores técnicos
+> (applicationId `com.roberto.gestorpro[.cliente]`, Firebase Project ID `gestorpro-50e83`, paquetes).
+> En Firebase: Rules doc-first desplegadas (firestore ruleset `b4559665…`, storage `c68b395b…`),
+> Function callable `eliminarMiCuenta` (europe-west1, Node 20) desplegada, y Hosting site `trazys`
+> desplegado en `https://trazys.web.app` (`/`, `/privacidad`, `/eliminar-cuenta`).
+> Eliminación de cuenta: CLIENTE borra su cuenta y datos personales conservando movimientos + índice
+> + ficha mínima; ADMIN borra todo su negocio. Fase 1 de Términos de uso: núcleo de aceptación
+> (versión 1.0 en DataStore) y pantallas reales en ambas apps; **pendiente el checkbox de Registro**.
+> Detalle completo y pendientes en el CHECKPOINT 2026-09-07 de AGENTS.md. El working tree tiene
+> cambios SIN commit (NO revertir).
+
+
 > **🟡 ACTUALIZACIÓN 2026-09-06 (continuación; cambios SIN commit en el árbol):** HEAD sigue en
 > `cb44d1e`. El working tree contiene cambios SIN commit (NO revertir) de una tanda final de UX:
 > orden de clientes por apellido→nombre (`model/Cliente` expone `apellidos`), selectores INDIVIDUAL y

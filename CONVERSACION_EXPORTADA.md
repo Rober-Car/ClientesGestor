@@ -1,4 +1,13 @@
 # Conversación GestorPro - Análisis Firestore Rules Límite 1000 Expresiones
+
+> **🔴 ÚLTIMA ACTUALIZACIÓN (2026-09-07, resumen para continuar):** ver detalle en el CHECKPOINT
+> 2026-09-07 de AGENTS.md y en la ACTUALIZACIÓN 2026-09-07 de CONTEXTO_PROYECTO.md. Resumen:
+> marca **Trazys** (solo visible), deploy doc-first de Rules, Function `eliminarMiCuenta` (CLIENTE
+> conserva movimientos/índice/ficha mínima; ADMIN borra el negocio), web `https://trazys.web.app`
+> (`/privacidad`, `/eliminar-cuenta`), y Fase 1 de Términos parcial (persistencia versión 1.0 +
+> pantallas en ambas apps; **pendiente checkbox de Registro** y gates UGC). El resto de este
+> documento es histórico y puede contener afirmaciones ya superadas por AGENTS.md.
+
 ## Fecha: 2026-09-01
 ## Estado: ⭐ RESUELTO Y AVANZADO — Ver las últimas actualizaciones al final: apertura global de reservas, bug idSesion=0 corregido, logging diagnóstico. Tests 99/99. Pendiente: verificar réplica en producción, reservas del CLIENTE, bucket de Storage, backfill de índices y commits.
 
