@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.roberto.gestorpro.data.firebase.AutenticacionRepository
 import com.roberto.gestorpro.data.firebase.EstadoNegocioDeCuenta
 import com.roberto.gestorpro.data.firebase.NegocioRepository
+import com.roberto.gestorpro.data.firebase.esperar
+import com.google.firebase.functions.FirebaseFunctions
 import com.roberto.gestorpro.data.local.PreparadorLocalCuenta
 import com.roberto.gestorpro.data.repository.DesactivacionServicioSincronizador
 import com.roberto.gestorpro.data.repository.HidratadorCacheLocal
@@ -383,6 +385,72 @@ class MainViewModel @Inject constructor(
             _logoNegocio.value = ""
             _idClienteSesion.value = null
             _estadoPreparacion.value = EstadoPreparacion.SinSesion
+        }
+    }
+
+    /**
+     * eliminandoCuenta
+     * ----------------
+     * Evita que una doble pulsación lance dos eliminaciones simultáneas.
+     */
+    private val _eliminandoCuenta = MutableStateFlow(false)
+    val eliminandoCuenta: StateFlow<Boolean> = _eliminandoCuenta.asStateFlow()
+
+    /**
+     * eliminarCuentaYNegocio
+     * ----------------------
+     * Elimina COMPLETAMENTE la cuenta ADMIN y su negocio llamando a la Cloud
+     * Function callable `eliminarMiCuenta` (borrado por Admin SDK). Requiere
+     * reautenticación con la contraseña actual. Al terminar cierra la sesión.
+     */
+    fun eliminarCuentaYNegocio(contrasena: String, onTerminado: (String?) -> Unit) {
+        if (_eliminandoCuenta.value) return
+        _eliminandoCuenta.value = true
+        viewModelScope.launch {
+            try {
+                if (!autenticacionRepository.reautenticar(contrasena)) {
+                    onTerminado("La contraseña no es correcta")
+                    return@launch
+                }
+                FirebaseFunctions.getInstance("europe-west1")
+                    .getHttpsCallable("eliminarMiCuenta")
+                    .call(null)
+                    .esperar()
+                // signOut síncrono y limpieza de identidad en la misma corrutina.
+                autenticacionRepository.cerrarSesion()
+                preferencesRepository.limpiarIdentidadNegocio()
+                _nombreNegocio.value = ""
+                _logoNegocio.value = ""
+                _idClienteSesion.value = null
+                _estadoPreparacion.value = EstadoPreparacion.SinSesion
+                onTerminado(null)
+            } catch (e: Exception) {
+                onTerminado("No se pudo eliminar la cuenta: ${e.message ?: "error desconocido"}")
+            } finally {
+                _eliminandoCuenta.value = false
+            }
+        }
+    }
+
+    /**
+     * terminosAceptados
+     * -----------------
+     * ¿El ADMIN actual aceptó la versión vigente de los Términos de uso?
+     */
+    suspend fun terminosAceptados(): Boolean {
+        val uid = autenticacionRepository.uidActual() ?: return false
+        return preferencesRepository.terminosAceptados(uid)
+    }
+
+    /**
+     * aceptarTerminos
+     * ---------------
+     * Registra la aceptación de la versión vigente para el ADMIN actual.
+     */
+    fun aceptarTerminos() {
+        viewModelScope.launch {
+            val uid = autenticacionRepository.uidActual() ?: return@launch
+            preferencesRepository.guardarAceptacionTerminos(uid)
         }
     }
 

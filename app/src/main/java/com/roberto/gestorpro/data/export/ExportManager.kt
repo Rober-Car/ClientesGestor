@@ -46,7 +46,7 @@ object ExportManager {
 
     const val BACKUP_VERSION = 1
     const val TIPO_BACKUP = "negocio"
-    const val ORIGEN_APP = "GestorPro Admin"
+    const val ORIGEN_APP = "Trazys Admin"
 
     private const val MANIFEST_ENTRY = "manifest.json"
     private const val MEDIA_PREFIX = "media/clientes/"

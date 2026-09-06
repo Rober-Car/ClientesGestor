@@ -19,6 +19,7 @@ initializeApp();
 
 const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onCall } = require("firebase-functions/v2/https");
 const { setGlobalOptions } = require("firebase-functions/v2");
 
 const {
@@ -28,6 +29,8 @@ const {
   procesarEntradaMorosidad,
   procesarBajaConfirmada,
 } = require("./lib/procesadores");
+
+const { eliminarMiCuenta } = require("./lib/eliminacion");
 
 // Región cercana a España y límites razonables para los barridos.
 setGlobalOptions({ region: "europe-west1", maxInstances: 10 });
@@ -50,3 +53,7 @@ exports.bajaConfirmada = onDocumentUpdated(
   "clientes/{clienteId}",
   procesarBajaConfirmada
 );
+
+// Eliminación completa de cuenta (CLIENTE) o cuenta+negocio (ADMIN).
+// El objetivo se deriva de context.auth.uid (nunca de parámetros de la app).
+exports.eliminarMiCuenta = onCall((request) => eliminarMiCuenta(request));

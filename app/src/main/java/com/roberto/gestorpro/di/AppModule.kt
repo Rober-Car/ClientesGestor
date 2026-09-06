@@ -467,7 +467,6 @@ object AppModule {
                 MIGRACION_16_17,
                 MIGRACION_17_18
             )
-            .fallbackToDestructiveMigration()
 
         return databaseBuilder.build()
     }

@@ -1,4 +1,4 @@
-package com.roberto.gestorpro.ui.configuracion
+﻿package com.roberto.gestorpro.ui.configuracion
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -28,7 +28,7 @@ import com.roberto.gestorpro.ui.components.AppNavigationBackButton
 /**
  * PoliticaPrivacidadScreen (ADMIN)
  * -------------------------------
- * Política de privacidad de GestPro (app Admin) con scroll vertical.
+ * Política de privacidad de Trazys (app Admin) con scroll vertical.
  * Describe los tratamientos REALES implementados; no menciona funcionalidades
  * futuras no operativas (p. ej. el almacenamiento de fotografías en la nube).
  */
@@ -69,14 +69,14 @@ fun PoliticaPrivacidadScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = "Política de privacidad de GestPro",
+                    text = "Política de privacidad de Trazys",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
 
                 SeccionAdminPrivacidad("1. Responsable del tratamiento") {
                     Text(
-                        "GestPro es una aplicación de gestión de un gimnasio.\n\n" +
+                        "Trazys es una aplicación de gestión de un gimnasio.\n\n" +
                             "Responsable del tratamiento: Roberto Carlos Salvador Martin.\n" +
                             "NIF: 48910659D.\n" +
                             "Domicilio: Avenida de Huelva, 6, 21830 Bonares (Huelva), España.\n" +
@@ -86,14 +86,14 @@ fun PoliticaPrivacidadScreen(
 
                 SeccionAdminPrivacidad("2. Qué datos tratamos") {
                     Text(
-                        "Como administrador de GestPro, la aplicación trata los siguientes " +
+                        "Como administrador de Trazys, la aplicación trata los siguientes " +
                             "datos:\n\n" +
                             "• Datos de tu cuenta de acceso: correo electrónico y contraseña " +
                             "(gestionada por Firebase Authentication) y un identificador " +
                             "interno de usuario.\n" +
                             "• Datos del negocio que configuras: nombre, código maestro de " +
-                            "acceso para los clientes y logo (en esta versión el logo se guarda " +
-                            "en tu dispositivo y no se sube a un almacenamiento en la nube).\n" +
+                            "acceso para los clientes y logo (el logo se almacena de forma " +
+                            "segura en la nube de Trazys, en Firebase Storage).\n" +
                             "• Datos de los clientes de tu gimnasio que introduces o gestionas: " +
                             "identificación (nombre, apellidos, DNI), contacto (teléfono y " +
                             "correo), fecha de nacimiento, fotografía, servicios contratados, " +
@@ -127,7 +127,7 @@ fun PoliticaPrivacidadScreen(
                 SeccionAdminPrivacidad("4. Base jurídica") {
                     Text(
                         "Tratamos los datos necesarios para la prestación del servicio de " +
-                            "gestión que ofrece GestPro y por el interés legítimo del " +
+                            "gestión que ofrece Trazys y por el interés legítimo del " +
                             "responsable en administrar correctamente el gimnasio y la " +
                             "relación con sus clientes. Las notificaciones a los clientes se " +
                             "envían según la relación que cada cliente mantiene con tu " +
@@ -158,8 +158,7 @@ fun PoliticaPrivacidadScreen(
                             "aplicación.\n" +
                             "• Firebase Cloud Messaging (FCM): se utiliza para registrar los " +
                             "identificadores de dispositivo de los clientes y gestionar sus " +
-                            "notificaciones. El envío automático de notificaciones por push no " +
-                            "está activado en esta versión.\n\n" +
+                            "notificaciones.\n\n" +
                             "Google puede tratar datos fuera del Espacio Económico Europeo. Cuando " +
                             "ello resulte necesario, se aplicarán las garantías previstas por la " +
                             "normativa de protección de datos, incluidas, en su caso, las " +
@@ -201,7 +200,7 @@ fun PoliticaPrivacidadScreen(
 
                 SeccionAdminPrivacidad("10. Menores") {
                     Text(
-                        "GestPro no está dirigida a un público determinado y no impide su uso " +
+                        "Trazys no está dirigida a un público determinado y no impide su uso " +
                             "por menores por el mero hecho de serlo. No obstante, cuando el " +
                             "tratamiento se base en el consentimiento, en España se considera que " +
                             "un mayor de 14 años puede prestar su consentimiento; para menores de " +

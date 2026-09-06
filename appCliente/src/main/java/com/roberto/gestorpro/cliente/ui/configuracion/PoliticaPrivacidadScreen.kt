@@ -1,4 +1,4 @@
-package com.roberto.gestorpro.cliente.ui.configuracion
+﻿package com.roberto.gestorpro.cliente.ui.configuracion
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -28,7 +28,7 @@ import com.roberto.gestorpro.cliente.ui.components.AppNavigationBackButton
 /**
  * PoliticaPrivacidadScreen
  * ------------------------
- * Política de privacidad de GestPro (app Cliente) con scroll vertical.
+ * Política de privacidad de Trazys (app Cliente) con scroll vertical.
  * El texto describe los tratamientos REALES implementados en la aplicación;
  * no menciona funcionalidades futuras no operativas (p. ej. Firebase Storage).
  */
@@ -69,14 +69,14 @@ fun PoliticaPrivacidadScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = "Política de privacidad de GestPro",
+                    text = "Política de privacidad de Trazys",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
 
                 SeccionPrivacidad("1. Responsable del tratamiento") {
                     Text(
-                        "GestPro es una aplicación de gestión de un centro.\n\n" +
+                        "Trazys es una aplicación de gestión de un centro.\n\n" +
                             "Responsable del tratamiento: Roberto Carlos Salvador Martin.\n" +
                             "NIF: 48910659D.\n" +
                             "Domicilio: Avenida de Huelva, 6, 21830 Bonares (Huelva), España.\n" +
@@ -91,9 +91,9 @@ fun PoliticaPrivacidadScreen(
                             "• Datos de identificación: nombre, apellidos y DNI.\n" +
                             "• Datos de contacto: teléfono y correo electrónico.\n" +
                             "• Fecha de nacimiento (si la indicas).\n" +
-                            "• Fotografía: se guarda como archivo en tu propio dispositivo y se " +
-                            "asocia a tu ficha. En esta versión las fotografías no se suben a " +
-                            "servicios de almacenamiento en la nube.\n" +
+                            "• Fotografía: se guarda en tu ficha y se almacena de forma " +
+                            "segura en la nube de Trazys (Firebase Storage) para que tu " +
+                            "centro pueda verla.\n" +
                             "• Datos de tu relación con el centro: negocio al que estás vinculado, " +
                             "servicios contratados, sesiones y reservas, y estado de tu ficha.\n" +
                             "• Datos económicos de tu cuenta con el centro: cuotas y movimientos, " +
@@ -102,8 +102,7 @@ fun PoliticaPrivacidadScreen(
                             "• Solicitudes de baja y su estado.\n" +
                             "• Notificaciones recibidas y tus preferencias de notificación.\n" +
                             "• Identificador del dispositivo: se registra para gestionar las " +
-                            "notificaciones de tu cuenta. El envío automático de notificaciones " +
-                            "por push no está operativo en esta versión.\n" +
+                            "notificaciones de tu cuenta.\n" +
                             "• Datos de la cuenta de acceso: correo y contraseña (gestionada por " +
                             "Firebase Authentication) y un identificador interno de usuario."
                     )
@@ -158,9 +157,7 @@ fun PoliticaPrivacidadScreen(
                             "• Firebase (Cloud Firestore): almacenamiento de los datos de la " +
                             "aplicación.\n" +
                             "• Firebase Cloud Messaging (FCM): se utiliza para registrar el " +
-                            "identificador de tu dispositivo y gestionar tus notificaciones. El " +
-                            "envío automático de notificaciones por push no está activado en " +
-                            "esta versión.\n\n" +
+                            "identificador de tu dispositivo y gestionar tus notificaciones.\n\n" +
                             "Google puede tratar datos fuera del Espacio Económico Europeo. Cuando " +
                             "ello resulte necesario, se aplicarán las garantías previstas por la " +
                             "normativa de protección de datos, incluidas, en su caso, las " +
@@ -201,7 +198,7 @@ fun PoliticaPrivacidadScreen(
 
                 SeccionPrivacidad("10. Menores") {
                     Text(
-                        "GestPro no está dirigida a un público determinado y no impide su uso " +
+                        "Trazys no está dirigida a un público determinado y no impide su uso " +
                             "por menores por el mero hecho de serlo. No obstante, cuando el " +
                             "tratamiento se base en el consentimiento, en España se considera que " +
                             "un mayor de 14 años puede prestar su consentimiento; para menores de " +

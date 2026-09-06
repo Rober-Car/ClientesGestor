@@ -1,4 +1,4 @@
-package com.roberto.gestorpro.ui.auth
+﻿package com.roberto.gestorpro.ui.auth
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -178,7 +178,7 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = nombreNegocio.ifBlank { "GestorPro" },
+            text = nombreNegocio.ifBlank { "Trazys" },
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface
@@ -354,7 +354,7 @@ fun LoginScreen(
         Spacer(modifier = Modifier.weight(1f))
 
         Text(
-            text = "© 2026 GestorPro",
+            text = "© 2026 Trazys",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,

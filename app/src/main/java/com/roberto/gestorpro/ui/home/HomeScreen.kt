@@ -111,7 +111,7 @@ fun HomeScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = nombreNegocio.ifBlank { "GestorPro" },
+                        text = nombreNegocio.ifBlank { "Trazys" },
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,

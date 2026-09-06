@@ -3,6 +3,7 @@ package com.roberto.gestorpro.cliente.data.firebase
 import com.google.android.gms.tasks.Task
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
@@ -49,6 +50,24 @@ class AutenticacionRepository @Inject constructor(
 
     fun haySesionActiva(): Boolean {
         return auth.currentUser != null
+    }
+
+    /**
+     * reautenticar
+     * ------------
+     * Reautentica al usuario actual con su contraseña antes de operaciones
+     * sensibles (eliminación de cuenta).
+     */
+    suspend fun reautenticar(password: String): Boolean {
+        val usuario = auth.currentUser ?: return false
+        val email = usuario.email ?: return false
+        return try {
+            usuario.reauthenticate(EmailAuthProvider.getCredential(email, password))
+                .esperar()
+            true
+        } catch (e: Exception) {
+            false
+        }
     }
 
     /**

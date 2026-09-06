@@ -104,4 +104,7 @@ object Routes {
 
     /** Destino visual provisional de los términos y condiciones. */
     const val TERMINOS_CONDICIONES = "terminos_condiciones"
+
+    /** Destino de eliminación permanente de la cuenta. */
+    const val ELIMINAR_CUENTA = "eliminar_cuenta"
 }

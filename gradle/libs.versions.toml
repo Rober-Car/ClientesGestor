@@ -46,6 +46,7 @@ androidx-datastore-preferences = { group = "androidx.datastore", name = "datasto
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 firebase-storage = { group = "com.google.firebase", name = "firebase-storage" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
+firebase-functions = { group = "com.google.firebase", name = "firebase-functions" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

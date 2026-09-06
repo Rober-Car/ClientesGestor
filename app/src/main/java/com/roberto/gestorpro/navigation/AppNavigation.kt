@@ -1,4 +1,4 @@
-package com.roberto.gestorpro.navigation
+﻿package com.roberto.gestorpro.navigation
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -39,6 +39,8 @@ import com.roberto.gestorpro.ui.configuracion.DatosScreen
 import com.roberto.gestorpro.ui.configuracion.MiNegocioScreen
 import com.roberto.gestorpro.ui.configuracion.PreferenciasScreen
 import com.roberto.gestorpro.ui.configuracion.PoliticaPrivacidadScreen
+import com.roberto.gestorpro.ui.configuracion.EliminarCuentaScreen
+import com.roberto.gestorpro.ui.configuracion.TerminosDeUsoScreen
 import com.roberto.gestorpro.ui.economia.EconomiaScreen
 import com.roberto.gestorpro.ui.home.HomeScreen
 import com.roberto.gestorpro.ui.notificaciones.ConfigNotificacionesScreen
@@ -208,6 +210,14 @@ fun AppNavigation() {
 
         composable(Routes.POLITICA_PRIVACIDAD) {
             PoliticaPrivacidadScreen(navController)
+        }
+
+        composable(Routes.ELIMINAR_CUENTA) {
+            EliminarCuentaScreen(navController)
+        }
+
+        composable(Routes.TERMINOS_CONDICIONES) {
+            TerminosDeUsoScreen(navController)
         }
 
         composable(Routes.CLASES) {
@@ -408,7 +418,7 @@ private fun DialogoPropietarioIndeterminado(
         text = {
             Text(
                 text = "Esta instalación contiene datos locales que no pueden " +
-                    "atribuirse con seguridad a ninguna cuenta. GestorPro Admin guarda " +
+                    "atribuirse con seguridad a ninguna cuenta. Trazys Admin guarda " +
                     "en este dispositivo los datos de UN solo negocio.\n\n" +
                     if (pendientes.hayAlgo()) {
                         "Además hay ${pendientes.total} operaciones pendientes de " +

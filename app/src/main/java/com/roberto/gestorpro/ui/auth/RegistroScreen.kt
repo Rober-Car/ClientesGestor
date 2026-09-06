@@ -1,4 +1,4 @@
-package com.roberto.gestorpro.ui.auth
+﻿package com.roberto.gestorpro.ui.auth
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -314,7 +314,7 @@ fun RegistroScreen(
         Spacer(modifier = Modifier.weight(1f))
 
         Text(
-            text = "© 2026 GestorPro",
+            text = "© 2026 Trazys",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 24.dp)

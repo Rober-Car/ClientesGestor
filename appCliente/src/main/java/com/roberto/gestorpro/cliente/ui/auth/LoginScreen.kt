@@ -1,4 +1,4 @@
-package com.roberto.gestorpro.cliente.ui.auth
+﻿package com.roberto.gestorpro.cliente.ui.auth
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -96,7 +96,7 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(100.dp))
 
         Text(
-            text = "GestorPro Cliente",
+            text = "Trazys Cliente",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface

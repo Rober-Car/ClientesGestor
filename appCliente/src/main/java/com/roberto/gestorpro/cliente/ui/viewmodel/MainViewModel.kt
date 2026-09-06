@@ -17,6 +17,7 @@ import com.roberto.gestorpro.cliente.data.firebase.PerfilPendienteRepository
 import com.roberto.gestorpro.cliente.data.firebase.SolicitudRepository
 import com.roberto.gestorpro.cliente.data.firebase.VinculacionRepository
 import com.roberto.gestorpro.cliente.data.firebase.esperar
+import com.google.firebase.functions.FirebaseFunctions
 import com.roberto.gestorpro.cliente.data.repository.PreferencesRepository
 import com.google.firebase.storage.FirebaseStorage
 import com.roberto.gestorpro.cliente.model.Cliente
@@ -249,6 +250,69 @@ class MainViewModel @Inject constructor(
     fun cerrarSesion() {
         viewModelScope.launch {
             autenticacionRepository.cerrarSesion()
+        }
+    }
+
+    /**
+     * eliminandoCuenta
+     * ----------------
+     * Evita que una doble pulsación lance dos eliminaciones simultáneas.
+     */
+    private val _eliminandoCuenta = MutableStateFlow(false)
+    val eliminandoCuenta: StateFlow<Boolean> = _eliminandoCuenta.asStateFlow()
+
+    /**
+     * eliminarMiCuenta
+     * ----------------
+     * Elimina COMPLETAMENTE la cuenta CLIENTE (Firebase Auth, usuarios/{uid},
+     * ficha y datos asociados) llamando a la Cloud Function callable
+     * `eliminarMiCuenta` (Admin SDK). Requiere reautenticación. Al terminar
+     * cierra la sesión local.
+     */
+    fun eliminarMiCuenta(contrasena: String, onTerminado: (String?) -> Unit) {
+        if (_eliminandoCuenta.value) return
+        _eliminandoCuenta.value = true
+        viewModelScope.launch {
+            try {
+                if (!autenticacionRepository.reautenticar(contrasena)) {
+                    onTerminado("La contraseña no es correcta")
+                    return@launch
+                }
+                FirebaseFunctions.getInstance("europe-west1")
+                    .getHttpsCallable("eliminarMiCuenta")
+                    .call(null)
+                    .esperar()
+                // signOut síncrono dentro de la misma corrutina (sin wrapper
+                // que lance otra corrutina y devuelva de inmediato).
+                autenticacionRepository.cerrarSesion()
+                onTerminado(null)
+            } catch (e: Exception) {
+                onTerminado("No se pudo eliminar la cuenta: ${e.message ?: "error desconocido"}")
+            } finally {
+                _eliminandoCuenta.value = false
+            }
+        }
+    }
+
+    /**
+     * terminosAceptados
+     * -----------------
+     * ¿El CLIENTE actual aceptó la versión vigente de los Términos de uso?
+     */
+    suspend fun terminosAceptados(): Boolean {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return false
+        return preferencesRepository.terminosAceptados(uid)
+    }
+
+    /**
+     * aceptarTerminos
+     * ---------------
+     * Registra la aceptación de la versión vigente para el CLIENTE actual.
+     */
+    fun aceptarTerminos() {
+        viewModelScope.launch {
+            val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return@launch
+            preferencesRepository.guardarAceptacionTerminos(uid)
         }
     }
 

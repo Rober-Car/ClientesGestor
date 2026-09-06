@@ -265,4 +265,18 @@ object Routes {
      */
     const val POLITICA_PRIVACIDAD = "politica_privacidad"
 
+    /**
+     * TERMINOS_CONDICIONES
+     * --------------------
+     * Ruta de los términos y condiciones de uso de Trazys (app Admin).
+     */
+    const val TERMINOS_CONDICIONES = "terminos_condiciones"
+
+    /**
+     * ELIMINAR_CUENTA
+     * ---------------
+     * Ruta de la eliminación permanente de la cuenta y del negocio (app Admin).
+     */
+    const val ELIMINAR_CUENTA = "eliminar_cuenta"
+
 }

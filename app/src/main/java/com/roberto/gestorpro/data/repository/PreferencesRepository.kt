@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.roberto.gestorpro.model.TipoUsuario
+import com.roberto.gestorpro.util.TerminosDeUso
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -15,6 +16,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "preferencias")
+
+private val TERMINOS_UID_KEY = stringPreferencesKey(TerminosDeUso.CLAVE_TERMINOS_UID)
+private val TERMINOS_VERSION_KEY = stringPreferencesKey(TerminosDeUso.CLAVE_TERMINOS_VERSION)
+private val TERMINOS_FECHA_KEY = stringPreferencesKey(TerminosDeUso.CLAVE_TERMINOS_FECHA)
 
 @Singleton
 class PreferencesRepository @Inject constructor(
@@ -272,6 +277,33 @@ class PreferencesRepository @Inject constructor(
     suspend fun setLogoNegocio(ruta: String) {
         context.dataStore.edit { preferences ->
             preferences[LOGO_NEGOCIO_KEY] = ruta
+        }
+    }
+
+    /**
+     * terminosAceptados
+     * -----------------
+     * ¿El usuario indicado aceptó la versión VIGENTE de los Términos de uso?
+     */
+    suspend fun terminosAceptados(uid: String): Boolean {
+        val prefs = context.dataStore.data.first()
+        return TerminosDeUso.aceptado(
+            uidGuardado = prefs[TERMINOS_UID_KEY],
+            versionGuardada = prefs[TERMINOS_VERSION_KEY],
+            uidActual = uid
+        )
+    }
+
+    /**
+     * guardarAceptacionTerminos
+     * -------------------------
+     * Persiste la aceptación (uid + versión vigente + fecha) en DataStore.
+     */
+    suspend fun guardarAceptacionTerminos(uid: String) {
+        context.dataStore.edit { prefs ->
+            prefs[TERMINOS_UID_KEY] = uid
+            prefs[TERMINOS_VERSION_KEY] = TerminosDeUso.VERSION
+            prefs[TERMINOS_FECHA_KEY] = System.currentTimeMillis().toString()
         }
     }
 

@@ -1,4 +1,4 @@
-package com.roberto.gestorpro.cliente.ui.home
+﻿package com.roberto.gestorpro.cliente.ui.home
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -132,7 +132,7 @@ fun HomeScreen(
                     }
                 } else {
                     Text(
-                        text = "GestorPro Cliente",
+                        text = "Trazys Cliente",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold
                     )

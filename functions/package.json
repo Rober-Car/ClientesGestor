@@ -5,7 +5,7 @@
   "description": "Cloud Functions de GestorPro (backend de notificaciones push, programadas, morosidad y baja confirmada).",
   "main": "index.js",
   "engines": {
-    "node": "18"
+    "node": "20"
   },
   "dependencies": {
     "firebase-admin": "^12.1.0",

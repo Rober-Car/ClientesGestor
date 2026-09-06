@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AccountBox
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
@@ -218,6 +219,50 @@ fun ConfiguracionScreen(
                     icono = Icons.Default.Info,
                     colorAcento = Color(0xFF00838F),
                     onClick = { navController.navigate(Routes.POLITICA_PRIVACIDAD) }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                AjusteAdminItem(
+                    titulo = "Términos y condiciones",
+                    descripcion = "Condiciones de uso de la aplicación",
+                    icono = Icons.Default.Info,
+                    colorAcento = Color(0xFF546E7A),
+                    onClick = { navController.navigate(Routes.TERMINOS_CONDICIONES) }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                AjusteAdminItem(
+                    titulo = "Eliminar cuenta y negocio",
+                    descripcion = "Borra permanentemente tu cuenta, tu negocio y sus datos",
+                    icono = Icons.Default.Delete,
+                    colorAcento = MaterialTheme.colorScheme.error,
+                    onClick = { navController.navigate(Routes.ELIMINAR_CUENTA) }
                 )
             }
 

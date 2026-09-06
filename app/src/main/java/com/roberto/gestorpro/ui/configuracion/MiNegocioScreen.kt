@@ -276,7 +276,7 @@ fun MiNegocioScreen(
                 value = nombre,
                 onValueChange = { nombre = it },
                 label = { Text("Nombre del negocio") },
-                placeholder = { Text("GestorPro") },
+                placeholder = { Text("Trazys") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )

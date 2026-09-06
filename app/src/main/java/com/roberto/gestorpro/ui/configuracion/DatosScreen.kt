@@ -179,7 +179,7 @@ fun DatosScreen(
                 titulo = "Exportar datos",
                 descripcion = "Guardar una copia completa de tu negocio",
                 icono = Icons.Default.CloudUpload,
-                onClick = { exportarLauncher.launch("gestorpro_backup.zip") }
+                onClick = { exportarLauncher.launch("trazys_backup.zip") }
             )
 
             DatosItem(
